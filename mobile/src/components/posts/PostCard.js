@@ -1,6 +1,7 @@
+// components/posts/PostCard.js - Updated with Enhanced Hashtags
 /**
- * PostCard - Beautiful, interactive post component for IAP Connect
- * Features: Like/comment/share, image gallery, hashtags, user interactions
+ * PostCard - Beautiful, interactive post component with enhanced hashtags
+ * Features: Clickable hashtags, trending indicators, improved UI
  */
 
 import React, { useState, useCallback, memo } from 'react';
@@ -18,6 +19,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import Avatar from '../common/Avatar';
+import HashtagText from '../common/HashtagText';
 
 const { width: screenWidth } = Dimensions.get('window');
 const POST_IMAGE_HEIGHT = screenWidth * 0.6;
@@ -48,6 +50,7 @@ const PostCard = memo(({
   onShare, 
   onUserPress, 
   onPostPress,
+  onHashtagPress,
   currentUserId 
 }) => {
   const [liked, setLiked] = useState(post.is_liked || false);
@@ -112,7 +115,7 @@ const PostCard = memo(({
     try {
       const shareContent = {
         message: `Check out this post by ${post.author.full_name}:\n\n${post.content.substring(0, 100)}${post.content.length > 100 ? '...' : ''}\n\nShared via IAP Connect`,
-        url: `https://iapconnect.com/posts/${post.id}`, // Replace with actual URL
+        url: `https://iapconnect.com/posts/${post.id}`,
       };
 
       await Share.share(shareContent);
@@ -139,25 +142,13 @@ const PostCard = memo(({
     }
   }, [onPostPress, post.id]);
 
-  // Render hashtags
-  const renderHashtags = useCallback((content) => {
-    if (!content) return <Text style={styles.content}>{content}</Text>;
-
-    const parts = content.split(/(#[\w]+)/g);
-    return (
-      <Text style={styles.content}>
-        {parts.map((part, index) => (
-          part.startsWith('#') ? (
-            <Text key={index} style={styles.hashtag}>
-              {part}
-            </Text>
-          ) : (
-            <Text key={index}>{part}</Text>
-          )
-        ))}
-      </Text>
-    );
-  }, []);
+  // Handle hashtag press
+  const handleHashtagPress = useCallback((hashtag) => {
+    console.log(`🏷️ Hashtag clicked in post: ${hashtag}`);
+    if (onHashtagPress) {
+      onHashtagPress(hashtag, post.id);
+    }
+  }, [onHashtagPress, post.id]);
 
   // Render images
   const renderImages = () => {
@@ -264,11 +255,50 @@ const PostCard = memo(({
     if (user_type === 'student') {
       return college || 'Medical Student';
     }
+    if (user_type === 'admin') {
+      return 'System Administrator';
+    }
     return 'Medical Professional';
   };
 
+  // Render hashtags section
+  const renderHashtags = () => {
+    if (!post.hashtags || post.hashtags.length === 0) return null;
+
+    return (
+      <View style={styles.hashtagsContainer}>
+        {post.hashtags.slice(0, 5).map((hashtag, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.hashtagChip}
+            onPress={() => handleHashtagPress(hashtag)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.hashtagChipText}>{hashtag}</Text>
+          </TouchableOpacity>
+        ))}
+        {post.hashtags.length > 5 && (
+          <View style={styles.moreHashtagsChip}>
+            <Text style={styles.moreHashtagsText}>+{post.hashtags.length - 5}</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // Check if post is trending
+  const isTrending = post.is_trending || post.likes_count > 10 || post.comments_count > 5;
+
   return (
     <View style={styles.card}>
+      {/* Trending Indicator */}
+      {isTrending && (
+        <View style={styles.trendingIndicator}>
+          <Icon name="trending-up" size={14} color={colors.accent} />
+          <Text style={styles.trendingText}>Trending</Text>
+        </View>
+      )}
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
@@ -298,14 +328,21 @@ const PostCard = memo(({
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
+      {/* Content with Enhanced Hashtags */}
       <TouchableOpacity 
         style={styles.contentContainer}
         onPress={handlePostPress}
         activeOpacity={0.95}
       >
-        {renderHashtags(post.content)}
+        <HashtagText 
+          content={post.content}
+          style={styles.content}
+          onHashtagPress={handleHashtagPress}
+        />
       </TouchableOpacity>
+
+      {/* Hashtag Chips */}
+      {renderHashtags()}
 
       {/* Images */}
       {renderImages()}
@@ -329,7 +366,7 @@ const PostCard = memo(({
         >
           <Animated.View style={{ transform: [{ scale: likeAnimation }] }}>
             <Icon 
-              name={liked ? "heart" : "heart"} 
+              name="heart" 
               size={20} 
               color={liked ? colors.danger : colors.gray600}
               fill={liked ? colors.danger : 'none'}
@@ -382,6 +419,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  trendingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    borderRadius: 16,
+    zIndex: 1,
+  },
+  trendingText: {
+    fontSize: 12,
+    color: colors.white,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   header: {
     flexDirection: 'row',
@@ -435,8 +492,36 @@ const styles = StyleSheet.create({
     color: colors.gray800,
     lineHeight: 22,
   },
-  hashtag: {
-    color: colors.primary,
+  hashtagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  hashtagChip: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  hashtagChipText: {
+    fontSize: 12,
+    color: colors.white,
+    fontWeight: '600',
+  },
+  moreHashtagsChip: {
+    backgroundColor: colors.gray300,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  moreHashtagsText: {
+    fontSize: 12,
+    color: colors.gray600,
     fontWeight: '600',
   },
   singleImageContainer: {

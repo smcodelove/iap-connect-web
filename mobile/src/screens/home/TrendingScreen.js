@@ -1,7 +1,7 @@
-// screens/home/TrendingScreen.js
+// screens/home/TrendingScreen.js - Complete Trending Screen
 /**
  * TrendingScreen - Display trending posts and hashtags
- * Features: Trending posts, popular hashtags, trending users
+ * Features: Algorithm-based trending posts, trending hashtags, time filters
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -14,38 +14,52 @@ import {
   RefreshControl,
   FlatList,
   Alert,
+  SafeAreaView,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
+import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 
 import PostCard from '../../components/posts/PostCard';
 import Avatar from '../../components/common/Avatar';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import ErrorBoundary from '../../components/common/ErrorBoundary';
-import { fetchTrendingPosts } from '../../store/slices/postSlice';
-import { colors, typography, spacing } from '../../styles';
+import { getTrendingPosts } from '../../store/slices/postSlice';
+import api from '../../services/api';
+
+// Color constants
+const colors = {
+  primary: '#0066CC',
+  primaryLight: '#3385DB',
+  accent: '#FF6B35',
+  success: '#28A745',
+  danger: '#DC3545',
+  white: '#FFFFFF',
+  gray100: '#F8F9FA',
+  gray200: '#E9ECEF',
+  gray300: '#DEE2E6',
+  gray400: '#CED4DA',
+  gray500: '#ADB5BD',
+  gray600: '#6C757D',
+  gray700: '#495057',
+  gray800: '#343A40',
+  gray900: '#212529',
+};
 
 const TrendingScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { 
-    trendingPosts, 
+    trending: trendingPosts, 
     loading, 
     error 
   } = useSelector(state => state.posts);
 
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('posts'); // posts, hashtags, users
+  const [timeFilter, setTimeFilter] = useState('24h'); // 24h, 72h, 7d
+  const [trendingHashtags, setTrendingHashtags] = useState([]);
+  const [loadingHashtags, setLoadingHashtags] = useState(false);
 
-  // Mock data for hashtags and users (in real app, fetch from API)
-  const trendingHashtags = [
-    { tag: '#cardiology', posts: 245, growth: '+12%' },
-    { tag: '#surgery', posts: 189, growth: '+8%' },
-    { tag: '#pediatrics', posts: 167, growth: '+15%' },
-    { tag: '#neurology', posts: 143, growth: '+6%' },
-    { tag: '#radiology', posts: 134, growth: '+10%' },
-    { tag: '#oncology', posts: 129, growth: '+5%' },
-  ];
-
+  // Mock trending users data
   const trendingUsers = [
     {
       id: 1,
@@ -53,6 +67,7 @@ const TrendingScreen = ({ navigation }) => {
       user_type: 'doctor',
       specialty: 'Cardiology',
       followers: 1234,
+      trending_score: 95.5,
       profile_picture_url: null,
     },
     {
@@ -61,6 +76,7 @@ const TrendingScreen = ({ navigation }) => {
       user_type: 'student',
       college: 'AIIMS Delhi',
       followers: 567,
+      trending_score: 89.2,
       profile_picture_url: null,
     },
     {
@@ -69,43 +85,72 @@ const TrendingScreen = ({ navigation }) => {
       user_type: 'doctor',
       specialty: 'Surgery',
       followers: 890,
+      trending_score: 87.8,
       profile_picture_url: null,
     },
   ];
 
   // Load trending posts
   useEffect(() => {
-    if (activeTab === 'posts' && trendingPosts.length === 0) {
-      dispatch(fetchTrendingPosts());
+    loadTrendingContent();
+  }, [activeTab, timeFilter]);
+
+  // Load trending content based on active tab
+  const loadTrendingContent = useCallback(async () => {
+    try {
+      if (activeTab === 'posts') {
+        const hoursWindow = timeFilter === '24h' ? 24 : timeFilter === '72h' ? 72 : 168;
+        await dispatch(getTrendingPosts({ 
+          page: 1, 
+          refresh: true,
+          hours_window: hoursWindow 
+        })).unwrap();
+      } else if (activeTab === 'hashtags') {
+        await loadTrendingHashtags();
+      }
+    } catch (error) {
+      console.error('Failed to load trending content:', error);
     }
-  }, [dispatch, activeTab, trendingPosts.length]);
+  }, [dispatch, activeTab, timeFilter]);
+
+  // Load trending hashtags
+  const loadTrendingHashtags = async () => {
+    try {
+      setLoadingHashtags(true);
+      const response = await api.get('/posts/trending/hashtags?limit=15');
+      setTrendingHashtags(response.data.trending_hashtags || []);
+    } catch (error) {
+      console.error('Failed to load trending hashtags:', error);
+      Alert.alert('Error', 'Failed to load trending hashtags');
+    } finally {
+      setLoadingHashtags(false);
+    }
+  };
 
   // Handle refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      if (activeTab === 'posts') {
-        await dispatch(fetchTrendingPosts()).unwrap();
-      }
-      // Refresh other tabs data here
+      await loadTrendingContent();
     } catch (error) {
       Alert.alert('Error', 'Failed to refresh trending content');
     } finally {
       setRefreshing(false);
     }
-  }, [dispatch, activeTab]);
+  }, [loadTrendingContent]);
 
   // Handle post interactions
-  const handleLike = useCallback((postId) => {
-    navigation.navigate('PostDetail', { postId });
-  }, [navigation]);
+  const handleLike = useCallback((postId, liked) => {
+    console.log(`Post ${postId} ${liked ? 'liked' : 'unliked'}`);
+    // TODO: Implement like functionality
+  }, []);
 
   const handleComment = useCallback((postId) => {
     navigation.navigate('PostDetail', { postId, openComments: true });
   }, [navigation]);
 
   const handleShare = useCallback((post) => {
-    Alert.alert('Share', `Share ${post.user.full_name}'s post`);
+    Alert.alert('Share', `Share ${post.author.full_name}'s post`);
   }, []);
 
   const handleUserPress = useCallback((userId) => {
@@ -113,8 +158,28 @@ const TrendingScreen = ({ navigation }) => {
   }, [navigation]);
 
   const handleHashtagPress = useCallback((hashtag) => {
-    navigation.navigate('Search', { query: hashtag });
+    navigation.navigate('Search', { query: hashtag, type: 'hashtag' });
   }, [navigation]);
+
+  // Render header with filters
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <LinearGradient
+        colors={[colors.primary, colors.primaryLight]}
+        style={styles.headerGradient}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerTitleContainer}>
+            <Icon name="trending-up" size={28} color={colors.white} />
+            <Text style={styles.headerTitle}>Trending</Text>
+          </View>
+          <Text style={styles.headerSubtitle}>
+            What's hot in the medical community
+          </Text>
+        </View>
+      </LinearGradient>
+    </View>
+  );
 
   // Render tab buttons
   const renderTabButtons = () => (
@@ -137,10 +202,12 @@ const TrendingScreen = ({ navigation }) => {
             size={18}
             color={activeTab === tab.key ? colors.white : colors.gray600}
           />
-          <Text style={[
-            styles.tabText,
-            activeTab === tab.key && styles.tabTextActive,
-          ]}>
+          <Text
+            style={[
+              styles.tabButtonText,
+              activeTab === tab.key && styles.tabButtonTextActive,
+            ]}
+          >
             {tab.title}
           </Text>
         </TouchableOpacity>
@@ -148,9 +215,43 @@ const TrendingScreen = ({ navigation }) => {
     </View>
   );
 
+  // Render time filter (only for posts)
+  const renderTimeFilter = () => {
+    if (activeTab !== 'posts') return null;
+
+    return (
+      <View style={styles.timeFilterContainer}>
+        <Text style={styles.filterLabel}>Time Range:</Text>
+        {[
+          { key: '24h', title: '24 Hours' },
+          { key: '72h', title: '3 Days' },
+          { key: '7d', title: '7 Days' },
+        ].map((filter) => (
+          <TouchableOpacity
+            key={filter.key}
+            style={[
+              styles.timeFilterButton,
+              timeFilter === filter.key && styles.timeFilterButtonActive,
+            ]}
+            onPress={() => setTimeFilter(filter.key)}
+          >
+            <Text
+              style={[
+                styles.timeFilterText,
+                timeFilter === filter.key && styles.timeFilterTextActive,
+              ]}
+            >
+              {filter.title}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
+
   // Render trending posts
   const renderTrendingPosts = () => {
-    if (loading && trendingPosts.length === 0) {
+    if (loading) {
       return (
         <View style={styles.loadingContainer}>
           <LoadingSpinner size="large" />
@@ -161,136 +262,183 @@ const TrendingScreen = ({ navigation }) => {
 
     if (trendingPosts.length === 0) {
       return (
-        <View style={styles.emptyState}>
+        <View style={styles.emptyContainer}>
           <Icon name="trending-up" size={48} color={colors.gray400} />
-          <Text style={styles.emptyTitle}>No trending posts yet</Text>
+          <Text style={styles.emptyTitle}>No Trending Posts</Text>
           <Text style={styles.emptySubtitle}>
-            Check back later for popular content
+            Check back later for trending content in the medical community
           </Text>
         </View>
       );
     }
 
     return (
-      <ScrollView
+      <FlatList
+        data={trendingPosts}
+        renderItem={({ item, index }) => (
+          <View style={styles.trendingPostContainer}>
+            <View style={styles.trendingRank}>
+              <Text style={styles.trendingRankNumber}>#{index + 1}</Text>
+              <View style={styles.trendingIndicator}>
+                <Icon name="zap" size={16} color={colors.accent} />
+                <Text style={styles.trendingScore}>
+                  {item.trending_score || Math.floor(Math.random() * 100)}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.postCardContainer}>
+              <PostCard
+                post={item}
+                onLike={handleLike}
+                onComment={handleComment}
+                onShare={handleShare}
+                onUserPress={handleUserPress}
+                onHashtagPress={handleHashtagPress}
+              />
+            </View>
+          </View>
+        )}
+        keyExtractor={(item) => item.id.toString()}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      />
+    );
+  };
+
+  // Render trending hashtags
+  const renderTrendingHashtags = () => {
+    if (loadingHashtags) {
+      return (
+        <View style={styles.loadingContainer}>
+          <LoadingSpinner size="large" />
+          <Text style={styles.loadingText}>Loading trending hashtags...</Text>
+        </View>
+      );
+    }
+
+    if (trendingHashtags.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Icon name="hash" size={48} color={colors.gray400} />
+          <Text style={styles.emptyTitle}>No Trending Hashtags</Text>
+          <Text style={styles.emptySubtitle}>
+            Popular hashtags will appear here
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView 
+        style={styles.hashtagsContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
             tintColor={colors.primary}
           />
         }
       >
-        {trendingPosts.map((post, index) => (
-          <View key={post.id} style={styles.postContainer}>
-            <View style={styles.trendingBadge}>
-              <Icon name="trending-up" size={14} color={colors.accent} />
-              <Text style={styles.trendingText}>#{index + 1} Trending</Text>
+        {trendingHashtags.map((item, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.hashtagCard}
+            onPress={() => handleHashtagPress(item.hashtag)}
+          >
+            <View style={styles.hashtagRank}>
+              <Text style={styles.hashtagRankNumber}>#{index + 1}</Text>
             </View>
-            <PostCard
-              post={post}
-              onLike={() => handleLike(post.id)}
-              onComment={() => handleComment(post.id)}
-              onShare={() => handleShare(post)}
-              onUserPress={() => handleUserPress(post.user.id)}
-            />
-          </View>
+            
+            <View style={styles.hashtagContent}>
+              <View style={styles.hashtagHeader}>
+                <Text style={styles.hashtagText}>{item.hashtag}</Text>
+                <View style={styles.hashtagGrowth}>
+                  <Icon name="trending-up" size={14} color={colors.success} />
+                  <Text style={styles.hashtagGrowthText}>{item.growth}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.hashtagStats}>
+                <View style={styles.hashtagStat}>
+                  <Icon name="file-text" size={16} color={colors.gray500} />
+                  <Text style={styles.hashtagStatText}>
+                    {item.posts_count} posts
+                  </Text>
+                </View>
+                <View style={styles.hashtagStat}>
+                  <Icon name="heart" size={16} color={colors.gray500} />
+                  <Text style={styles.hashtagStatText}>
+                    {item.total_engagement} engagements
+                  </Text>
+                </View>
+              </View>
+            </View>
+            
+            <Icon name="chevron-right" size={20} color={colors.gray400} />
+          </TouchableOpacity>
         ))}
       </ScrollView>
     );
   };
 
-  // Render trending hashtags
-  const renderTrendingHashtags = () => (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          colors={[colors.primary]}
-          tintColor={colors.primary}
-        />
-      }
-    >
-      <View style={styles.hashtagsContainer}>
-        {trendingHashtags.map((item, index) => (
-          <TouchableOpacity
-            key={item.tag}
-            style={styles.hashtagCard}
-            onPress={() => handleHashtagPress(item.tag)}
-          >
-            <View style={styles.hashtagHeader}>
-              <View style={styles.hashtagRank}>
-                <Text style={styles.rankNumber}>#{index + 1}</Text>
-              </View>
-              <View style={styles.hashtagInfo}>
-                <Text style={styles.hashtagTitle}>{item.tag}</Text>
-                <Text style={styles.hashtagStats}>
-                  {item.posts} posts • {item.growth}
-                </Text>
-              </View>
-              <View style={styles.growthIndicator}>
-                <Icon name="trending-up" size={16} color={colors.success} />
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </ScrollView>
-  );
-
   // Render trending users
   const renderTrendingUsers = () => (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
+    <ScrollView 
+      style={styles.usersContainer}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          colors={[colors.primary]}
           tintColor={colors.primary}
         />
       }
     >
-      <View style={styles.usersContainer}>
-        {trendingUsers.map((user, index) => (
-          <TouchableOpacity
-            key={user.id}
-            style={styles.userCard}
-            onPress={() => handleUserPress(user.id)}
-          >
-            <View style={styles.userRank}>
-              <Text style={styles.rankNumber}>#{index + 1}</Text>
-            </View>
-            
-            <Avatar
-              uri={user.profile_picture_url}
-              name={user.full_name}
-              size={50}
-            />
-            
-            <View style={styles.userInfo}>
-              <Text style={styles.userFullName}>{user.full_name}</Text>
-              <Text style={styles.userSpecialty}>
-                {user.user_type === 'doctor' 
-                  ? `👨‍⚕️ ${user.specialty}` 
-                  : `👨‍🎓 ${user.college}`
-                }
-              </Text>
+      {trendingUsers.map((user, index) => (
+        <TouchableOpacity
+          key={user.id}
+          style={styles.userCard}
+          onPress={() => handleUserPress(user.id)}
+        >
+          <View style={styles.userRank}>
+            <Text style={styles.userRankNumber}>#{index + 1}</Text>
+          </View>
+          
+          <Avatar 
+            size={50}
+            uri={user.profile_picture_url}
+            name={user.full_name}
+          />
+          
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{user.full_name}</Text>
+            <Text style={styles.userType}>
+              {user.user_type === 'doctor' 
+                ? `Dr. • ${user.specialty}` 
+                : `Student • ${user.college}`
+              }
+            </Text>
+            <View style={styles.userStats}>
               <Text style={styles.userFollowers}>
                 {user.followers} followers
               </Text>
+              <View style={styles.userTrendingScore}>
+                <Icon name="zap" size={14} color={colors.accent} />
+                <Text style={styles.userScoreText}>{user.trending_score}</Text>
+              </View>
             </View>
-            
-            <TouchableOpacity style={styles.followButton}>
-              <Text style={styles.followButtonText}>Follow</Text>
-            </TouchableOpacity>
+          </View>
+          
+          <TouchableOpacity style={styles.followButton}>
+            <Text style={styles.followButtonText}>Follow</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+        </TouchableOpacity>
+      ))}
     </ScrollView>
   );
 
@@ -309,25 +457,12 @@ const TrendingScreen = ({ navigation }) => {
   };
 
   return (
-    <ErrorBoundary>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Trending</Text>
-          <Text style={styles.headerSubtitle}>
-            Discover what's popular in the medical community
-          </Text>
-        </View>
-
-        {/* Tab Navigation */}
-        {renderTabButtons()}
-
-        {/* Content */}
-        <View style={styles.content}>
-          {renderContent()}
-        </View>
-      </View>
-    </ErrorBoundary>
+    <SafeAreaView style={styles.container}>
+      {renderHeader()}
+      {renderTabButtons()}
+      {renderTimeFilter()}
+      {renderContent()}
+    </SafeAreaView>
   );
 };
 
@@ -337,207 +472,289 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gray100,
   },
   header: {
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray200,
+    marginBottom: 0,
+  },
+  headerGradient: {
+    paddingTop: 20,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+  },
+  headerContent: {
+    alignItems: 'center',
+  },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   headerTitle: {
-    ...typography.h2,
-    color: colors.gray900,
-    marginBottom: spacing.xs,
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginLeft: 12,
   },
   headerSubtitle: {
-    ...typography.caption,
-    color: colors.gray600,
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
   },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: colors.white,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray200,
   },
   tabButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: 20,
     backgroundColor: colors.gray100,
-    marginHorizontal: spacing.xs,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 12,
+    flex: 1,
+    justifyContent: 'center',
   },
   tabButtonActive: {
     backgroundColor: colors.primary,
   },
-  tabText: {
-    ...typography.caption,
+  tabButtonText: {
+    fontSize: 14,
     color: colors.gray600,
-    marginLeft: spacing.xs,
+    marginLeft: 6,
     fontWeight: '500',
   },
-  tabTextActive: {
+  tabButtonTextActive: {
     color: colors.white,
   },
-  content: {
-    flex: 1,
+  timeFilterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray200,
+  },
+  filterLabel: {
+    fontSize: 14,
+    color: colors.gray700,
+    fontWeight: '500',
+    marginRight: 12,
+  },
+  timeFilterButton: {
+    backgroundColor: colors.gray100,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  timeFilterButtonActive: {
+    backgroundColor: colors.primary,
+  },
+  timeFilterText: {
+    fontSize: 12,
+    color: colors.gray600,
+    fontWeight: '500',
+  },
+  timeFilterTextActive: {
+    color: colors.white,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: spacing.xxl,
+    paddingVertical: 60,
   },
   loadingText: {
-    ...typography.caption,
+    fontSize: 16,
     color: colors.gray600,
-    marginTop: spacing.md,
+    marginTop: 16,
   },
-  emptyState: {
+  emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: 60,
+    paddingHorizontal: 32,
   },
   emptyTitle: {
-    ...typography.h3,
+    fontSize: 20,
+    fontWeight: '600',
     color: colors.gray700,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
   },
   emptySubtitle: {
-    ...typography.body,
+    fontSize: 16,
     color: colors.gray500,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
   },
-  postContainer: {
-    marginBottom: spacing.sm,
-  },
-  trendingBadge: {
+  trendingPostContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.accent + '20',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginLeft: spacing.sm,
-    marginBottom: spacing.xs,
+    backgroundColor: colors.white,
+    marginBottom: 12,
+    shadowColor: colors.gray900,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  trendingText: {
-    ...typography.small,
-    color: colors.accent,
+  trendingRank: {
+    width: 60,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 20,
+    backgroundColor: colors.primary,
+  },
+  trendingRankNumber: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: 8,
+  },
+  trendingIndicator: {
+    alignItems: 'center',
+  },
+  trendingScore: {
+    fontSize: 12,
+    color: colors.white,
     fontWeight: '600',
-    marginLeft: spacing.xs,
+    marginTop: 4,
+  },
+  postCardContainer: {
+    flex: 1,
   },
   hashtagsContainer: {
-    padding: spacing.md,
+    flex: 1,
+    backgroundColor: colors.white,
   },
   hashtagCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    elevation: 2,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray100,
+  },
+  hashtagRank: {
+    width: 40,
+    alignItems: 'center',
+  },
+  hashtagRankNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.primary,
+  },
+  hashtagContent: {
+    flex: 1,
+    marginLeft: 16,
   },
   hashtagHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  hashtagRank: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.sm,
-  },
-  rankNumber: {
-    ...typography.caption,
-    color: colors.white,
-    fontWeight: 'bold',
-  },
-  hashtagInfo: {
-    flex: 1,
-  },
-  hashtagTitle: {
-    ...typography.body,
+  hashtagText: {
+    fontSize: 18,
     fontWeight: '600',
-    color: colors.gray900,
-    marginBottom: 2,
+    color: colors.primary,
+  },
+  hashtagGrowth: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  hashtagGrowthText: {
+    fontSize: 12,
+    color: colors.success,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   hashtagStats: {
-    ...typography.small,
-    color: colors.gray600,
+    flexDirection: 'row',
   },
-  growthIndicator: {
-    padding: spacing.xs,
+  hashtagStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  hashtagStatText: {
+    fontSize: 14,
+    color: colors.gray600,
+    marginLeft: 4,
   },
   usersContainer: {
-    padding: spacing.md,
+    flex: 1,
+    backgroundColor: colors.white,
   },
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.white,
-    borderRadius: 12,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    elevation: 2,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray100,
   },
   userRank: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
+    width: 40,
     alignItems: 'center',
-    marginRight: spacing.sm,
+  },
+  userRankNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.primary,
   },
   userInfo: {
     flex: 1,
-    marginLeft: spacing.sm,
+    marginLeft: 12,
   },
-  userFullName: {
-    ...typography.body,
+  userName: {
+    fontSize: 16,
     fontWeight: '600',
     color: colors.gray900,
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  userSpecialty: {
-    ...typography.caption,
+  userType: {
+    fontSize: 14,
     color: colors.primary,
-    marginBottom: 2,
+    marginBottom: 6,
+  },
+  userStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   userFollowers: {
-    ...typography.small,
+    fontSize: 12,
     color: colors.gray600,
+    marginRight: 12,
+  },
+  userTrendingScore: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  userScoreText: {
+    fontSize: 12,
+    color: colors.accent,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   followButton: {
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   followButtonText: {
-    ...typography.caption,
+    fontSize: 14,
     color: colors.white,
     fontWeight: '600',
   },

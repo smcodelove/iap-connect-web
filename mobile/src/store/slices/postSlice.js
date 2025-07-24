@@ -1,6 +1,6 @@
-// store/slices/postSlice.js - Enhanced Post Redux slice with Like/Unlike functionality
+// store/slices/postSlice.js - Enhanced Post Redux slice with Trending functionality
 /**
- * Enhanced Post Redux slice with Like/Unlike functionality
+ * Enhanced Post Redux slice with Trending functionality
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
@@ -43,9 +43,9 @@ export const getFeed = createAsyncThunk(
 
 export const getTrendingPosts = createAsyncThunk(
   'posts/getTrendingPosts',
-  async ({ page = 1, refresh = false }, { rejectWithValue }) => {
+  async ({ page = 1, refresh = false, hours_window = 72 }, { rejectWithValue }) => {
     try {
-      const response = await postService.getTrendingPosts(page);
+      const response = await postService.getTrendingPosts(page, hours_window);
       return { ...response, page, refresh };
     } catch (error) {
       return rejectWithValue(error.message);
@@ -141,6 +141,13 @@ const postSlice = createSlice({
       const { postId, comments_count } = action.payload;
       updatePostInArrays(state, postId, {
         comments_count: comments_count
+      });
+    },
+    markPostAsTrending: (state, action) => {
+      const { postId, trending_score } = action.payload;
+      updatePostInArrays(state, postId, {
+        is_trending: true,
+        trending_score: trending_score
       });
     }
   },
@@ -272,7 +279,8 @@ export const {
   clearError, 
   clearSearchResults, 
   updatePostLike, 
-  updatePostCommentCount 
+  updatePostCommentCount,
+  markPostAsTrending
 } = postSlice.actions;
 
 export default postSlice.reducer;
@@ -283,5 +291,6 @@ export const selectTrending = (state) => state.posts.trending;
 export const selectLoading = (state) => state.posts.loading;
 export const selectError = (state) => state.posts.error;
 export const selectFeedPagination = (state) => state.posts.feedPagination;
+export const selectTrendingPagination = (state) => state.posts.trendingPagination;
 export const selectSearchResults = (state) => state.posts.searchResults;
 export const selectSearching = (state) => state.posts.searching;

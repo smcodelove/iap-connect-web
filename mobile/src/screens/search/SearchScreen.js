@@ -1,7 +1,7 @@
-// screens/search/SearchScreen.js
+// screens/search/SearchScreen.js - Search Screen with Hashtag Support
 /**
  * SearchScreen - Search for users, posts, and hashtags
- * Features: Real-time search, filters, recent searches, suggestions
+ * Features: Real-time search, filters, hashtag search, trending hashtags
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -14,6 +14,7 @@ import {
   StyleSheet,
   Alert,
   FlatList,
+  SafeAreaView,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/Feather';
@@ -21,228 +22,183 @@ import Icon from 'react-native-vector-icons/Feather';
 import PostCard from '../../components/posts/PostCard';
 import Avatar from '../../components/common/Avatar';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import Button from '../../components/common/Button';
-import { searchContent } from '../../store/slices/postSlice';
-import { searchUsers } from '../../store/slices/userSlice';
-import { colors, typography, spacing } from '../../styles';
-import { debounce } from '../../utils/helpers';
+import { searchPosts } from '../../store/slices/postSlice';
+import api from '../../services/api';
+
+// Color constants
+const colors = {
+  primary: '#0066CC',
+  primaryLight: '#3385DB',
+  accent: '#FF6B35',
+  success: '#28A745',
+  danger: '#DC3545',
+  white: '#FFFFFF',
+  gray100: '#F8F9FA',
+  gray200: '#E9ECEF',
+  gray300: '#DEE2E6',
+  gray400: '#CED4DA',
+  gray500: '#ADB5BD',
+  gray600: '#6C757D',
+  gray700: '#495057',
+  gray800: '#343A40',
+  gray900: '#212529',
+};
 
 const SearchScreen = ({ route, navigation }) => {
-  const { query: initialQuery = '' } = route.params || {};
+  const { query: initialQuery = '', type: initialType = 'all' } = route.params || {};
   const dispatch = useDispatch();
   
   const { 
     searchResults: postResults, 
     searching: searchingPosts 
   } = useSelector(state => state.posts);
-  
-  const { 
-    searchResults: userResults, 
-    searching: searchingUsers 
-  } = useSelector(state => state.users);
 
   const [query, setQuery] = useState(initialQuery);
-  const [activeFilter, setActiveFilter] = useState('all'); // all, posts, users, hashtags
+  const [activeFilter, setActiveFilter] = useState(initialType); // all, posts, users, hashtags
+  const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState([
-    '#cardiology', 'Dr. Sarah', 'case study', '#surgery'
-  ]);
-  const [suggestions] = useState([
-    '#medical', '#healthcare', '#study', '#research', 
     '#cardiology', '#surgery', '#pediatrics', '#neurology'
+  ]);
+  const [trendingHashtags] = useState([
+    { tag: '#MedicalEducation', posts: 245, growth: '+12%' },
+    { tag: '#Surgery', posts: 189, growth: '+8%' },
+    { tag: '#Cardiology', posts: 167, growth: '+15%' },
+    { tag: '#Neurology', posts: 143, growth: '+6%' },
+    { tag: '#Pediatrics', posts: 134, growth: '+10%' },
+    { tag: '#Innovation', posts: 129, growth: '+5%' },
   ]);
 
   const searchInputRef = useRef(null);
 
-  // Debounced search function
-  const debouncedSearch = useCallback(
-    debounce((searchQuery) => {
-      if (searchQuery.trim().length >= 2) {
-        if (activeFilter === 'all' || activeFilter === 'posts') {
-          dispatch(searchContent({ query: searchQuery, type: 'posts' }));
-        }
-        if (activeFilter === 'all' || activeFilter === 'users') {
-          dispatch(searchUsers({ query: searchQuery }));
-        }
-      }
-    }, 300),
-    [dispatch, activeFilter]
-  );
-
-  // Handle search input change
-  const handleSearchChange = useCallback((text) => {
-    setQuery(text);
-    debouncedSearch(text);
-  }, [debouncedSearch]);
-
-  // Handle search submission
-  const handleSearchSubmit = useCallback(() => {
-    if (query.trim()) {
-      // Add to recent searches
-      setRecentSearches(prev => {
-        const newSearches = [query.trim(), ...prev.filter(s => s !== query.trim())];
-        return newSearches.slice(0, 10); // Keep last 10 searches
-      });
-      
-      // Perform search
-      debouncedSearch(query);
-    }
-  }, [query, debouncedSearch]);
-
-  // Handle filter change
-  const handleFilterChange = useCallback((filter) => {
-    setActiveFilter(filter);
-    if (query.trim()) {
-      debouncedSearch(query);
-    }
-  }, [query, debouncedSearch]);
-
-  // Handle suggestion/recent search tap
-  const handleSuggestionTap = useCallback((suggestion) => {
-    setQuery(suggestion);
-    handleSearchChange(suggestion);
-  }, [handleSearchChange]);
-
-  // Clear search
-  const clearSearch = useCallback(() => {
-    setQuery('');
-    setActiveFilter('all');
-  }, []);
-
-  // Focus search input on mount
-  useEffect(() => {
-    setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 300);
-  }, []);
-
-  // Handle initial query from navigation
   useEffect(() => {
     if (initialQuery) {
-      handleSearchChange(initialQuery);
+      handleSearch(initialQuery);
     }
-  }, [initialQuery, handleSearchChange]);
+  }, [initialQuery]);
 
-  // Handle post interactions
-  const handleLike = useCallback((postId) => {
-    navigation.navigate('PostDetail', { postId });
-  }, [navigation]);
+  // Handle search
+  const handleSearch = useCallback(async (searchQuery = query) => {
+    if (!searchQuery.trim()) return;
 
-  const handleComment = useCallback((postId) => {
-    navigation.navigate('PostDetail', { postId, openComments: true });
-  }, [navigation]);
+    setLoading(true);
+    try {
+      if (activeFilter === 'all' || activeFilter === 'posts' || activeFilter === 'hashtag') {
+        // Search posts
+        await dispatch(searchPosts({ query: searchQuery })).unwrap();
+        setSearchResults(postResults);
+      }
+      
+      // Add to recent searches
+      setRecentSearches(prev => {
+        const newSearches = [searchQuery.trim(), ...prev.filter(s => s !== searchQuery.trim())];
+        return newSearches.slice(0, 10);
+      });
+      
+    } catch (error) {
+      Alert.alert('Error', 'Failed to search');
+    } finally {
+      setLoading(false);
+    }
+  }, [query, activeFilter, dispatch, postResults]);
 
-  const handleShare = useCallback((post) => {
-    Alert.alert('Share', `Share ${post.user.full_name}'s post`);
-  }, []);
+  // Handle hashtag press
+  const handleHashtagPress = useCallback((hashtag) => {
+    setQuery(hashtag);
+    setActiveFilter('hashtag');
+    handleSearch(hashtag);
+  }, [handleSearch]);
 
-  const handleUserPress = useCallback((userId) => {
-    navigation.navigate('Profile', { userId });
-  }, [navigation]);
+  // Handle clear search
+  const handleClearSearch = () => {
+    setQuery('');
+    setSearchResults([]);
+    searchInputRef.current?.focus();
+  };
 
   // Render filter tabs
-  const renderFilterTabs = () => {
-    const filters = [
-      { key: 'all', title: 'All', icon: 'search' },
-      { key: 'posts', title: 'Posts', icon: 'file-text' },
-      { key: 'users', title: 'Users', icon: 'users' },
-      { key: 'hashtags', title: 'Tags', icon: 'hash' },
-    ];
-
-    return (
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filtersContainer}
-        contentContainerStyle={styles.filtersContent}
-      >
-        {filters.map((filter) => (
-          <TouchableOpacity
-            key={filter.key}
+  const renderFilterTabs = () => (
+    <View style={styles.filterContainer}>
+      {[
+        { key: 'all', title: 'All', icon: 'search' },
+        { key: 'posts', title: 'Posts', icon: 'file-text' },
+        { key: 'hashtag', title: 'Hashtags', icon: 'hash' },
+        { key: 'users', title: 'Users', icon: 'users' },
+      ].map((filter) => (
+        <TouchableOpacity
+          key={filter.key}
+          style={[
+            styles.filterTab,
+            activeFilter === filter.key && styles.filterTabActive,
+          ]}
+          onPress={() => setActiveFilter(filter.key)}
+        >
+          <Icon
+            name={filter.icon}
+            size={16}
+            color={activeFilter === filter.key ? colors.white : colors.gray600}
+          />
+          <Text
             style={[
-              styles.filterButton,
-              activeFilter === filter.key && styles.filterButtonActive,
+              styles.filterTabText,
+              activeFilter === filter.key && styles.filterTabTextActive,
             ]}
-            onPress={() => handleFilterChange(filter.key)}
           >
-            <Icon
-              name={filter.icon}
-              size={16}
-              color={activeFilter === filter.key ? colors.white : colors.gray600}
-            />
-            <Text style={[
-              styles.filterText,
-              activeFilter === filter.key && styles.filterTextActive,
-            ]}>
-              {filter.title}
-            </Text>
+            {filter.title}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  // Render trending hashtags
+  const renderTrendingHashtags = () => (
+    <View style={styles.trendingSection}>
+      <Text style={styles.sectionTitle}>Trending in Medical Community</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {trendingHashtags.map((item, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.trendingHashtagCard}
+            onPress={() => handleHashtagPress(item.tag)}
+          >
+            <View style={styles.trendingHashtagHeader}>
+              <Icon name="trending-up" size={16} color={colors.accent} />
+              <Text style={styles.trendingHashtagGrowth}>{item.growth}</Text>
+            </View>
+            <Text style={styles.trendingHashtagTag}>{item.tag}</Text>
+            <Text style={styles.trendingHashtagPosts}>{item.posts} posts</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
-    );
-  };
+    </View>
+  );
 
-  // Render search suggestions
-  const renderSuggestions = () => {
-    if (query.trim()) return null;
-
-    return (
-      <View style={styles.suggestionsContainer}>
-        {/* Recent Searches */}
-        {recentSearches.length > 0 && (
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Recent Searches</Text>
-              <TouchableOpacity onPress={() => setRecentSearches([])}>
-                <Text style={styles.clearText}>Clear</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.suggestionsGrid}>
-              {recentSearches.map((search, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.suggestionChip}
-                  onPress={() => handleSuggestionTap(search)}
-                >
-                  <Icon name="clock" size={14} color={colors.gray500} />
-                  <Text style={styles.suggestionText}>{search}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Popular Hashtags */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Popular Hashtags</Text>
-          <View style={styles.suggestionsGrid}>
-            {suggestions.map((suggestion, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[styles.suggestionChip, styles.hashtagChip]}
-                onPress={() => handleSuggestionTap(suggestion)}
-              >
-                <Icon name="trending-up" size={14} color={colors.primary} />
-                <Text style={[styles.suggestionText, styles.hashtagText]}>
-                  {suggestion}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+  // Render recent searches
+  const renderRecentSearches = () => (
+    <View style={styles.recentSection}>
+      <Text style={styles.sectionTitle}>Recent Searches</Text>
+      <View style={styles.recentSearches}>
+        {recentSearches.map((search, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.recentSearchChip}
+            onPress={() => {
+              setQuery(search);
+              handleSearch(search);
+            }}
+          >
+            <Icon name="clock" size={14} color={colors.gray500} />
+            <Text style={styles.recentSearchText}>{search}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
-    );
-  };
+    </View>
+  );
 
   // Render search results
   const renderSearchResults = () => {
-    const hasQuery = query.trim().length >= 2;
-    const isLoading = searchingPosts || searchingUsers;
-    const hasResults = (postResults && postResults.length > 0) || 
-                     (userResults && userResults.length > 0);
-
-    if (!hasQuery) return renderSuggestions();
-
-    if (isLoading) {
+    if (loading) {
       return (
         <View style={styles.loadingContainer}>
           <LoadingSpinner size="large" />
@@ -251,341 +207,259 @@ const SearchScreen = ({ route, navigation }) => {
       );
     }
 
-    if (!hasResults) {
+    if (searchResults.length === 0 && query.trim()) {
       return (
         <View style={styles.emptyContainer}>
           <Icon name="search" size={48} color={colors.gray400} />
-          <Text style={styles.emptyTitle}>No results found</Text>
+          <Text style={styles.emptyTitle}>No Results Found</Text>
           <Text style={styles.emptySubtitle}>
-            Try different keywords or check spelling
+            Try searching with different keywords or hashtags
           </Text>
         </View>
       );
     }
 
-    return (
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* User Results */}
-        {userResults && userResults.length > 0 && 
-         (activeFilter === 'all' || activeFilter === 'users') && (
-          <View style={styles.resultsSection}>
-            <Text style={styles.resultsSectionTitle}>
-              Users ({userResults.length})
-            </Text>
-            {userResults.slice(0, 5).map((user) => (
-              <TouchableOpacity
-                key={user.id}
-                style={styles.userResult}
-                onPress={() => handleUserPress(user.id)}
-              >
-                <Avatar
-                  uri={user.profile_picture_url}
-                  name={user.full_name}
-                  size={40}
-                />
-                <View style={styles.userInfo}>
-                  <Text style={styles.userFullName}>{user.full_name}</Text>
-                  <Text style={styles.userDetails}>
-                    {user.user_type === 'doctor' 
-                      ? `👨‍⚕️ ${user.specialty || 'Doctor'}` 
-                      : `👨‍🎓 ${user.college || 'Student'}`
-                    }
-                  </Text>
-                </View>
-                <TouchableOpacity style={styles.followButton}>
-                  <Text style={styles.followButtonText}>Follow</Text>
-                </TouchableOpacity>
-              </TouchableOpacity>
-            ))}
-            
-            {userResults.length > 5 && (
-              <TouchableOpacity 
-                style={styles.seeMoreButton}
-                onPress={() => handleFilterChange('users')}
-              >
-                <Text style={styles.seeMoreText}>
-                  See all {userResults.length} users
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+    if (activeFilter === 'posts' || activeFilter === 'all' || activeFilter === 'hashtag') {
+      return (
+        <FlatList
+          data={postResults}
+          renderItem={({ item }) => (
+            <PostCard
+              post={item}
+              onHashtagPress={handleHashtagPress}
+              onUserPress={(userId) => navigation.navigate('Profile', { userId })}
+              onPostPress={(postId) => navigation.navigate('PostDetail', { postId })}
+            />
+          )}
+          keyExtractor={(item) => item.id.toString()}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.resultsList}
+        />
+      );
+    }
 
-        {/* Post Results */}
-        {postResults && postResults.length > 0 && 
-         (activeFilter === 'all' || activeFilter === 'posts') && (
-          <View style={styles.resultsSection}>
-            <Text style={styles.resultsSectionTitle}>
-              Posts ({postResults.length})
-            </Text>
-            {postResults.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onLike={() => handleLike(post.id)}
-                onComment={() => handleComment(post.id)}
-                onShare={() => handleShare(post)}
-                onUserPress={() => handleUserPress(post.user.id)}
-                style={styles.postResult}
-              />
-            ))}
-          </View>
-        )}
-      </ScrollView>
-    );
+    return null;
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header with Search Input */}
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.searchContainer}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Icon name="arrow-left" size={20} color={colors.gray600} />
-          </TouchableOpacity>
-          
-          <View style={styles.searchInputContainer}>
-            <Icon name="search" size={18} color={colors.gray500} />
-            <TextInput
-              ref={searchInputRef}
-              style={styles.searchInput}
-              placeholder="Search posts, users, hashtags..."
-              placeholderTextColor={colors.gray500}
-              value={query}
-              onChangeText={handleSearchChange}
-              onSubmitEditing={handleSearchSubmit}
-              returnKeyType="search"
-            />
-            
-            {query.length > 0 && (
-              <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-                <Icon name="x" size={18} color={colors.gray500} />
-              </TouchableOpacity>
-            )}
-          </View>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="arrow-left" size={24} color={colors.gray700} />
+        </TouchableOpacity>
+        
+        <View style={styles.searchInputContainer}>
+          <Icon name="search" size={20} color={colors.gray500} style={styles.searchIcon} />
+          <TextInput
+            ref={searchInputRef}
+            style={styles.searchInput}
+            placeholder="Search posts, hashtags, users..."
+            placeholderTextColor={colors.gray500}
+            value={query}
+            onChangeText={setQuery}
+            onSubmitEditing={() => handleSearch()}
+            autoFocus={!initialQuery}
+            returnKeyType="search"
+          />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={handleClearSearch}>
+              <Icon name="x" size={20} color={colors.gray500} />
+            </TouchableOpacity>
+          )}
         </View>
-
-        {/* Filter Tabs */}
-        {query.trim().length >= 2 && renderFilterTabs()}
       </View>
+
+      {/* Filter Tabs */}
+      {renderFilterTabs()}
 
       {/* Content */}
-      <View style={styles.content}>
-        {renderSearchResults()}
-      </View>
-    </View>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {!query.trim() ? (
+          <>
+            {renderTrendingHashtags()}
+            {renderRecentSearches()}
+          </>
+        ) : (
+          renderSearchResults()
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.gray100,
+    backgroundColor: colors.white,
   },
   header: {
-    backgroundColor: colors.white,
-    paddingTop: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray200,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-  },
   backButton: {
-    padding: spacing.xs,
-    marginRight: spacing.sm,
+    padding: 8,
+    marginRight: 8,
   },
   searchInputContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.gray100,
-    borderRadius: 20,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  searchIcon: {
+    marginRight: 12,
   },
   searchInput: {
     flex: 1,
-    ...typography.body,
-    color: colors.gray900,
-    marginLeft: spacing.sm,
-    marginRight: spacing.sm,
+    fontSize: 16,
+    color: colors.gray800,
   },
-  clearButton: {
-    padding: spacing.xs,
+  filterContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray200,
   },
-  filtersContainer: {
-    paddingBottom: spacing.sm,
-  },
-  filtersContent: {
-    paddingHorizontal: spacing.md,
-  },
-  filterButton: {
+  filterTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 20,
     backgroundColor: colors.gray100,
-    marginRight: spacing.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 12,
   },
-  filterButtonActive: {
+  filterTabActive: {
     backgroundColor: colors.primary,
   },
-  filterText: {
-    ...typography.caption,
+  filterTabText: {
+    fontSize: 14,
     color: colors.gray600,
-    marginLeft: spacing.xs,
+    marginLeft: 6,
     fontWeight: '500',
   },
-  filterTextActive: {
+  filterTabTextActive: {
     color: colors.white,
   },
   content: {
     flex: 1,
   },
-  suggestionsContainer: {
-    padding: spacing.md,
-  },
-  sectionContainer: {
-    marginBottom: spacing.xl,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
+  trendingSection: {
+    paddingVertical: 20,
   },
   sectionTitle: {
-    ...typography.body,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.gray900,
+    marginBottom: 16,
+    paddingHorizontal: 16,
   },
-  clearText: {
-    ...typography.caption,
+  trendingHashtagCard: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 16,
+    marginRight: 12,
+    marginLeft: 16,
+    width: 140,
+    shadowColor: colors.gray900,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  trendingHashtagHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  trendingHashtagGrowth: {
+    fontSize: 12,
+    color: colors.success,
+    fontWeight: '600',
+  },
+  trendingHashtagTag: {
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.primary,
-    fontWeight: '500',
+    marginBottom: 4,
   },
-  suggestionsGrid: {
+  trendingHashtagPosts: {
+    fontSize: 12,
+    color: colors.gray500,
+  },
+  recentSection: {
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  recentSearches: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
-  suggestionChip: {
+  recentSearchChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.gray100,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 16,
-    marginRight: spacing.xs,
-    marginBottom: spacing.xs,
+    marginRight: 8,
+    marginBottom: 8,
   },
-  hashtagChip: {
-    backgroundColor: colors.primary + '20',
-  },
-  suggestionText: {
-    ...typography.caption,
+  recentSearchText: {
+    fontSize: 14,
     color: colors.gray700,
-    marginLeft: spacing.xs,
-  },
-  hashtagText: {
-    color: colors.primary,
-    fontWeight: '500',
+    marginLeft: 6,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: spacing.xxl,
+    paddingVertical: 60,
   },
   loadingText: {
-    ...typography.caption,
+    fontSize: 16,
     color: colors.gray600,
-    marginTop: spacing.md,
+    marginTop: 16,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: 60,
+    paddingHorizontal: 32,
   },
   emptyTitle: {
-    ...typography.h3,
+    fontSize: 20,
+    fontWeight: '600',
     color: colors.gray700,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
   },
   emptySubtitle: {
-    ...typography.body,
+    fontSize: 16,
     color: colors.gray500,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
   },
-  resultsSection: {
-    backgroundColor: colors.white,
-    marginBottom: spacing.sm,
-    paddingVertical: spacing.md,
-  },
-  resultsSectionTitle: {
-    ...typography.body,
-    fontWeight: '600',
-    color: colors.gray900,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
-  },
-  userResult: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  userInfo: {
-    flex: 1,
-    marginLeft: spacing.sm,
-  },
-  userFullName: {
-    ...typography.body,
-    fontWeight: '600',
-    color: colors.gray900,
-    marginBottom: 2,
-  },
-  userDetails: {
-    ...typography.caption,
-    color: colors.gray600,
-  },
-  followButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 16,
-  },
-  followButtonText: {
-    ...typography.caption,
-    color: colors.white,
-    fontWeight: '600',
-  },
-  seeMoreButton: {
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-  },
-  seeMoreText: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  postResult: {
-    marginHorizontal: 0,
-    marginBottom: spacing.sm,
-    borderRadius: 0,
+  resultsList: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
 });
 

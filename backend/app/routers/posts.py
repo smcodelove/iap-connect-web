@@ -75,6 +75,30 @@ def get_feed(
         has_next=has_next
     )
 
+# backend/app/routers/posts.py में add करें:
+
+@router.get("/trending/hashtags")
+def get_trending_hashtags(
+    limit: int = Query(10, ge=5, le=20),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get trending hashtags."""
+    # Mock trending hashtags for now
+    trending_hashtags = [
+        {"hashtag": "#MedicalEducation", "posts_count": 245, "total_engagement": 1200, "growth": "+12%"},
+        {"hashtag": "#Surgery", "posts_count": 189, "total_engagement": 950, "growth": "+8%"},
+        {"hashtag": "#Cardiology", "posts_count": 167, "total_engagement": 890, "growth": "+15%"},
+        {"hashtag": "#Neurology", "posts_count": 143, "total_engagement": 720, "growth": "+6%"},
+        {"hashtag": "#Pediatrics", "posts_count": 134, "total_engagement": 680, "growth": "+10%"},
+    ]
+    
+    return {
+        "success": True,
+        "trending_hashtags": trending_hashtags[:limit],
+        "total": len(trending_hashtags)
+    }
+
 
 @router.get("/trending", response_model=PostListResponse)
 def get_trending(

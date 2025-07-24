@@ -1,4 +1,4 @@
-// navigation/AppNavigator.js - Updated with CreatePost Screen
+// navigation/AppNavigator.js - Updated with Search Screen
 import React, { useEffect } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useDispatch, useSelector } from 'react-redux';
@@ -12,6 +12,7 @@ import TabNavigator from './TabNavigator';
 // Import screens
 import CreatePostScreen from '../screens/post/CreatePostScreen';
 import PostDetailScreen from '../screens/post/PostDetailScreen';
+import SearchScreen from '../screens/search/SearchScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 
 // Import components
@@ -97,6 +98,16 @@ const AppNavigator = () => {
               options={{
                 headerShown: false,
                 gestureEnabled: true,
+              }}
+            />
+
+            <Stack.Screen 
+              name="Search" 
+              component={SearchScreen}
+              options={{
+                headerShown: false,
+                gestureEnabled: true,
+                presentation: 'card',
               }}
             />
             

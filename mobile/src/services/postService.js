@@ -1,7 +1,7 @@
-// services/postService.js - Clean Post Service (NO Redux Code)
+// services/postService.js - Updated Post Service with Trending functionality
 /**
  * Post service for IAP Connect mobile app
- * Handles all post-related API calls including likes
+ * Handles all post-related API calls including trending posts
  */
 
 import api from './api';
@@ -23,9 +23,12 @@ class PostService {
   }
 
   // Get trending posts
-  async getTrendingPosts(page = 1, size = 20) {
+  async getTrendingPosts(page = 1, hoursWindow = 72, size = 20) {
     try {
-      const response = await api.get(`/posts/trending?page=${page}&size=${size}`);
+      console.log(`🔥 Fetching trending posts (${hoursWindow}h window, page ${page})`);
+      const response = await api.get(`/posts/trending?page=${page}&size=${size}&hours_window=${hoursWindow}`);
+      console.log('✅ Trending posts fetched:', response.data);
+      
       return {
         posts: response.data.posts,
         total: response.data.total,
@@ -33,7 +36,26 @@ class PostService {
         success: true
       };
     } catch (error) {
+      console.error('❌ Error fetching trending posts:', error);
       throw new Error(error.response?.data?.detail || 'Failed to fetch trending posts');
+    }
+  }
+
+  // Get trending hashtags
+  async getTrendingHashtags(limit = 10) {
+    try {
+      console.log('🏷️ Fetching trending hashtags...');
+      const response = await api.get(`/posts/trending/hashtags?limit=${limit}`);
+      console.log('✅ Trending hashtags fetched:', response.data);
+      
+      return {
+        hashtags: response.data.trending_hashtags,
+        total: response.data.total,
+        success: true
+      };
+    } catch (error) {
+      console.error('❌ Error fetching trending hashtags:', error);
+      throw new Error(error.response?.data?.detail || 'Failed to fetch trending hashtags');
     }
   }
 
@@ -131,7 +153,10 @@ class PostService {
   // Search posts
   async searchPosts(query, page = 1, size = 20) {
     try {
+      console.log(`🔍 Searching posts: "${query}" (page ${page})`);
       const response = await api.get(`/posts/search?q=${encodeURIComponent(query)}&page=${page}&size=${size}`);
+      console.log('✅ Search results:', response.data);
+      
       return {
         posts: response.data.posts,
         total: response.data.total,
@@ -139,6 +164,7 @@ class PostService {
         success: true
       };
     } catch (error) {
+      console.error('❌ Search error:', error);
       throw new Error(error.response?.data?.detail || 'Failed to search posts');
     }
   }
@@ -163,6 +189,40 @@ class PostService {
       };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to update post');
+    }
+  }
+
+  // Get trending analytics (for admin/insights)
+  async getTrendingAnalytics() {
+    try {
+      console.log('📊 Fetching trending analytics...');
+      const response = await api.get('/posts/trending/analytics');
+      console.log('✅ Trending analytics fetched:', response.data);
+      
+      return {
+        analytics: response.data,
+        success: true
+      };
+    } catch (error) {
+      console.error('❌ Error fetching trending analytics:', error);
+      throw new Error(error.response?.data?.detail || 'Failed to fetch trending analytics');
+    }
+  }
+
+  // Bulk update trending status (admin function)
+  async updateTrendingStatus() {
+    try {
+      console.log('🔄 Updating trending status...');
+      const response = await api.post('/posts/trending/update');
+      console.log('✅ Trending status updated:', response.data);
+      
+      return {
+        updated_count: response.data.updated_count,
+        success: true
+      };
+    } catch (error) {
+      console.error('❌ Error updating trending status:', error);
+      throw new Error(error.response?.data?.detail || 'Failed to update trending status');
     }
   }
 }
