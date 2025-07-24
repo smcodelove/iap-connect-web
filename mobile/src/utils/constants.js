@@ -1,115 +1,94 @@
-/**
- * App constants for IAP Connect mobile app
- * API configuration and app-wide constants
- */
-
-import { Platform } from 'react-native';
-
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: 'http://localhost:8000/api/v1',
+  BASE_URL: 'http://192.0.0.2:8000/api/v1',
+  LOCALHOST_URL: 'http://localhost:8000/api/v1',
+  SIMULATOR_URL: 'http://127.0.0.1:8000/api/v1',
   TIMEOUT: 10000,
   HEADERS: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json'
   }
 };
 
-// Endpoints
+// API Endpoints
 export const ENDPOINTS = {
   // Auth endpoints
-  REGISTER: '/auth/register',
   LOGIN: '/auth/login',
+  REGISTER: '/auth/register',
   LOGOUT: '/auth/logout',
   ME: '/auth/me',
   
   // User endpoints
   USERS_PROFILE: '/users/profile',
   USERS_SEARCH: '/users/search',
-  USERS_FOLLOW: '/users/follow',
-  USERS_UPLOAD_AVATAR: '/users/upload-avatar',
   
   // Post endpoints
+  POSTS: '/posts',
   POSTS_FEED: '/posts/feed',
   POSTS_TRENDING: '/posts/trending',
-  POSTS: '/posts',
-  POSTS_LIKE: '/posts/:id/like',
-  POSTS_SEARCH: '/posts/search',
   
-  // Comment endpoints
-  COMMENTS: '/posts/:postId/comments',
-  DELETE_COMMENT: '/comments/:id',
-  
-  // Admin endpoints
-  ADMIN_USERS: '/admin/users',
-  ADMIN_DELETE_USER: '/admin/users/:id',
-  ADMIN_DELETE_POST: '/admin/posts/:id',
-  ADMIN_DASHBOARD: '/admin/dashboard'
-};
-
-// User Types
-export const USER_TYPES = {
-  DOCTOR: 'doctor',
-  STUDENT: 'student',
-  ADMIN: 'admin'
+  // Comments endpoints
+  COMMENTS: '/comments',
 };
 
 // Storage Keys
 export const STORAGE_KEYS = {
-  ACCESS_TOKEN: '@iap_connect_access_token',
-  USER_DATA: '@iap_connect_user_data',
-  REMEMBER_ME: '@iap_connect_remember_me'
-};
-
-// App Information
-export const APP_INFO = {
-  NAME: 'IAP Connect',
-  VERSION: '1.0.0',
-  DESCRIPTION: 'Social platform for medical professionals'
+  ACCESS_TOKEN: 'access_token',
+  USER_DATA: 'user_data',
+  REMEMBER_ME: 'remember_me'
 };
 
 // Screen Names
 export const SCREEN_NAMES = {
-  // Auth Screens
   LOGIN: 'Login',
   SIGNUP: 'Signup',
-  
-  // Tab Screens
+  REGISTER: 'Register',
+  FORGOT_PASSWORD: 'ForgotPassword',
   HOME: 'Home',
-  TRENDING: 'Trending',
-  SEARCH: 'Search',
+  FEED: 'Feed',
   PROFILE: 'Profile',
-  
-  // Stack Screens
-  POST_DETAIL: 'PostDetail',
+  SEARCH: 'Search',
+  POST_CREATE: 'PostCreate',
   CREATE_POST: 'CreatePost',
+  POST_DETAIL: 'PostDetail',
   EDIT_PROFILE: 'EditProfile',
-  USER_PROFILE: 'UserProfile'
+  USER_PROFILE: 'UserProfile',
+  ADMIN_DASHBOARD: 'AdminDashboard',
+  USER_MANAGEMENT: 'UserManagement',
+  AUTH_STACK: 'AuthStack',
+  MAIN_STACK: 'MainStack',
+  TAB_NAVIGATOR: 'TabNavigator'
 };
 
-// Validation Rules
-export const VALIDATION = {
-  MIN_PASSWORD_LENGTH: 6,
-  MAX_USERNAME_LENGTH: 50,
-  MAX_BIO_LENGTH: 500,
-  MAX_POST_LENGTH: 2000,
-  MAX_COMMENT_LENGTH: 500
+// Colors
+export const colors = {
+  primary: '#0066CC',
+  primaryLight: '#3385DB',
+  primaryDark: '#004499',
+  accent: '#FF6B35',
+  success: '#28A745',
+  warning: '#FFC107',
+  danger: '#DC3545',
+  white: '#FFFFFF',
+  textPrimary: '#212529',
+  gray100: '#F8F9FA',
+  gray200: '#E9ECEF',
+  gray300: '#DEE2E6',
+  gray400: '#CED4DA',
+  gray500: '#ADB5BD',
+  gray600: '#6C757D',
+  gray700: '#495057',
+  gray800: '#343A40',
+  gray900: '#212529',
+  black: '#000000'
 };
 
-// Pagination
-export const PAGINATION = {
-  PAGE_SIZE: 20,
-  INITIAL_PAGE: 1
-};
-
-// Animation Durations
-export const ANIMATION = {
-  FAST: 200,
-  NORMAL: 300,
-  SLOW: 500
-};
-
-// Device Dimensions (will be set dynamically)
-export const DEVICE = {
-  IS_IOS: Platform.OS === 'ios',
-  IS_ANDROID: Platform.OS === 'android'
+// Typography
+export const typography = {
+  h1: { fontSize: 32, fontWeight: 'bold' },
+  h2: { fontSize: 24, fontWeight: 'bold' },
+  h3: { fontSize: 20, fontWeight: '600' },
+  body: { fontSize: 16, fontWeight: '400' },
+  caption: { fontSize: 14, fontWeight: '400' },
+  small: { fontSize: 12, fontWeight: '400' }
 };

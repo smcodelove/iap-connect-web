@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-export default function EditProfileScreen() {
+export default function ProfileScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Edit Profile</Text>
-      <Text>Edit profile feature coming soon</Text>
+      <Text style={styles.title}>Profile Screen</Text>
+      <Text>User Profile Coming Soon</Text>
     </View>
   );
 }

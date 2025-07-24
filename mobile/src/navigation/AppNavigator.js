@@ -1,8 +1,3 @@
-/**
- * Main App Navigator for IAP Connect mobile app
- * Manages navigation between authenticated and unauthenticated states
- */
-
 import React, { useEffect } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useDispatch, useSelector } from 'react-redux';
@@ -23,7 +18,7 @@ import Loading from '../components/common/LoadingSpinner';
 
 // Import Redux
 import { initializeAuth, selectAuthInitialized, selectIsAuthenticated, selectAuthLoading } from '../store/slices/authSlice';
-import { colors } from '../styles/colors';
+import { colors } from '../utils/constants';
 import { SCREEN_NAMES } from '../utils/constants';
 
 const Stack = createStackNavigator();
@@ -67,7 +62,6 @@ const AppNavigator = () => {
         }}
       >
         {!isAuthenticated ? (
-          // Unauthenticated screens
           <Stack.Screen 
             name="Auth" 
             component={AuthNavigator}
@@ -76,7 +70,6 @@ const AppNavigator = () => {
             }}
           />
         ) : (
-          // Authenticated screens
           <>
             <Stack.Screen 
               name="Main" 
@@ -86,91 +79,33 @@ const AppNavigator = () => {
               }}
             />
             
-            {/* Modal/Overlay screens */}
-            <Stack.Group screenOptions={{ 
-              presentation: 'modal',
-              headerShown: true,
-              headerStyle: {
-                backgroundColor: colors.white,
-                shadowColor: colors.gray200,
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 4
-              },
-              headerTitleStyle: {
-                fontSize: 18,
-                fontWeight: '600',
-                color: colors.textPrimary
-              },
-              headerTintColor: colors.primary
-            }}>
-              <Stack.Screen 
-                name={SCREEN_NAMES.CREATE_POST} 
-                component={CreatePostScreen}
-                options={{
-                  title: 'Create Post',
-                  headerLeft: () => null
-                }}
-              />
-              
-              <Stack.Screen 
-                name={SCREEN_NAMES.EDIT_PROFILE} 
-                component={EditProfileScreen}
-                options={{
-                  title: 'Edit Profile'
-                }}
-              />
-            </Stack.Group>
+            <Stack.Screen 
+              name={SCREEN_NAMES.CREATE_POST} 
+              component={CreatePostScreen}
+              options={{
+                title: 'Create Post',
+                headerShown: true,
+                presentation: "modal"
+              }}
+            />
             
-            {/* Regular stack screens */}
-            <Stack.Group screenOptions={{
-              headerShown: true,
-              headerStyle: {
-                backgroundColor: colors.white,
-                shadowColor: colors.gray200,
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 4
-              },
-              headerTitleStyle: {
-                fontSize: 18,
-                fontWeight: '600',
-                color: colors.textPrimary
-              },
-              headerTintColor: colors.primary,
-              cardStyleInterpolator: ({ current, layouts }) => {
-                return {
-                  cardStyle: {
-                    transform: [
-                      {
-                        translateX: current.progress.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [layouts.screen.width, 0],
-                        }),
-                      },
-                    ],
-                  },
-                };
-              }
-            }}>
-              <Stack.Screen 
-                name={SCREEN_NAMES.POST_DETAIL} 
-                component={PostDetailScreen}
-                options={{
-                  title: 'Post'
-                }}
-              />
-              
-              <Stack.Screen 
-                name={SCREEN_NAMES.USER_PROFILE} 
-                component={PostDetailScreen} // Placeholder - will be UserProfileScreen
-                options={({ route }) => ({
-                  title: route.params?.userName || 'Profile'
-                })}
-              />
-            </Stack.Group>
+            <Stack.Screen 
+              name={SCREEN_NAMES.EDIT_PROFILE} 
+              component={EditProfileScreen}
+              options={{
+                title: 'Edit Profile',
+                headerShown: true
+              }}
+            />
+            
+            <Stack.Screen 
+              name={SCREEN_NAMES.POST_DETAIL} 
+              component={PostDetailScreen}
+              options={{
+                title: 'Post',
+                headerShown: true
+              }}
+            />
           </>
         )}
       </Stack.Navigator>
@@ -181,7 +116,7 @@ const AppNavigator = () => {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: '#0066CC',
     justifyContent: 'center',
     alignItems: 'center'
   }
