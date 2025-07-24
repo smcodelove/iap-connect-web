@@ -1,6 +1,6 @@
+// store/slices/postSlice.js - Enhanced Post Redux slice with Like/Unlike functionality
 /**
- * Post Redux slice for IAP Connect mobile app
- * Manages posts state and actions
+ * Enhanced Post Redux slice with Like/Unlike functionality
  */
 
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
@@ -23,7 +23,9 @@ const initialState = {
     page: 1,
     hasNext: true,
     loading: false
-  }
+  },
+  searchResults: [],
+  searching: false
 };
 
 // Async thunks
@@ -65,7 +67,7 @@ export const createPost = createAsyncThunk(
 
 export const likePost = createAsyncThunk(
   'posts/likePost',
-  async (postId, { rejectWithValue }) => {
+  async ({ postId }, { rejectWithValue }) => {
     try {
       const response = await postService.likePost(postId);
       return { postId, ...response };
@@ -77,33 +79,9 @@ export const likePost = createAsyncThunk(
 
 export const unlikePost = createAsyncThunk(
   'posts/unlikePost',
-  async (postId, { rejectWithValue }) => {
+  async ({ postId }, { rejectWithValue }) => {
     try {
       const response = await postService.unlikePost(postId);
-      return { postId, ...response };
-    } catch (error) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
-
-export const getPost = createAsyncThunk(
-  'posts/getPost',
-  async (postId, { rejectWithValue }) => {
-    try {
-      const response = await postService.getPost(postId);
-      return response;
-    } catch (error) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
-
-export const deletePost = createAsyncThunk(
-  'posts/deletePost',
-  async (postId, { rejectWithValue }) => {
-    try {
-      const response = await postService.deletePost(postId);
       return { postId, ...response };
     } catch (error) {
       return rejectWithValue(error.message);
@@ -116,14 +94,32 @@ export const searchPosts = createAsyncThunk(
   async ({ query, page = 1 }, { rejectWithValue }) => {
     try {
       const response = await postService.searchPosts(query, page);
-      return response;
+      return { ...response, query, page };
     } catch (error) {
       return rejectWithValue(error.message);
     }
   }
 );
 
-// Post slice
+// Helper function to update post in arrays
+const updatePostInArrays = (state, postId, updates) => {
+  const updatePostInArray = (posts) => {
+    const index = posts.findIndex(post => post.id === postId);
+    if (index !== -1) {
+      posts[index] = { ...posts[index], ...updates };
+    }
+  };
+
+  updatePostInArray(state.feed);
+  updatePostInArray(state.trending);
+  updatePostInArray(state.userPosts);
+  updatePostInArray(state.searchResults);
+  
+  if (state.currentPost?.id === postId) {
+    state.currentPost = { ...state.currentPost, ...updates };
+  }
+};
+
 const postSlice = createSlice({
   name: 'posts',
   initialState,
@@ -131,119 +127,74 @@ const postSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
-    clearCurrentPost: (state) => {
-      state.currentPost = null;
+    clearSearchResults: (state) => {
+      state.searchResults = [];
     },
-    updatePostInLists: (state, action) => {
-      const { postId, updates } = action.payload;
-      
-      // Update in feed
-      const feedIndex = state.feed.findIndex(post => post.id === postId);
-      if (feedIndex !== -1) {
-        state.feed[feedIndex] = { ...state.feed[feedIndex], ...updates };
-      }
-      
-      // Update in trending
-      const trendingIndex = state.trending.findIndex(post => post.id === postId);
-      if (trendingIndex !== -1) {
-        state.trending[trendingIndex] = { ...state.trending[trendingIndex], ...updates };
-      }
-      
-      // Update current post if it matches
-      if (state.currentPost && state.currentPost.id === postId) {
-        state.currentPost = { ...state.currentPost, ...updates };
-      }
+    updatePostLike: (state, action) => {
+      const { postId, liked, likes_count } = action.payload;
+      updatePostInArrays(state, postId, {
+        is_liked: liked,
+        likes_count: likes_count
+      });
     },
-    removePostFromLists: (state, action) => {
-      const postId = action.payload;
-      
-      // Remove from feed
-      state.feed = state.feed.filter(post => post.id !== postId);
-      
-      // Remove from trending
-      state.trending = state.trending.filter(post => post.id !== postId);
-      
-      // Clear current post if it matches
-      if (state.currentPost && state.currentPost.id === postId) {
-        state.currentPost = null;
-      }
-    },
-    resetFeed: (state) => {
-      state.feed = [];
-      state.feedPagination = {
-        page: 1,
-        hasNext: true,
-        loading: false
-      };
-    },
-    resetTrending: (state) => {
-      state.trending = [];
-      state.trendingPagination = {
-        page: 1,
-        hasNext: true,
-        loading: false
-      };
+    updatePostCommentCount: (state, action) => {
+      const { postId, comments_count } = action.payload;
+      updatePostInArrays(state, postId, {
+        comments_count: comments_count
+      });
     }
   },
   extraReducers: (builder) => {
     builder
       // Get Feed
-      .addCase(getFeed.pending, (state, action) => {
-        if (action.meta.arg.page === 1) {
-          state.loading = true;
-        }
-        state.feedPagination.loading = true;
+      .addCase(getFeed.pending, (state) => {
+        state.loading = true;
         state.error = null;
       })
       .addCase(getFeed.fulfilled, (state, action) => {
         state.loading = false;
-        state.feedPagination.loading = false;
+        const { posts, hasNext, page, refresh } = action.payload;
         
-        if (action.payload.refresh || action.payload.page === 1) {
-          state.feed = action.payload.data.posts;
+        if (refresh || page === 1) {
+          state.feed = posts;
         } else {
-          state.feed = [...state.feed, ...action.payload.data.posts];
+          state.feed = [...state.feed, ...posts];
         }
         
         state.feedPagination = {
-          page: action.payload.page,
-          hasNext: action.payload.data.has_next,
+          page: page,
+          hasNext: hasNext,
           loading: false
         };
       })
       .addCase(getFeed.rejected, (state, action) => {
         state.loading = false;
-        state.feedPagination.loading = false;
         state.error = action.payload;
       })
 
       // Get Trending Posts
-      .addCase(getTrendingPosts.pending, (state, action) => {
-        if (action.meta.arg.page === 1) {
-          state.loading = true;
-        }
-        state.trendingPagination.loading = true;
+      .addCase(getTrendingPosts.pending, (state) => {
+        state.loading = true;
         state.error = null;
       })
       .addCase(getTrendingPosts.fulfilled, (state, action) => {
         state.loading = false;
-        state.trendingPagination.loading = false;
+        const { posts, hasNext, page, refresh } = action.payload;
         
-        if (action.payload.refresh || action.payload.page === 1) {
-          state.trending = action.payload.data.posts;
+        if (refresh || page === 1) {
+          state.trending = posts;
         } else {
-          state.trending = [...state.trending, ...action.payload.data.posts];
+          state.trending = [...state.trending, ...posts];
         }
         
         state.trendingPagination = {
-          page: action.payload.page,
-          hasNext: action.payload.data.has_next,
+          page: page,
+          hasNext: hasNext,
           loading: false
         };
       })
       .addCase(getTrendingPosts.rejected, (state, action) => {
         state.loading = false;
-        state.trendingPagination.loading = false;
         state.error = action.payload;
       })
 
@@ -254,8 +205,9 @@ const postSlice = createSlice({
       })
       .addCase(createPost.fulfilled, (state, action) => {
         state.loading = false;
+        const newPost = action.payload.post;
         // Add new post to the beginning of feed
-        state.feed.unshift(action.payload.data);
+        state.feed.unshift(newPost);
       })
       .addCase(createPost.rejected, (state, action) => {
         state.loading = false;
@@ -263,94 +215,73 @@ const postSlice = createSlice({
       })
 
       // Like Post
+      .addCase(likePost.pending, (state) => {
+        // Optimistic update - immediately update UI
+      })
       .addCase(likePost.fulfilled, (state, action) => {
-        const postId = action.payload.postId;
-        
-        // Update like status in all lists
-        [state.feed, state.trending].forEach(list => {
-          const post = list.find(p => p.id === postId);
-          if (post) {
-            post.is_liked = true;
-            post.likes_count += 1;
-          }
+        const { postId, likes_count } = action.payload;
+        updatePostInArrays(state, postId, {
+          is_liked: true,
+          likes_count: likes_count
         });
-        
-        // Update current post
-        if (state.currentPost && state.currentPost.id === postId) {
-          state.currentPost.is_liked = true;
-          state.currentPost.likes_count += 1;
-        }
       })
-
-      // Unlike Post
-      .addCase(unlikePost.fulfilled, (state, action) => {
-        const postId = action.payload.postId;
-        
-        // Update like status in all lists
-        [state.feed, state.trending].forEach(list => {
-          const post = list.find(p => p.id === postId);
-          if (post) {
-            post.is_liked = false;
-            post.likes_count = Math.max(0, post.likes_count - 1);
-          }
-        });
-        
-        // Update current post
-        if (state.currentPost && state.currentPost.id === postId) {
-          state.currentPost.is_liked = false;
-          state.currentPost.likes_count = Math.max(0, state.currentPost.likes_count - 1);
-        }
-      })
-
-      // Get Post
-      .addCase(getPost.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(getPost.fulfilled, (state, action) => {
-        state.loading = false;
-        state.currentPost = action.payload.data;
-      })
-      .addCase(getPost.rejected, (state, action) => {
-        state.loading = false;
+      .addCase(likePost.rejected, (state, action) => {
+        // Revert optimistic update on error
         state.error = action.payload;
       })
 
-      // Delete Post
-      .addCase(deletePost.fulfilled, (state, action) => {
-        const postId = action.payload.postId;
+      // Unlike Post
+      .addCase(unlikePost.pending, (state) => {
+        // Optimistic update - immediately update UI
+      })
+      .addCase(unlikePost.fulfilled, (state, action) => {
+        const { postId, likes_count } = action.payload;
+        updatePostInArrays(state, postId, {
+          is_liked: false,
+          likes_count: likes_count
+        });
+      })
+      .addCase(unlikePost.rejected, (state, action) => {
+        // Revert optimistic update on error
+        state.error = action.payload;
+      })
+
+      // Search Posts
+      .addCase(searchPosts.pending, (state) => {
+        state.searching = true;
+        state.error = null;
+      })
+      .addCase(searchPosts.fulfilled, (state, action) => {
+        state.searching = false;
+        const { posts, page } = action.payload;
         
-        // Remove from all lists
-        state.feed = state.feed.filter(post => post.id !== postId);
-        state.trending = state.trending.filter(post => post.id !== postId);
-        
-        // Clear current post if it matches
-        if (state.currentPost && state.currentPost.id === postId) {
-          state.currentPost = null;
+        if (page === 1) {
+          state.searchResults = posts;
+        } else {
+          state.searchResults = [...state.searchResults, ...posts];
         }
+      })
+      .addCase(searchPosts.rejected, (state, action) => {
+        state.searching = false;
+        state.error = action.payload;
       });
-  }
+  },
 });
 
-// Export actions
-export const {
-  clearError,
-  clearCurrentPost,
-  updatePostInLists,
-  removePostFromLists,
-  resetFeed,
-  resetTrending
+export const { 
+  clearError, 
+  clearSearchResults, 
+  updatePostLike, 
+  updatePostCommentCount 
 } = postSlice.actions;
 
+export default postSlice.reducer;
+
 // Selectors
-export const selectPosts = (state) => state.posts;
 export const selectFeed = (state) => state.posts.feed;
 export const selectTrending = (state) => state.posts.trending;
-export const selectCurrentPost = (state) => state.posts.currentPost;
-export const selectPostsLoading = (state) => state.posts.loading;
-export const selectPostsError = (state) => state.posts.error;
+export const selectLoading = (state) => state.posts.loading;
+export const selectError = (state) => state.posts.error;
 export const selectFeedPagination = (state) => state.posts.feedPagination;
-export const selectTrendingPagination = (state) => state.posts.trendingPagination;
-
-// Export reducer
-export default postSlice.reducer;
+export const selectSearchResults = (state) => state.posts.searchResults;
+export const selectSearching = (state) => state.posts.searching;

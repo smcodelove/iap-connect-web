@@ -1,258 +1,406 @@
-// components/posts/PostCard.js
 /**
- * PostCard - Individual post component with user interactions
- * Features: Like, Comment, Share, User profile navigation
+ * PostCard - Beautiful, interactive post component for IAP Connect
+ * Features: Like/comment/share, image gallery, hashtags, user interactions
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
+  Image,
   StyleSheet,
   Dimensions,
   Alert,
+  Share,
+  Animated,
 } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
+import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
-
 import Avatar from '../common/Avatar';
-import Button from '../common/Button';
-import { likePost, unlikePost } from '../../store/slices/postSlice';
-import { colors, typography, spacing } from '../../styles';
-import { formatTimeAgo } from '../../utils/helpers';
 
 const { width: screenWidth } = Dimensions.get('window');
-const POST_IMAGE_HEIGHT = screenWidth * 0.75;
+const POST_IMAGE_HEIGHT = screenWidth * 0.6;
 
-const PostCard = ({ 
+// Color constants
+const colors = {
+  primary: '#0066CC',
+  primaryLight: '#3385DB',
+  accent: '#FF6B35',
+  success: '#28A745',
+  danger: '#DC3545',
+  white: '#FFFFFF',
+  gray100: '#F8F9FA',
+  gray200: '#E9ECEF',
+  gray300: '#DEE2E6',
+  gray400: '#CED4DA',
+  gray500: '#ADB5BD',
+  gray600: '#6C757D',
+  gray700: '#495057',
+  gray800: '#343A40',
+  gray900: '#212529',
+};
+
+const PostCard = memo(({ 
   post, 
   onLike, 
   onComment, 
   onShare, 
-  onUserPress,
-  style 
+  onUserPress, 
+  onPostPress,
+  currentUserId 
 }) => {
-  const dispatch = useDispatch();
-  const { user: currentUser } = useSelector(state => state.auth);
-  
-  const [isLiking, setIsLiking] = useState(false);
-  const [imageError, setImageError] = useState(false);
+  const [liked, setLiked] = useState(post.is_liked || false);
+  const [likesCount, setLikesCount] = useState(post.likes_count || 0);
+  const [likeAnimation] = useState(new Animated.Value(1));
 
-  // Check if current user liked this post
-  const isLiked = post.is_liked_by_user || false;
+  // Format timestamp
+  const formatTimestamp = (timestamp) => {
+    const now = new Date();
+    const postTime = new Date(timestamp);
+    const diffInMs = now - postTime;
+    const diffInMins = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMins / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
 
-  // Handle like/unlike post
-  const handleLike = useCallback(async () => {
-    if (isLiking) return;
+    if (diffInMins < 1) return 'Just now';
+    if (diffInMins < 60) return `${diffInMins}m`;
+    if (diffInHours < 24) return `${diffInHours}h`;
+    if (diffInDays < 7) return `${diffInDays}d`;
     
-    setIsLiking(true);
+    return postTime.toLocaleDateString('en-IN', { 
+      day: 'numeric', 
+      month: 'short' 
+    });
+  };
+
+  // Handle like with animation
+  const handleLike = useCallback(() => {
+    const newLiked = !liked;
+    setLiked(newLiked);
+    setLikesCount(prev => newLiked ? prev + 1 : prev - 1);
+
+    // Animate heart
+    Animated.sequence([
+      Animated.timing(likeAnimation, {
+        toValue: 1.3,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(likeAnimation, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Call parent callback
+    if (onLike) {
+      onLike(post.id, newLiked);
+    }
+  }, [liked, onLike, post.id, likeAnimation]);
+
+  // Handle comment
+  const handleComment = useCallback(() => {
+    if (onComment) {
+      onComment(post.id);
+    }
+  }, [onComment, post.id]);
+
+  // Handle share
+  const handleShare = useCallback(async () => {
     try {
-      if (isLiked) {
-        await dispatch(unlikePost(post.id)).unwrap();
-      } else {
-        await dispatch(likePost(post.id)).unwrap();
+      const shareContent = {
+        message: `Check out this post by ${post.author.full_name}:\n\n${post.content.substring(0, 100)}${post.content.length > 100 ? '...' : ''}\n\nShared via IAP Connect`,
+        url: `https://iapconnect.com/posts/${post.id}`, // Replace with actual URL
+      };
+
+      await Share.share(shareContent);
+      
+      if (onShare) {
+        onShare(post.id);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to update like');
-    } finally {
-      setIsLiking(false);
+      Alert.alert('Error', 'Failed to share post');
     }
-  }, [dispatch, post.id, isLiked, isLiking]);
+  }, [post, onShare]);
 
-  // Handle hashtag press
-  const handleHashtagPress = useCallback((hashtag) => {
-    // Navigate to hashtag search or trending
-    Alert.alert('Hashtag', `Search for ${hashtag}`);
-  }, []);
+  // Handle user press
+  const handleUserPress = useCallback(() => {
+    if (onUserPress) {
+      onUserPress(post.author.id);
+    }
+  }, [onUserPress, post.author.id]);
 
-  // Render post content with hashtag highlighting
-  const renderContent = useCallback(() => {
-    const content = post.content;
-    const hashtagRegex = /#\w+/g;
-    const parts = content.split(hashtagRegex);
-    const hashtags = content.match(hashtagRegex) || [];
+  // Handle post press
+  const handlePostPress = useCallback(() => {
+    if (onPostPress) {
+      onPostPress(post.id);
+    }
+  }, [onPostPress, post.id]);
 
+  // Render hashtags
+  const renderHashtags = useCallback((content) => {
+    if (!content) return <Text style={styles.content}>{content}</Text>;
+
+    const parts = content.split(/(#[\w]+)/g);
     return (
       <Text style={styles.content}>
         {parts.map((part, index) => (
-          <React.Fragment key={index}>
-            {part}
-            {hashtags[index] && (
-              <Text
-                style={styles.hashtag}
-                onPress={() => handleHashtagPress(hashtags[index])}
-              >
-                {hashtags[index]}
-              </Text>
-            )}
-          </React.Fragment>
+          part.startsWith('#') ? (
+            <Text key={index} style={styles.hashtag}>
+              {part}
+            </Text>
+          ) : (
+            <Text key={index}>{part}</Text>
+          )
         ))}
       </Text>
     );
-  }, [post.content, handleHashtagPress]);
+  }, []);
 
-  // Render post images
-  const renderImages = useCallback(() => {
+  // Render images
+  const renderImages = () => {
     if (!post.media_urls || post.media_urls.length === 0) return null;
 
-    return (
-      <View style={styles.mediaContainer}>
-        {post.media_urls.slice(0, 4).map((url, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[
-              styles.imageContainer,
-              post.media_urls.length > 1 && styles.multipleImages
-            ]}
-            onPress={() => {
-              // Navigate to image viewer
-              Alert.alert('Image', 'Open image viewer');
-            }}
-          >
-            <Image
-              source={{ uri: url }}
-              style={styles.postImage}
-              resizeMode="cover"
-              onError={() => setImageError(true)}
-            />
-            {post.media_urls.length > 4 && index === 3 && (
-              <View style={styles.moreImagesOverlay}>
-                <Text style={styles.moreImagesText}>
-                  +{post.media_urls.length - 4}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  }, [post.media_urls]);
+    const images = post.media_urls;
+    
+    if (images.length === 1) {
+      return (
+        <TouchableOpacity 
+          style={styles.singleImageContainer}
+          activeOpacity={0.9}
+          onPress={() => {/* Open image viewer */}}
+        >
+          <Image 
+            source={{ uri: images[0] }} 
+            style={styles.singleImage}
+            resizeMode="cover"
+          />
+        </TouchableOpacity>
+      );
+    }
 
-  return (
-    <View style={[styles.container, style]}>
-      {/* User Info Header */}
-      <TouchableOpacity
-        style={styles.userHeader}
-        onPress={onUserPress}
-        activeOpacity={0.7}
-      >
-        <Avatar
-          uri={post.user.profile_picture_url}
-          name={post.user.full_name}
-          size={40}
-        />
-        <View style={styles.userInfo}>
-          <Text style={styles.username}>{post.user.full_name}</Text>
-          <View style={styles.metaInfo}>
-            <Text style={styles.userType}>
-              {post.user.user_type === 'doctor' ? '👨‍⚕️ Doctor' : '👨‍🎓 Student'}
-            </Text>
-            <Text style={styles.separator}>•</Text>
-            <Text style={styles.timestamp}>
-              {formatTimeAgo(post.created_at)}
-            </Text>
+    if (images.length === 2) {
+      return (
+        <View style={styles.twoImagesContainer}>
+          {images.map((imageUri, index) => (
+            <TouchableOpacity 
+              key={index}
+              style={styles.halfImageContainer}
+              activeOpacity={0.9}
+              onPress={() => {/* Open image viewer */}}
+            >
+              <Image 
+                source={{ uri: imageUri }} 
+                style={styles.halfImage}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+          ))}
+        </View>
+      );
+    }
+
+    if (images.length >= 3) {
+      return (
+        <View style={styles.multipleImagesContainer}>
+          <TouchableOpacity 
+            style={styles.mainImageContainer}
+            activeOpacity={0.9}
+            onPress={() => {/* Open image viewer */}}
+          >
+            <Image 
+              source={{ uri: images[0] }} 
+              style={styles.mainImage}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
+          
+          <View style={styles.sideImagesContainer}>
+            <TouchableOpacity 
+              style={styles.sideImageContainer}
+              activeOpacity={0.9}
+              onPress={() => {/* Open image viewer */}}
+            >
+              <Image 
+                source={{ uri: images[1] }} 
+                style={styles.sideImage}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.sideImageContainer, styles.lastSideImage]}
+              activeOpacity={0.9}
+              onPress={() => {/* Open image viewer */}}
+            >
+              <Image 
+                source={{ uri: images[2] }} 
+                style={styles.sideImage}
+                resizeMode="cover"
+              />
+              {images.length > 3 && (
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.7)']}
+                  style={styles.moreImagesOverlay}
+                >
+                  <Text style={styles.moreImagesText}>+{images.length - 3}</Text>
+                </LinearGradient>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
-        
-        {/* Post Options Menu */}
-        <TouchableOpacity
-          style={styles.optionsButton}
-          onPress={() => Alert.alert('Options', 'Post options menu')}
-        >
-          <Icon name="more-horizontal" size={20} color={colors.gray600} />
-        </TouchableOpacity>
-      </TouchableOpacity>
+      );
+    }
+  };
 
-      {/* Post Content */}
-      <View style={styles.contentContainer}>
-        {renderContent()}
+  // Get user type display
+  const getUserTypeDisplay = () => {
+    const { user_type, specialty, college } = post.author;
+    if (user_type === 'doctor') {
+      return specialty || 'Doctor';
+    }
+    if (user_type === 'student') {
+      return college || 'Medical Student';
+    }
+    return 'Medical Professional';
+  };
+
+  return (
+    <View style={styles.card}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.userInfo}
+          onPress={handleUserPress}
+          activeOpacity={0.7}
+        >
+          <Avatar 
+            size={45}
+            uri={post.author.profile_picture_url}
+            name={post.author.full_name}
+          />
+          <View style={styles.userDetails}>
+            <Text style={styles.userName}>{post.author.full_name}</Text>
+            <View style={styles.metaInfo}>
+              <Text style={styles.userType}>{getUserTypeDisplay()}</Text>
+              <Text style={styles.separator}>•</Text>
+              <Text style={styles.timestamp}>
+                {formatTimestamp(post.created_at)}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.optionsButton}>
+          <Icon name="more-horizontal" size={20} color={colors.gray500} />
+        </TouchableOpacity>
       </View>
 
-      {/* Post Images */}
+      {/* Content */}
+      <TouchableOpacity 
+        style={styles.contentContainer}
+        onPress={handlePostPress}
+        activeOpacity={0.95}
+      >
+        {renderHashtags(post.content)}
+      </TouchableOpacity>
+
+      {/* Images */}
       {renderImages()}
 
-      {/* Interaction Stats */}
-      {(post.likes_count > 0 || post.comments_count > 0) && (
-        <View style={styles.statsContainer}>
-          {post.likes_count > 0 && (
-            <Text style={styles.statsText}>
-              {post.likes_count} {post.likes_count === 1 ? 'like' : 'likes'}
-            </Text>
-          )}
-          {post.comments_count > 0 && (
-            <Text style={styles.statsText}>
-              {post.comments_count} {post.comments_count === 1 ? 'comment' : 'comments'}
-            </Text>
-          )}
-        </View>
-      )}
+      {/* Stats */}
+      <View style={styles.statsContainer}>
+        <Text style={styles.statsText}>
+          {likesCount > 0 && `${likesCount} ${likesCount === 1 ? 'like' : 'likes'}`}
+        </Text>
+        <Text style={styles.statsText}>
+          {post.comments_count > 0 && `${post.comments_count} ${post.comments_count === 1 ? 'comment' : 'comments'}`}
+        </Text>
+      </View>
 
-      {/* Action Buttons */}
+      {/* Actions */}
       <View style={styles.actionsContainer}>
-        <TouchableOpacity
-          style={styles.actionButton}
+        <TouchableOpacity 
+          style={[styles.actionButton, liked && styles.actionButtonLiked]}
           onPress={handleLike}
-          disabled={isLiking}
+          activeOpacity={0.8}
         >
-          <Icon
-            name="heart"
-            size={20}
-            color={isLiked ? colors.danger : colors.gray600}
-            fill={isLiked ? colors.danger : 'none'}
-          />
-          <Text style={[
-            styles.actionText,
-            isLiked && styles.actionTextActive
-          ]}>
+          <Animated.View style={{ transform: [{ scale: likeAnimation }] }}>
+            <Icon 
+              name={liked ? "heart" : "heart"} 
+              size={20} 
+              color={liked ? colors.danger : colors.gray600}
+              fill={liked ? colors.danger : 'none'}
+            />
+          </Animated.View>
+          <Text style={[styles.actionText, liked && styles.actionTextLiked]}>
             Like
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
+        <TouchableOpacity 
           style={styles.actionButton}
-          onPress={onComment}
+          onPress={handleComment}
+          activeOpacity={0.8}
         >
           <Icon name="message-circle" size={20} color={colors.gray600} />
           <Text style={styles.actionText}>Comment</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
+        <TouchableOpacity 
           style={styles.actionButton}
-          onPress={onShare}
+          onPress={handleShare}
+          activeOpacity={0.8}
         >
           <Icon name="share" size={20} color={colors.gray600} />
           <Text style={styles.actionText}>Share</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.actionButton}
+          activeOpacity={0.8}
+        >
+          <Icon name="bookmark" size={20} color={colors.gray600} />
+          <Text style={styles.actionText}>Save</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
     backgroundColor: colors.white,
-    marginHorizontal: spacing.sm,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
+    marginBottom: 12,
+    shadowColor: colors.gray900,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  userHeader: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.md,
-    paddingBottom: spacing.sm,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
-    marginLeft: spacing.sm,
   },
-  username: {
-    ...typography.body,
+  userDetails: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
     fontWeight: '600',
     color: colors.gray900,
     marginBottom: 2,
@@ -262,28 +410,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   userType: {
-    ...typography.small,
+    fontSize: 12,
     color: colors.primary,
     fontWeight: '500',
   },
   separator: {
-    ...typography.small,
+    fontSize: 12,
     color: colors.gray400,
-    marginHorizontal: spacing.xs,
+    marginHorizontal: 6,
   },
   timestamp: {
-    ...typography.small,
+    fontSize: 12,
     color: colors.gray500,
   },
   optionsButton: {
-    padding: spacing.xs,
+    padding: 8,
   },
   contentContainer: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
   content: {
-    ...typography.body,
+    fontSize: 16,
     color: colors.gray800,
     lineHeight: 22,
   },
@@ -291,24 +439,55 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '600',
   },
-  mediaContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: spacing.sm,
-  },
-  imageContainer: {
-    width: screenWidth - 32,
+  singleImageContainer: {
+    width: '100%',
     height: POST_IMAGE_HEIGHT,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginHorizontal: spacing.sm,
+    backgroundColor: colors.gray200,
   },
-  multipleImages: {
-    width: (screenWidth - 48) / 2,
-    height: (screenWidth - 48) / 2,
-    marginBottom: spacing.xs,
+  singleImage: {
+    width: '100%',
+    height: '100%',
   },
-  postImage: {
+  twoImagesContainer: {
+    flexDirection: 'row',
+    height: POST_IMAGE_HEIGHT,
+  },
+  halfImageContainer: {
+    flex: 1,
+    backgroundColor: colors.gray200,
+    marginRight: 2,
+  },
+  halfImage: {
+    width: '100%',
+    height: '100%',
+  },
+  multipleImagesContainer: {
+    flexDirection: 'row',
+    height: POST_IMAGE_HEIGHT,
+  },
+  mainImageContainer: {
+    flex: 2,
+    backgroundColor: colors.gray200,
+    marginRight: 2,
+  },
+  mainImage: {
+    width: '100%',
+    height: '100%',
+  },
+  sideImagesContainer: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  sideImageContainer: {
+    flex: 1,
+    backgroundColor: colors.gray200,
+    marginBottom: 2,
+    position: 'relative',
+  },
+  lastSideImage: {
+    marginBottom: 0,
+  },
+  sideImage: {
     width: '100%',
     height: '100%',
   },
@@ -318,50 +497,53 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   moreImagesText: {
-    ...typography.h3,
+    fontSize: 18,
     color: colors.white,
     fontWeight: 'bold',
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray200,
   },
   statsText: {
-    ...typography.caption,
+    fontSize: 12,
     color: colors.gray600,
   },
   actionsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 20,
     backgroundColor: colors.gray100,
-    minWidth: 80,
+    flex: 1,
+    marginHorizontal: 4,
     justifyContent: 'center',
   },
+  actionButtonLiked: {
+    backgroundColor: '#FFE8E8',
+  },
   actionText: {
-    ...typography.caption,
+    fontSize: 12,
     color: colors.gray600,
-    marginLeft: spacing.xs,
+    marginLeft: 6,
     fontWeight: '500',
   },
-  actionTextActive: {
+  actionTextLiked: {
     color: colors.danger,
   },
 });

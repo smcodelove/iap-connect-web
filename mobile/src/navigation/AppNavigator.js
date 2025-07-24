@@ -1,3 +1,4 @@
+// navigation/AppNavigator.js - Updated with CreatePost Screen
 import React, { useEffect } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useDispatch, useSelector } from 'react-redux';
@@ -9,8 +10,8 @@ import AuthNavigator from './AuthNavigator';
 import TabNavigator from './TabNavigator';
 
 // Import screens
-import PostDetailScreen from '../screens/post/PostDetailScreen';
 import CreatePostScreen from '../screens/post/CreatePostScreen';
+import PostDetailScreen from '../screens/post/PostDetailScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 
 // Import components
@@ -62,48 +63,51 @@ const AppNavigator = () => {
         }}
       >
         {!isAuthenticated ? (
+          // Auth Stack
           <Stack.Screen 
             name="Auth" 
             component={AuthNavigator}
             options={{
-              animationTypeForReplace: 'pop'
+              animationTypeForReplace: !isAuthenticated ? 'pop' : 'push',
             }}
           />
         ) : (
+          // Main App Stack
           <>
             <Stack.Screen 
               name="Main" 
               component={TabNavigator}
-              options={{
-                animationTypeForReplace: 'push'
-              }}
             />
             
+            {/* Modal Screens */}
             <Stack.Screen 
-              name={SCREEN_NAMES.CREATE_POST} 
+              name="CreatePost" 
               component={CreatePostScreen}
               options={{
-                title: 'Create Post',
-                headerShown: true,
-                presentation: "modal"
+                presentation: 'modal',
+                headerShown: false,
+                gestureEnabled: true,
+                gestureDirection: 'vertical',
               }}
             />
             
             <Stack.Screen 
-              name={SCREEN_NAMES.EDIT_PROFILE} 
-              component={EditProfileScreen}
-              options={{
-                title: 'Edit Profile',
-                headerShown: true
-              }}
-            />
-            
-            <Stack.Screen 
-              name={SCREEN_NAMES.POST_DETAIL} 
+              name="PostDetail" 
               component={PostDetailScreen}
               options={{
-                title: 'Post',
-                headerShown: true
+                headerShown: false,
+                gestureEnabled: true,
+              }}
+            />
+            
+            <Stack.Screen 
+              name="EditProfile" 
+              component={EditProfileScreen}
+              options={{
+                presentation: 'modal',
+                headerShown: false,
+                gestureEnabled: true,
+                gestureDirection: 'vertical',
               }}
             />
           </>
@@ -116,10 +120,10 @@ const AppNavigator = () => {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0066CC',
     justifyContent: 'center',
-    alignItems: 'center'
-  }
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+  },
 });
 
 export default AppNavigator;

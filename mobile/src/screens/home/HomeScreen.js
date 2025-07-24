@@ -1,286 +1,410 @@
-// screens/home/HomeScreen.js
-/**
- * HomeScreen - Main feed displaying posts from followed users
- * Features: Pull to refresh, infinite scroll, trending posts
- */
-
-import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  ScrollView,
+// screens/main/HomeScreen.js - Updated with Create Post Button
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
   RefreshControl,
-  StyleSheet,
   Alert,
-  Text
+  TouchableOpacity 
 } from 'react-native';
-import { useSelector, useDispatch } from 'react-redux';
-import { useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSelector } from 'react-redux';
+import Icon from 'react-native-vector-icons/Feather';
+import { colors } from '../../utils/constants';
+import api from '../../services/api';
 
-import PostCard from '../../components/posts/PostCard';
-import CreatePostButton from '../../components/posts/CreatePostButton';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
-import ErrorBoundary from '../../components/common/ErrorBoundary';
-import { fetchFeed, clearError } from '../../store/slices/postSlice';
-import { colors, typography, spacing } from '../../styles';
+// Post Card Component
+const PostCard = ({ post }) => {
+  const [liked, setLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(post.likes_count || 0);
 
-const HomeScreen = ({ navigation }) => {
-  const dispatch = useDispatch();
-  const { 
-    feed, 
-    loading, 
-    error, 
-    hasMore,
-    page 
-  } = useSelector(state => state.posts);
-  
-  const { user } = useSelector(state => state.auth);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const handleLike = () => {
+    setLiked(!liked);
+    setLikesCount(liked ? likesCount - 1 : likesCount + 1);
+  };
 
-  // Load initial feed
-  useFocusEffect(
-    useCallback(() => {
-      if (feed.length === 0) {
-        dispatch(fetchFeed({ page: 1 }));
-      }
-    }, [dispatch, feed.length])
-  );
+  // Format timestamp
+  const formatTime = (timestamp) => {
+    const now = new Date();
+    const postTime = new Date(timestamp);
+    const diffInMs = now - postTime;
+    const diffInMins = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMins / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
 
-  // Handle pull to refresh
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await dispatch(fetchFeed({ page: 1, refresh: true })).unwrap();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to refresh feed');
-    } finally {
-      setRefreshing(false);
-    }
-  }, [dispatch]);
-
-  // Handle load more posts
-  const loadMorePosts = useCallback(async () => {
-    if (loadingMore || !hasMore || loading) return;
+    if (diffInMins < 1) return 'Just now';
+    if (diffInMins < 60) return `${diffInMins}m`;
+    if (diffInHours < 24) return `${diffInHours}h`;
+    if (diffInDays < 7) return `${diffInDays}d`;
     
-    setLoadingMore(true);
+    return postTime.toLocaleDateString('en-IN', { 
+      day: 'numeric', 
+      month: 'short' 
+    });
+  };
+
+  // Render hashtags
+  const renderContent = (content) => {
+    if (!content) return null;
+    
+    const parts = content.split(/(#[\w]+)/g);
+    return (
+      <Text style={styles.postContent}>
+        {parts.map((part, index) => (
+          part.startsWith('#') ? (
+            <Text key={index} style={styles.hashtag}>
+              {part}
+            </Text>
+          ) : (
+            <Text key={index}>{part}</Text>
+          )
+        ))}
+      </Text>
+    );
+  };
+
+  return (
+    <View style={styles.postCard}>
+      {/* Header */}
+      <View style={styles.postHeader}>
+        <View style={styles.userInfo}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {post.author.full_name.charAt(0)}
+            </Text>
+          </View>
+          <View style={styles.userDetails}>
+            <Text style={styles.userName}>{post.author.full_name}</Text>
+            <View style={styles.postMeta}>
+              <Text style={styles.userType}>
+                {post.author.user_type === 'admin' ? 'System Administrator' : 
+                 post.author.user_type === 'doctor' ? 'Doctor' : 'Student'}
+              </Text>
+              <Text style={styles.separator}>•</Text>
+              <Text style={styles.timestamp}>{formatTime(post.created_at)}</Text>
+            </View>
+          </View>
+        </View>
+        <TouchableOpacity style={styles.moreButton}>
+          <Icon name="more-horizontal" size={20} color={colors.gray600} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Content */}
+      <View style={styles.postContentContainer}>
+        {renderContent(post.content)}
+      </View>
+
+      {/* Actions */}
+      <View style={styles.postActions}>
+        <TouchableOpacity 
+          style={[styles.actionButton, liked && styles.actionButtonLiked]}
+          onPress={handleLike}
+        >
+          <Icon 
+            name="heart" 
+            size={20} 
+            color={liked ? colors.danger : colors.gray600}
+            fill={liked ? colors.danger : 'none'}
+          />
+          <Text style={[styles.actionText, liked && styles.actionTextLiked]}>
+            {likesCount > 0 ? likesCount : 'Like'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionButton}>
+          <Icon name="message-circle" size={20} color={colors.gray600} />
+          <Text style={styles.actionText}>
+            {post.comments_count > 0 ? post.comments_count : 'Comment'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionButton}>
+          <Icon name="share" size={20} color={colors.gray600} />
+          <Text style={styles.actionText}>Share</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+export default function HomeScreen({ navigation }) {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const user = useSelector(state => state.auth.user);
+
+  // Load posts
+  const loadPosts = async () => {
     try {
-      await dispatch(fetchFeed({ page: page + 1 })).unwrap();
+      console.log('🚀 Fetching posts from feed...');
+      const response = await api.get('/posts/feed');
+      console.log('✅ Posts fetched:', response.data);
+      setPosts(response.data.posts || []);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load more posts');
+      console.error('❌ Error fetching posts:', error);
+      Alert.alert('Error', 'Failed to load posts');
     } finally {
-      setLoadingMore(false);
+      setLoading(false);
     }
-  }, [dispatch, loadingMore, hasMore, loading, page]);
+  };
 
-  // Handle post interactions
-  const handleLike = useCallback((postId) => {
-    // Navigate to post detail or handle inline like
-    navigation.navigate('PostDetail', { postId });
-  }, [navigation]);
-
-  const handleComment = useCallback((postId) => {
-    navigation.navigate('PostDetail', { postId, openComments: true });
-  }, [navigation]);
-
-  const handleShare = useCallback((post) => {
-    // Implement share functionality
-    Alert.alert('Share', `Share ${post.user.full_name}'s post`);
+  useEffect(() => {
+    loadPosts();
   }, []);
 
-  const handleUserPress = useCallback((userId) => {
-    navigation.navigate('Profile', { userId });
-  }, [navigation]);
+  // Handle refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadPosts();
+    setRefreshing(false);
+  };
 
-  // Clear error when component unmounts
-  useEffect(() => {
-    return () => {
-      if (error) {
-        dispatch(clearError());
-      }
-    };
-  }, [dispatch, error]);
+  // Handle create post navigation
+  const handleCreatePost = () => {
+    navigation.navigate('CreatePost');
+  };
 
-  // Handle scroll to load more
-  const handleScroll = useCallback(({ nativeEvent }) => {
-    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-    const paddingToBottom = 20;
-    
-    if (layoutMeasurement.height + contentOffset.y >= 
-        contentSize.height - paddingToBottom) {
-      loadMorePosts();
-    }
-  }, [loadMorePosts]);
+  const renderItem = ({ item }) => <PostCard post={item} />;
 
-  if (loading && feed.length === 0) {
+  if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <LoadingSpinner size="large" />
-        <Text style={styles.loadingText}>Loading your feed...</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>IAP Connect</Text>
+          <Text style={styles.headerSubtitle}>
+            Welcome back, {user?.full_name || 'User'}!
+          </Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text>Loading posts...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ErrorBoundary>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>IAP Connect</Text>
-          <Text style={styles.headerSubtitle}>
-            Welcome back, {user?.full_name}!
-          </Text>
-        </View>
-
-        {/* Posts Feed */}
-        <ScrollView
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
-            />
-          }
-          onScroll={handleScroll}
-          scrollEventThrottle={400}
-        >
-          {feed.length === 0 && !loading ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No posts yet!</Text>
-              <Text style={styles.emptySubtitle}>
-                Follow some users or create your first post
-              </Text>
-            </View>
-          ) : (
-            feed.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onLike={() => handleLike(post.id)}
-                onComment={() => handleComment(post.id)}
-                onShare={() => handleShare(post)}
-                onUserPress={() => handleUserPress(post.user.id)}
-                style={styles.postCard}
-              />
-            ))
-          )}
-
-          {/* Load More Indicator */}
-          {loadingMore && (
-            <View style={styles.loadMoreContainer}>
-              <LoadingSpinner size="small" />
-              <Text style={styles.loadMoreText}>Loading more posts...</Text>
-            </View>
-          )}
-
-          {/* End of Feed Indicator */}
-          {!hasMore && feed.length > 0 && (
-            <View style={styles.endContainer}>
-              <Text style={styles.endText}>You're all caught up! 🎉</Text>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Floating Create Post Button */}
-        <CreatePostButton
-          onPress={() => navigation.navigate('CreatePost')}
-          style={styles.createButton}
-        />
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>IAP Connect</Text>
+        <Text style={styles.headerSubtitle}>
+          Welcome back, {user?.full_name || 'User'}!
+        </Text>
       </View>
-    </ErrorBoundary>
+
+      {/* Posts List */}
+      <FlatList
+        data={posts}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id.toString()}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
+        contentContainerStyle={styles.postsContainer}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {/* Floating Action Button for Create Post */}
+      <TouchableOpacity 
+        style={styles.fab}
+        onPress={handleCreatePost}
+        activeOpacity={0.8}
+      >
+        <Icon name="plus" size={28} color={colors.white} />
+      </TouchableOpacity>
+    </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.gray100,
+    backgroundColor: '#F8F9FA',
   },
   header: {
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray200,
-    elevation: 2,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    paddingTop: 40,
   },
   headerTitle: {
-    ...typography.h2,
-    color: colors.primary,
-    marginBottom: spacing.xs,
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: 4,
   },
   headerSubtitle: {
-    ...typography.caption,
-    color: colors.gray600,
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
   },
-  scrollView: {
-    flex: 1,
-  },
-  postCard: {
-    marginBottom: spacing.sm,
+  postsContainer: {
+    padding: 16,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.gray100,
   },
-  loadingText: {
-    ...typography.caption,
-    color: colors.gray600,
-    marginTop: spacing.md,
+  
+  // Post Card Styles
+  postCard: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.lg,
-  },
-  emptyTitle: {
-    ...typography.h3,
-    color: colors.gray700,
-    marginBottom: spacing.sm,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    ...typography.body,
-    color: colors.gray500,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  loadMoreContainer: {
+  postHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    paddingBottom: 12,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatar: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: colors.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.gray900,
+    marginBottom: 2,
+  },
+  postMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  userType: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  separator: {
+    fontSize: 12,
+    color: colors.gray400,
+    marginHorizontal: 6,
+  },
+  timestamp: {
+    fontSize: 12,
+    color: colors.gray500,
+  },
+  moreButton: {
+    padding: 8,
+  },
+  
+  // Content Styles
+  postContentContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  postContent: {
+    fontSize: 16,
+    color: colors.gray800,
+    lineHeight: 22,
+  },
+  hashtag: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  
+  // Actions Styles
+  postActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.gray200,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: colors.gray100,
+    flex: 1,
+    marginHorizontal: 4,
+    justifyContent: 'center',
+  },
+  actionButtonLiked: {
+    backgroundColor: '#FFE8E8',
+  },
+  actionText: {
+    fontSize: 12,
+    color: colors.gray600,
+    marginLeft: 6,
+    fontWeight: '500',
+  },
+  actionTextLiked: {
+    color: colors.danger,
+  },
+  
+  // Floating Action Button
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: spacing.lg,
-  },
-  loadMoreText: {
-    ...typography.caption,
-    color: colors.gray600,
-    marginLeft: spacing.sm,
-  },
-  endContainer: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-  },
-  endText: {
-    ...typography.caption,
-    color: colors.gray500,
-    fontStyle: 'italic',
-  },
-  createButton: {
-    position: 'absolute',
-    bottom: spacing.xl,
-    right: spacing.lg,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
 });
 
-export default HomeScreen;
+// Color constants for this file
+const colors = {
+  primary: '#0066CC',
+  danger: '#DC3545',
+  white: '#FFFFFF',
+  gray100: '#F8F9FA',
+  gray200: '#E9ECEF',
+  gray400: '#CED4DA',
+  gray500: '#ADB5BD',
+  gray600: '#6C757D',
+  gray700: '#495057',
+  gray800: '#343A40',
+  gray900: '#212529',
+};

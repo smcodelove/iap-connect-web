@@ -1,220 +1,170 @@
+// services/postService.js - Clean Post Service (NO Redux Code)
 /**
  * Post service for IAP Connect mobile app
- * Handles API calls for post-related operations
+ * Handles all post-related API calls including likes
  */
 
-import api, { apiUtils } from './api';
-import { ENDPOINTS, PAGINATION } from '../utils/constants';
+import api from './api';
 
 class PostService {
-  /**
-   * Get user feed
-   */
-  async getFeed(page = 1, size = PAGINATION.PAGE_SIZE) {
+  // Get user feed
+  async getFeed(page = 1, size = 20) {
     try {
-      const response = await api.get(ENDPOINTS.POSTS_FEED, {
-        params: { page, size }
-      });
-      
+      const response = await api.get(`/posts/feed?page=${page}&size=${size}`);
       return {
-        success: true,
-        data: response.data
+        posts: response.data.posts,
+        total: response.data.total,
+        hasNext: response.data.has_next,
+        success: true
       };
     } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
+      throw new Error(error.response?.data?.detail || 'Failed to fetch feed');
     }
   }
 
-  /**
-   * Get trending posts
-   */
-  async getTrendingPosts(page = 1, size = PAGINATION.PAGE_SIZE) {
+  // Get trending posts
+  async getTrendingPosts(page = 1, size = 20) {
     try {
-      const response = await api.get(ENDPOINTS.POSTS_TRENDING, {
-        params: { page, size }
-      });
-      
+      const response = await api.get(`/posts/trending?page=${page}&size=${size}`);
       return {
-        success: true,
-        data: response.data
+        posts: response.data.posts,
+        total: response.data.total,
+        hasNext: response.data.has_next,
+        success: true
       };
     } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
+      throw new Error(error.response?.data?.detail || 'Failed to fetch trending posts');
     }
   }
 
-  /**
-   * Create new post
-   */
+  // Create new post
   async createPost(postData) {
     try {
-      const response = await api.post(ENDPOINTS.POSTS, postData);
-      
+      const response = await api.post('/posts', {
+        content: postData.content,
+        media_urls: postData.media_urls || [],
+        hashtags: postData.hashtags || []
+      });
       return {
-        success: true,
-        data: response.data,
-        message: 'Post created successfully'
+        post: response.data,
+        success: true
       };
     } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
+      console.error('Create post error:', error.response?.data);
+      throw new Error(error.response?.data?.detail || 'Failed to create post');
     }
   }
 
-  /**
-   * Get specific post
-   */
-  async getPost(postId) {
+  // Get post by ID
+  async getPostById(postId) {
     try {
-      const response = await api.get(`${ENDPOINTS.POSTS}/${postId}`);
-      
+      const response = await api.get(`/posts/${postId}`);
       return {
-        success: true,
-        data: response.data
+        post: response.data,
+        success: true
       };
     } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
+      throw new Error(error.response?.data?.detail || 'Failed to fetch post');
     }
   }
 
-  /**
-   * Update post
-   */
-  async updatePost(postId, postData) {
-    try {
-      const response = await api.put(`${ENDPOINTS.POSTS}/${postId}`, postData);
-      
-      return {
-        success: true,
-        data: response.data,
-        message: 'Post updated successfully'
-      };
-    } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
-    }
-  }
-
-  /**
-   * Delete post
-   */
-  async deletePost(postId) {
-    try {
-      const response = await api.delete(`${ENDPOINTS.POSTS}/${postId}`);
-      
-      return {
-        success: true,
-        message: 'Post deleted successfully'
-      };
-    } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
-    }
-  }
-
-  /**
-   * Like post
-   */
+  // Like a post
   async likePost(postId) {
     try {
-      const url = apiUtils.formatUrl(ENDPOINTS.POSTS_LIKE, { id: postId });
-      const response = await api.post(url);
-      
+      const response = await api.post(`/posts/${postId}/like`);
       return {
         success: true,
-        message: 'Post liked'
+        liked: true,
+        likes_count: response.data.likes_count
       };
     } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
+      console.error('Like post error:', error.response?.data);
+      throw new Error(error.response?.data?.detail || 'Failed to like post');
     }
   }
 
-  /**
-   * Unlike post
-   */
+  // Unlike a post
   async unlikePost(postId) {
     try {
-      const url = apiUtils.formatUrl(ENDPOINTS.POSTS_LIKE, { id: postId });
-      const response = await api.delete(url);
-      
+      const response = await api.delete(`/posts/${postId}/like`);
       return {
         success: true,
-        message: 'Post unliked'
+        liked: false,
+        likes_count: response.data.likes_count
       };
     } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
+      console.error('Unlike post error:', error.response?.data);
+      throw new Error(error.response?.data?.detail || 'Failed to unlike post');
     }
   }
 
-  /**
-   * Search posts
-   */
-  async searchPosts(query, page = 1, size = PAGINATION.PAGE_SIZE) {
+  // Get post comments
+  async getPostComments(postId, page = 1, size = 50) {
     try {
-      const response = await api.get(ENDPOINTS.POSTS_SEARCH, {
-        params: { q: query, page, size }
+      const response = await api.get(`/posts/${postId}/comments?page=${page}&size=${size}`);
+      return {
+        comments: response.data.comments,
+        total: response.data.total,
+        success: true
+      };
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || 'Failed to fetch comments');
+    }
+  }
+
+  // Add comment to post
+  async addComment(postId, content) {
+    try {
+      const response = await api.post(`/posts/${postId}/comments`, {
+        content: content
       });
-      
       return {
-        success: true,
-        data: response.data
+        comment: response.data,
+        success: true
       };
     } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
+      console.error('Add comment error:', error.response?.data);
+      throw new Error(error.response?.data?.detail || 'Failed to add comment');
     }
   }
 
-  /**
-   * Get post comments
-   */
-  async getPostComments(postId, page = 1, size = PAGINATION.PAGE_SIZE) {
+  // Search posts
+  async searchPosts(query, page = 1, size = 20) {
     try {
-      const url = apiUtils.formatUrl(ENDPOINTS.COMMENTS, { postId });
-      const response = await api.get(url, {
-        params: { page, size }
-      });
-      
+      const response = await api.get(`/posts/search?q=${encodeURIComponent(query)}&page=${page}&size=${size}`);
       return {
-        success: true,
-        data: response.data
+        posts: response.data.posts,
+        total: response.data.total,
+        hasNext: response.data.has_next,
+        success: true
       };
     } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
+      throw new Error(error.response?.data?.detail || 'Failed to search posts');
     }
   }
 
-  /**
-   * Create comment
-   */
-  async createComment(postId, commentData) {
+  // Delete post
+  async deletePost(postId) {
     try {
-      const url = apiUtils.formatUrl(ENDPOINTS.COMMENTS, { postId });
-      const response = await api.post(url, commentData);
-      
-      return {
-        success: true,
-        data: response.data,
-        message: 'Comment added'
-      };
+      await api.delete(`/posts/${postId}`);
+      return { success: true };
     } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
+      throw new Error(error.response?.data?.detail || 'Failed to delete post');
     }
   }
 
-  /**
-   * Delete comment
-   */
-  async deleteComment(commentId) {
+  // Update post
+  async updatePost(postId, postData) {
     try {
-      const url = apiUtils.formatUrl(ENDPOINTS.DELETE_COMMENT, { id: commentId });
-      const response = await api.delete(url);
-      
+      const response = await api.put(`/posts/${postId}`, postData);
       return {
-        success: true,
-        message: 'Comment deleted'
+        post: response.data,
+        success: true
       };
     } catch (error) {
-      throw new Error(apiUtils.getErrorMessage(error));
+      throw new Error(error.response?.data?.detail || 'Failed to update post');
     }
   }
 }
 
-// Export singleton instance
 export default new PostService();
