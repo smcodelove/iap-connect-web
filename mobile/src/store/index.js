@@ -1,6 +1,7 @@
 /**
  * Redux store configuration for IAP Connect mobile app
  * Combines all slices and configures middleware
+ * UPDATED: Added searchReducer for search functionality
  */
 
 import { configureStore } from '@reduxjs/toolkit';
@@ -8,6 +9,7 @@ import authReducer from './slices/authSlice';
 import postReducer from './slices/postSlice';
 import userReducer from './slices/userSlice';
 import commentReducer from './slices/commentSlice';
+import searchReducer from './slices/searchSlice'; // ADDED: Search slice
 
 // Configure store
 export const store = configureStore({
@@ -15,7 +17,8 @@ export const store = configureStore({
     auth: authReducer,
     posts: postReducer,
     users: userReducer,
-    comments: commentReducer
+    comments: commentReducer,
+    search: searchReducer, // ADDED: Search functionality
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -1,90 +1,92 @@
 """
 Post schemas for IAP Connect application.
-Handles request/response validation for post endpoints.
+Updated to fix validation errors with proper user info schema.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
-from .user import UserSearchResponse
 
 
-class PostCreate(BaseModel):
-    """
-    Post creation schema.
+class UserBasicInfo(BaseModel):
+    """Basic user info for post responses - FIXED VERSION"""
+    id: int
+    username: str
+    full_name: str
+    user_type: str  # Keep as string to avoid enum issues
+    profile_picture_url: Optional[str] = None
+    specialty: Optional[str] = None
+    college: Optional[str] = None
     
-    Attributes:
-        content: Post text content
-        media_urls: Optional list of image/document URLs
-        hashtags: Optional list of hashtags
-    """
-    content: str
+    class Config:
+        from_attributes = True
+
+
+class PostBase(BaseModel):
+    """Base post schema"""
+    content: str = Field(..., min_length=1, max_length=2000)
     media_urls: Optional[List[str]] = []
     hashtags: Optional[List[str]] = []
 
 
+class PostCreate(PostBase):
+    """Post creation schema"""
+    pass
+
+
 class PostUpdate(BaseModel):
-    """
-    Post update schema.
-    
-    Attributes:
-        content: Updated post content
-        media_urls: Updated media URLs
-        hashtags: Updated hashtags
-    """
-    content: Optional[str] = None
+    """Post update schema"""
+    content: Optional[str] = Field(None, min_length=1, max_length=2000)
     media_urls: Optional[List[str]] = None
     hashtags: Optional[List[str]] = None
 
 
 class PostResponse(BaseModel):
-    """
-    Post response schema for API responses.
-    
-    Attributes:
-        id: Post ID
-        content: Post content
-        media_urls: List of media URLs
-        hashtags: List of hashtags
-        likes_count: Number of likes
-        comments_count: Number of comments
-        shares_count: Number of shares
-        is_trending: Trending status
-        created_at: Creation timestamp
-        updated_at: Last update timestamp
-        author: Post author information
-        is_liked: Whether current user liked this post
-    """
+    """Post response schema with author info"""
     id: int
     content: str
     media_urls: Optional[List[str]] = []
     hashtags: Optional[List[str]] = []
-    likes_count: int
-    comments_count: int
-    shares_count: int
-    is_trending: bool
+    likes_count: int = 0
+    comments_count: int = 0
+    shares_count: int = 0
+    is_trending: bool = False
     created_at: datetime
-    updated_at: datetime
-    author: UserSearchResponse
-    is_liked: Optional[bool] = False
+    updated_at: Optional[datetime] = None
+    is_liked: bool = False
+    author: UserBasicInfo  # FIXED: Use correct user schema
     
     class Config:
         from_attributes = True
 
 
 class PostListResponse(BaseModel):
-    """
-    Post list response schema.
-    
-    Attributes:
-        posts: List of posts
-        total: Total number of posts
-        page: Current page number
-        size: Page size
-        has_next: Whether there are more posts
-    """
+    """Posts list response with pagination"""
     posts: List[PostResponse]
     total: int
     page: int
     size: int
     has_next: bool
+
+
+class PostLikeResponse(BaseModel):
+    """Post like/unlike response"""
+    success: bool
+    message: str
+    is_liked: bool
+    likes_count: int
+
+
+class HashtagResponse(BaseModel):
+    """Hashtag response schema"""
+    hashtag: str
+    posts_count: int
+    total_engagement: int
+    growth: str
+
+
+class TrendingHashtagsResponse(BaseModel):
+    """Trending hashtags response"""
+    success: bool
+    trending_hashtags: List[HashtagResponse]
+    total: int

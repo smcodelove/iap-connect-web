@@ -4,7 +4,7 @@ Handles post-related business logic.
 """
 
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import desc, or_, func
+from sqlalchemy import desc, or_, func, cast, String
 from fastapi import HTTPException, status
 from typing import List, Optional, Tuple
 from ..models.user import User
@@ -180,16 +180,22 @@ def search_posts(query: str, db: Session, page: int = 1, size: int = 20) -> Tupl
     Returns:
         Tuple[List[Post], int]: List of posts and total count
     """
+    print(f"🔍 Searching database for: '{query}'")
+    
+    # Convert hashtags JSON to text for searching
+    hashtags_as_text = cast(Post.hashtags, String)
+    
     posts_query = db.query(Post).options(joinedload(Post.author)).filter(
         or_(
             Post.content.ilike(f"%{query}%"),
-            Post.hashtags.op("@>")(f'["{query}"]')  # Check if hashtag array contains query
+            hashtags_as_text.ilike(f"%{query}%")  # Search hashtags as text
         )
     ).order_by(desc(Post.created_at))
     
     total = posts_query.count()
     posts = posts_query.offset((page - 1) * size).limit(size).all()
     
+    print(f"✅ Found {total} posts matching '{query}'")
     return posts, total
 
 

@@ -1,91 +1,159 @@
+# schemas/user.py
 """
-User schemas for IAP Connect application.
-Handles request/response validation for user endpoints.
+User Pydantic schemas for IAP Connect application.
+Handles all user-related request/response models for profile management.
 """
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, validator, Field
 from typing import Optional, List
 from datetime import datetime
-from ..models.user import UserType
+from enum import Enum
 
 
+class UserType(str, Enum):
+    """User type enumeration"""
+    DOCTOR = "doctor"
+    STUDENT = "student"
+    ADMIN = "admin"
+
+
+# Base user schema
 class UserBase(BaseModel):
-    """Base user schema with common fields."""
-    username: str
+    """Base user schema with common fields"""
+    username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    full_name: str
     user_type: UserType
-    bio: Optional[str] = None
-    specialty: Optional[str] = None  # For doctors
-    college: Optional[str] = None    # For students
+    full_name: str = Field(..., min_length=2, max_length=100)
+    bio: Optional[str] = Field(None, max_length=500)
+    specialty: Optional[str] = Field(None, max_length=100)  # For doctors
+    college: Optional[str] = Field(None, max_length=100)    # For students
 
 
+# User creation schema
 class UserCreate(UserBase):
-    """User creation schema."""
-    password: str
+    """Schema for user registration"""
+    password: str = Field(..., min_length=6, max_length=100)
+    
+    @validator('specialty')
+    def specialty_only_for_doctors(cls, v, values):
+        if values.get('user_type') == UserType.DOCTOR and not v:
+            raise ValueError('Specialty is required for doctors')
+        if values.get('user_type') != UserType.DOCTOR and v:
+            raise ValueError('Specialty can only be set for doctors')
+        return v
+    
+    @validator('college')
+    def college_only_for_students(cls, v, values):
+        if values.get('user_type') == UserType.STUDENT and not v:
+            raise ValueError('College is required for students')
+        if values.get('user_type') != UserType.STUDENT and v:
+            raise ValueError('College can only be set for students')
+        return v
 
 
+# User update schema
 class UserUpdate(BaseModel):
-    """
-    User profile update schema.
-    
-    Attributes:
-        full_name: Updated full name
-        bio: Updated biography
-        specialty: Updated specialty (for doctors)
-        college: Updated college (for students)
-    """
-    full_name: Optional[str] = None
-    bio: Optional[str] = None
-    specialty: Optional[str] = None
-    college: Optional[str] = None
+    """Schema for updating user profile"""
+    full_name: Optional[str] = Field(None, min_length=2, max_length=100)
+    bio: Optional[str] = Field(None, max_length=500)
+    specialty: Optional[str] = Field(None, max_length=100)  # For doctors
+    college: Optional[str] = Field(None, max_length=100)    # For students
+    profile_picture_url: Optional[str] = Field(None, max_length=500)
 
 
-class UserResponse(UserBase):
-    """
-    User response schema for API responses.
-    
-    Attributes:
-        id: User ID
-        profile_picture_url: URL to profile picture
-        is_active: Account status
-        created_at: Account creation timestamp
-        followers_count: Number of followers
-        following_count: Number of users being followed
-        posts_count: Number of posts created
-    """
+# User response schema
+class UserResponse(BaseModel):
+    """Schema for user profile responses"""
     id: int
-    profile_picture_url: Optional[str] = None
+    username: str
+    email: str
+    user_type: UserType
+    full_name: str
+    bio: Optional[str]
+    profile_picture_url: Optional[str]
+    specialty: Optional[str]
+    college: Optional[str]
+    followers_count: int
+    following_count: int
+    posts_count: int
+    display_info: str
     is_active: bool
-    created_at: datetime
-    followers_count: Optional[int] = 0
-    following_count: Optional[int] = 0
-    posts_count: Optional[int] = 0
-    
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
     class Config:
         from_attributes = True
 
 
-class UserSearchResponse(BaseModel):
-    """
-    User search result schema.
-    
-    Attributes:
-        id: User ID
-        username: Username
-        full_name: Full name
-        user_type: User type
-        profile_picture_url: Profile picture URL
-        specialty: Specialty (for doctors)
-        college: College (for students)
-    """
+# Public user profile schema (limited info)
+class UserPublic(BaseModel):
+    """Schema for public user profiles (search results, etc.)"""
     id: int
     username: str
     full_name: str
+    bio: Optional[str]
+    profile_picture_url: Optional[str]
     user_type: UserType
-    profile_picture_url: Optional[str] = None
-    specialty: Optional[str] = None
-    college: Optional[str] = None
+    display_info: str
+    followers_count: int
+    following_count: int
+    posts_count: int
+    is_following: Optional[bool] = False  # Will be set based on current user
+
+    class Config:
+        from_attributes = True
+
+
+# User search response schema
+class UserSearchResponse(BaseModel):
+    """Schema for user search results"""
+    users: List[UserPublic]
+    total: int
+    page: int
+    per_page: int
+    has_next: bool
+    has_prev: bool
+
+
+# Follow schemas
+class FollowResponse(BaseModel):
+    """Schema for follow action responses"""
+    id: int
+    follower_id: int
+    following_id: int
+    created_at: datetime
+    follower: UserPublic
+    following: UserPublic
+
+    class Config:
+        from_attributes = True
+
+
+# Profile stats schema
+class ProfileStats(BaseModel):
+    """Schema for user profile statistics"""
+    posts_count: int
+    followers_count: int
+    following_count: int
+    likes_received: int
+    comments_made: int
+
+
+# Complete profile schema with stats
+class CompleteProfile(UserResponse):
+    """Complete user profile with additional statistics"""
+    is_following: Optional[bool] = False
+    is_follower: Optional[bool] = False
+    recent_posts: Optional[List] = []  # Will be populated with post data
     
     class Config:
         from_attributes = True
+
+
+# File upload response schema
+class FileUploadResponse(BaseModel):
+    """Schema for file upload responses (profile pictures)"""
+    filename: str
+    file_url: str
+    file_size: int
+    uploaded_at: datetime

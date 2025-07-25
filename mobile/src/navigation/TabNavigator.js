@@ -1,4 +1,4 @@
-// navigation/TabNavigator.js - Final with Trending Tab
+// navigation/TabNavigator.js - Updated with proper ProfileScreen import
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Feather';
@@ -8,7 +8,8 @@ import { SCREEN_NAMES } from '../utils/constants';
 import HomeScreen from '../screens/main/HomeScreen';
 import TrendingScreen from '../screens/home/TrendingScreen';
 import SearchScreen from '../screens/search/SearchScreen';
-import ProfileScreen from '../screens/main/ProfileScreen';
+// UPDATED: Import from profile directory instead of main
+import ProfileScreen from '../screens/profile/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 

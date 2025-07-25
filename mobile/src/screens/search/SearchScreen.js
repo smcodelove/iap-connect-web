@@ -1,7 +1,8 @@
-// screens/search/SearchScreen.js - Search Screen with Hashtag Support
+// screens/search/SearchScreen.js - Enhanced Search Screen with Discovery
 /**
  * SearchScreen - Search for users, posts, and hashtags
- * Features: Real-time search, filters, hashtag search, trending hashtags
+ * Features: Real-time search, filters, hashtag search, trending hashtags, user search, discovery feed
+ * UPDATED: Added user search, follow functionality, suggestions, and improved UI
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -15,6 +16,7 @@ import {
   Alert,
   FlatList,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/Feather';
@@ -56,9 +58,12 @@ const SearchScreen = ({ route, navigation }) => {
   const [query, setQuery] = useState(initialQuery);
   const [activeFilter, setActiveFilter] = useState(initialType); // all, posts, users, hashtags
   const [searchResults, setSearchResults] = useState([]);
+  const [userResults, setUserResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [userLoading, setUserLoading] = useState(false);
+  const [suggestedUsers, setSuggestedUsers] = useState([]);
   const [recentSearches, setRecentSearches] = useState([
-    '#cardiology', '#surgery', '#pediatrics', '#neurology'
+    '#cardiology', '#surgery', '#pediatrics', '#neurology', 'medical education'
   ]);
   const [trendingHashtags] = useState([
     { tag: '#MedicalEducation', posts: 245, growth: '+12%' },
@@ -71,11 +76,51 @@ const SearchScreen = ({ route, navigation }) => {
 
   const searchInputRef = useRef(null);
 
+  // Mock suggested users data
+  const mockSuggestedUsers = [
+    {
+      id: 2,
+      username: 'dr_patel',
+      full_name: 'Dr. Priya Patel',
+      user_type: 'doctor',
+      specialty: 'Pediatrics',
+      profile_picture_url: null,
+      followers_count: 890,
+      is_following: false
+    },
+    {
+      id: 3,
+      username: 'medical_student_raj',
+      full_name: 'Raj Kumar',
+      user_type: 'student',
+      college: 'AIIMS Delhi',
+      profile_picture_url: null,
+      followers_count: 234,
+      is_following: false
+    },
+    {
+      id: 4,
+      username: 'dr_singh',
+      full_name: 'Dr. Amit Singh',
+      user_type: 'doctor',
+      specialty: 'Cardiology',
+      profile_picture_url: null,
+      followers_count: 1120,
+      is_following: true
+    }
+  ];
+
   useEffect(() => {
     if (initialQuery) {
       handleSearch(initialQuery);
     }
+    loadSuggestedUsers();
   }, [initialQuery]);
+
+  // Load suggested users
+  const loadSuggestedUsers = () => {
+    setSuggestedUsers(mockSuggestedUsers);
+  };
 
   // Handle search
   const handleSearch = useCallback(async (searchQuery = query) => {
@@ -87,6 +132,11 @@ const SearchScreen = ({ route, navigation }) => {
         // Search posts
         await dispatch(searchPosts({ query: searchQuery })).unwrap();
         setSearchResults(postResults);
+      }
+
+      if (activeFilter === 'all' || activeFilter === 'users') {
+        // Search users
+        await searchUsers(searchQuery);
       }
       
       // Add to recent searches
@@ -102,6 +152,31 @@ const SearchScreen = ({ route, navigation }) => {
     }
   }, [query, activeFilter, dispatch, postResults]);
 
+  // Search users function
+  const searchUsers = async (searchQuery) => {
+    try {
+      setUserLoading(true);
+      
+      // Mock user search - filter suggested users based on query
+      const filteredUsers = mockSuggestedUsers.filter(user => 
+        user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (user.specialty && user.specialty.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (user.college && user.college.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+      
+      // Simulate API delay
+      setTimeout(() => {
+        setUserResults(filteredUsers);
+        setUserLoading(false);
+      }, 500);
+      
+    } catch (error) {
+      console.error('Error searching users:', error);
+      setUserLoading(false);
+    }
+  };
+
   // Handle hashtag press
   const handleHashtagPress = useCallback((hashtag) => {
     setQuery(hashtag);
@@ -109,10 +184,34 @@ const SearchScreen = ({ route, navigation }) => {
     handleSearch(hashtag);
   }, [handleSearch]);
 
+  // Handle user press
+  const handleUserPress = (user) => {
+    navigation.navigate('Profile', { user_id: user.id });
+  };
+
+  // Handle follow user
+  const handleFollowUser = (userId) => {
+    setSuggestedUsers(prev => 
+      prev.map(user => 
+        user.id === userId 
+          ? { ...user, is_following: !user.is_following }
+          : user
+      )
+    );
+    setUserResults(prev => 
+      prev.map(user => 
+        user.id === userId 
+          ? { ...user, is_following: !user.is_following }
+          : user
+      )
+    );
+  };
+
   // Handle clear search
   const handleClearSearch = () => {
     setQuery('');
     setSearchResults([]);
+    setUserResults([]);
     searchInputRef.current?.focus();
   };
 
@@ -122,8 +221,8 @@ const SearchScreen = ({ route, navigation }) => {
       {[
         { key: 'all', title: 'All', icon: 'search' },
         { key: 'posts', title: 'Posts', icon: 'file-text' },
-        { key: 'hashtag', title: 'Hashtags', icon: 'hash' },
         { key: 'users', title: 'Users', icon: 'users' },
+        { key: 'hashtag', title: 'Hashtags', icon: 'hash' },
       ].map((filter) => (
         <TouchableOpacity
           key={filter.key}
@@ -151,6 +250,58 @@ const SearchScreen = ({ route, navigation }) => {
     </View>
   );
 
+  // Render user card
+  const renderUserCard = (user) => {
+    const initials = user.full_name
+      .split(' ')
+      .map(name => name.charAt(0))
+      .join('')
+      .toUpperCase();
+
+    return (
+      <TouchableOpacity
+        key={user.id}
+        style={styles.userCard}
+        onPress={() => handleUserPress(user)}
+      >
+        <View style={styles.userAvatar}>
+          {user.profile_picture_url ? (
+            <Avatar uri={user.profile_picture_url} size={50} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarInitials}>{initials}</Text>
+            </View>
+          )}
+        </View>
+        
+        <View style={styles.userInfo}>
+          <Text style={styles.userName}>{user.full_name}</Text>
+          <Text style={styles.userHandle}>@{user.username}</Text>
+          <Text style={styles.userMeta}>
+            {user.user_type === 'doctor' ? user.specialty : user.college}
+          </Text>
+          <Text style={styles.userStats}>
+            {user.followers_count} followers
+          </Text>
+        </View>
+        
+        <TouchableOpacity
+          style={[
+            styles.followButton,
+            user.is_following && styles.followingButton
+          ]}
+          onPress={() => handleFollowUser(user.id)}
+        >
+          <Icon 
+            name={user.is_following ? "user-minus" : "user-plus"} 
+            size={16} 
+            color={user.is_following ? colors.primary : colors.white} 
+          />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
+  };
+
   // Render trending hashtags
   const renderTrendingHashtags = () => (
     <View style={styles.trendingSection}>
@@ -171,6 +322,14 @@ const SearchScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         ))}
       </ScrollView>
+    </View>
+  );
+
+  // Render suggested users
+  const renderSuggestedUsers = () => (
+    <View style={styles.suggestedSection}>
+      <Text style={styles.sectionTitle}>Suggested Users</Text>
+      {suggestedUsers.slice(0, 3).map(renderUserCard)}
     </View>
   );
 
@@ -198,16 +357,18 @@ const SearchScreen = ({ route, navigation }) => {
 
   // Render search results
   const renderSearchResults = () => {
-    if (loading) {
+    if (loading || userLoading) {
       return (
         <View style={styles.loadingContainer}>
-          <LoadingSpinner size="large" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Searching...</Text>
         </View>
       );
     }
 
-    if (searchResults.length === 0 && query.trim()) {
+    const hasResults = (postResults && postResults.length > 0) || (userResults && userResults.length > 0);
+
+    if (!hasResults && query.trim()) {
       return (
         <View style={styles.emptyContainer}>
           <Icon name="search" size={48} color={colors.gray400} />
@@ -219,26 +380,33 @@ const SearchScreen = ({ route, navigation }) => {
       );
     }
 
-    if (activeFilter === 'posts' || activeFilter === 'all' || activeFilter === 'hashtag') {
-      return (
-        <FlatList
-          data={postResults}
-          renderItem={({ item }) => (
-            <PostCard
-              post={item}
-              onHashtagPress={handleHashtagPress}
-              onUserPress={(userId) => navigation.navigate('Profile', { userId })}
-              onPostPress={(postId) => navigation.navigate('PostDetail', { postId })}
-            />
-          )}
-          keyExtractor={(item) => item.id.toString()}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.resultsList}
-        />
-      );
-    }
+    return (
+      <ScrollView style={styles.resultsContainer}>
+        {/* User Results */}
+        {(activeFilter === 'all' || activeFilter === 'users') && userResults.length > 0 && (
+          <View style={styles.resultsSection}>
+            <Text style={styles.resultsSectionTitle}>Users</Text>
+            {userResults.map(renderUserCard)}
+          </View>
+        )}
 
-    return null;
+        {/* Post Results */}
+        {(activeFilter === 'all' || activeFilter === 'posts' || activeFilter === 'hashtag') && postResults && postResults.length > 0 && (
+          <View style={styles.resultsSection}>
+            <Text style={styles.resultsSectionTitle}>Posts</Text>
+            {postResults.map((item, index) => (
+              <PostCard
+                key={item.id || index}
+                post={item}
+                onHashtagPress={handleHashtagPress}
+                onUserPress={(userId) => navigation.navigate('Profile', { userId })}
+                onPostPress={(postId) => navigation.navigate('PostDetail', { postId })}
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    );
   };
 
   return (
@@ -281,6 +449,7 @@ const SearchScreen = ({ route, navigation }) => {
         {!query.trim() ? (
           <>
             {renderTrendingHashtags()}
+            {renderSuggestedUsers()}
             {renderRecentSearches()}
           </>
         ) : (
@@ -359,6 +528,10 @@ const styles = StyleSheet.create({
   trendingSection: {
     paddingVertical: 20,
   },
+  suggestedSection: {
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
@@ -402,6 +575,68 @@ const styles = StyleSheet.create({
   trendingHashtagPosts: {
     fontSize: 12,
     color: colors.gray500,
+  },
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    marginBottom: 12,
+    elevation: 1,
+    shadowColor: colors.gray900,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  userAvatar: {
+    marginRight: 12,
+  },
+  avatarPlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitials: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.gray900,
+  },
+  userHandle: {
+    fontSize: 14,
+    color: colors.gray600,
+    marginTop: 2,
+  },
+  userMeta: {
+    fontSize: 14,
+    color: colors.primary,
+    marginTop: 4,
+  },
+  userStats: {
+    fontSize: 12,
+    color: colors.gray600,
+    marginTop: 4,
+  },
+  followButton: {
+    backgroundColor: colors.primary,
+    padding: 8,
+    borderRadius: 8,
+  },
+  followingButton: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.primary,
   },
   recentSection: {
     paddingVertical: 20,
@@ -457,9 +692,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  resultsList: {
+  resultsContainer: {
+    flex: 1,
+  },
+  resultsSection: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingVertical: 8,
+  },
+  resultsSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.gray900,
+    marginBottom: 12,
   },
 });
 
