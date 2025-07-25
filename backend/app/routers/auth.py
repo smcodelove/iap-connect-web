@@ -1,6 +1,8 @@
+# backend/app/routers/auth.py
 """
 Authentication routes for IAP Connect application.
 Handles user registration, login, and authentication endpoints.
+FIXED: UserResponse schema with proper field handling
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -37,7 +39,7 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     # Get user stats for response
     stats = get_user_stats(new_user, db)
     
-    # Create response
+    # FIXED: Create response with proper fields
     user_response = UserResponse(
         id=new_user.id,
         username=new_user.username,
@@ -50,6 +52,8 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
         profile_picture_url=new_user.profile_picture_url,
         is_active=new_user.is_active,
         created_at=new_user.created_at,
+        updated_at=new_user.updated_at or new_user.created_at,  # FIXED: Handle None updated_at
+        display_info=new_user.specialty or new_user.college or f"{new_user.user_type.value.title()}",  # FIXED: Add display_info
         **stats
     )
     
@@ -92,12 +96,12 @@ def get_current_user_profile(current_user: User = Depends(get_current_active_use
     Get current authenticated user's profile.
     
     Returns complete user profile with statistics.
-    Requires valid JWT token in Authorization header.
+    FIXED: Proper field handling for UserResponse
     """
-    # Get user stats
+    # Get user stats for response
     stats = get_user_stats(current_user, db)
     
-    # Create response
+    # FIXED: Create response with all required fields
     user_response = UserResponse(
         id=current_user.id,
         username=current_user.username,
@@ -110,6 +114,8 @@ def get_current_user_profile(current_user: User = Depends(get_current_active_use
         profile_picture_url=current_user.profile_picture_url,
         is_active=current_user.is_active,
         created_at=current_user.created_at,
+        updated_at=current_user.updated_at or current_user.created_at,  # FIXED: Handle None updated_at
+        display_info=current_user.specialty or current_user.college or f"{current_user.user_type.value.title()}",  # FIXED: Add display_info
         **stats
     )
     

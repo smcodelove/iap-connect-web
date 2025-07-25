@@ -1,8 +1,9 @@
-// screens/profile/ProfileScreen.js - Updated with Saved Posts
+// mobile/src/screens/profile/ProfileScreen.js
+// screens/profile/ProfileScreen.js - Updated with Admin Dashboard Access
 /**
  * ProfileScreen component displays user profiles with follow functionality
  * Shows user info, stats, and recent posts with beautiful UI
- * UPDATED: Added Saved Posts option for own profile
+ * UPDATED: Added Admin Dashboard access for admin users
  */
 
 import React, { useState, useEffect } from 'react';
@@ -19,6 +20,7 @@ import {
   Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSelector } from 'react-redux'; // ADDED: Import useSelector
 import { 
   User, 
   Calendar, 
@@ -30,10 +32,13 @@ import {
   UserPlus,
   UserMinus,
   MoreHorizontal,
-  Bookmark, // NEW: Bookmark icon
-  Settings
+  Bookmark,
+  Settings,
+  Shield, // ADDED: Shield icon for admin dashboard
+  BarChart3 // ADDED: Analytics icon
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SCREEN_NAMES } from '../../utils/constants'; // ADDED: Import screen names
 
 // Colors object (since styles import might not be available)
 const colors = {
@@ -63,38 +68,34 @@ const { width } = Dimensions.get('window');
 const ProfileScreen = ({ route, navigation }) => {
   const { user_id } = route.params || {};
   
+  // UPDATED: Get current user from Redux
+  const currentUser = useSelector(state => state.auth.user);
+  
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   
-  // Mock current user - replace with actual Redux state
-  const currentUser = {
-    id: 1,
-    username: "current_user",
-    user_type: "doctor"
-  };
-  
   const isOwnProfile = !user_id || user_id === currentUser?.id;
 
-  // Mock profile data
+  // Mock profile data (replace with actual API call)
   const mockProfile = {
     id: isOwnProfile ? 1 : user_id || 2,
-    username: isOwnProfile ? "dr_sharma" : "dr_patel",
-    full_name: isOwnProfile ? "Dr. Rajesh Sharma" : "Dr. Priya Patel",
-    email: isOwnProfile ? "rajesh@example.com" : "priya@example.com",
-    user_type: "doctor",
+    username: isOwnProfile ? currentUser?.username || "dr_sharma" : "dr_patel",
+    full_name: isOwnProfile ? currentUser?.full_name || "Dr. Rajesh Sharma" : "Dr. Priya Patel",
+    email: isOwnProfile ? currentUser?.email || "rajesh@example.com" : "priya@example.com",
+    user_type: isOwnProfile ? currentUser?.user_type || "doctor" : "doctor",
     bio: isOwnProfile ? 
-      "Cardiologist with 10+ years of experience. Passionate about medical education and helping fellow doctors." :
+      currentUser?.bio || "Cardiologist with 10+ years of experience. Passionate about medical education and helping fellow doctors." :
       "Pediatrician specializing in child healthcare. Love sharing knowledge with medical community.",
-    specialty: isOwnProfile ? "Cardiology" : "Pediatrics",
-    college: null,
-    profile_picture_url: null,
+    specialty: isOwnProfile ? currentUser?.specialty || "Cardiology" : "Pediatrics",
+    college: isOwnProfile ? currentUser?.college : null,
+    profile_picture_url: isOwnProfile ? currentUser?.profile_picture_url : null,
     followers_count: isOwnProfile ? 1250 : 890,
     following_count: isOwnProfile ? 345 : 234,
     posts_count: isOwnProfile ? 89 : 67,
-    display_info: isOwnProfile ? "Cardiology" : "Pediatrics",
+    display_info: isOwnProfile ? currentUser?.specialty || "Cardiology" : "Pediatrics",
     is_following: false,
     recent_posts: [],
     created_at: "2023-01-15T10:30:00Z"
@@ -164,7 +165,6 @@ const ProfileScreen = ({ route, navigation }) => {
   };
 
   const handleEditProfile = () => {
-    // Check if EditProfile screen exists
     try {
       navigation.navigate('EditProfile');
     } catch (error) {
@@ -172,13 +172,23 @@ const ProfileScreen = ({ route, navigation }) => {
     }
   };
 
-  // NEW: Handle Saved Posts navigation
+  // Handle Saved Posts navigation
   const handleSavedPosts = () => {
     console.log('📚 Navigating to Saved Posts...');
     try {
       navigation.navigate('Bookmarks');
     } catch (error) {
       Alert.alert('Coming Soon', 'Saved Posts feature will be available soon!');
+    }
+  };
+
+  // ADDED: Handle Admin Dashboard navigation
+  const handleAdminDashboard = () => {
+    console.log('🛡️ Navigating to Admin Dashboard...');
+    try {
+      navigation.navigate(SCREEN_NAMES.ADMIN_DASHBOARD);
+    } catch (error) {
+      Alert.alert('Error', 'Unable to access admin dashboard');
     }
   };
 
@@ -248,6 +258,13 @@ const ProfileScreen = ({ route, navigation }) => {
             {profile.user_type === 'doctor' && (
               <View style={styles.verifiedBadge}>
                 <Text style={styles.verifiedText}>Doctor</Text>
+              </View>
+            )}
+            {/* ADDED: Admin Badge */}
+            {profile.user_type === 'admin' && (
+              <View style={[styles.verifiedBadge, styles.adminBadge]}>
+                <Shield size={12} color={colors.white} style={{ marginRight: 4 }} />
+                <Text style={styles.verifiedText}>Admin</Text>
               </View>
             )}
           </View>
@@ -320,7 +337,7 @@ const ProfileScreen = ({ route, navigation }) => {
     );
   };
 
-  // NEW: Profile Options for Own Profile
+  // Profile Options for Own Profile
   const renderProfileOptions = () => {
     if (!isOwnProfile) return null;
 
@@ -342,60 +359,40 @@ const ProfileScreen = ({ route, navigation }) => {
           </View>
         </TouchableOpacity>
 
+        {/* ADDED: Admin Dashboard Option - Only for admin users */}
+        {currentUser?.user_type === 'admin' && (
+          <TouchableOpacity 
+            style={styles.optionItem}
+            onPress={handleAdminDashboard}
+          >
+            <View style={[styles.optionIcon, styles.adminOptionIcon]}>
+              <Shield size={20} color={colors.white} />
+            </View>
+            <View style={styles.optionContent}>
+              <Text style={styles.optionTitle}>Admin Dashboard</Text>
+              <Text style={styles.optionSubtitle}>Manage users and platform content</Text>
+            </View>
+            <View style={styles.optionArrow}>
+              <Text style={styles.optionArrowText}>›</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity 
           style={styles.optionItem}
           onPress={() => Alert.alert('Coming Soon', 'Settings feature will be available soon!')}
         >
           <View style={styles.optionIcon}>
-            <Settings size={20} color={colors.primary} />
+            <Settings size={20} color={colors.gray600} />
           </View>
           <View style={styles.optionContent}>
-            <Text style={styles.optionTitle}>Settings</Text>
-            <Text style={styles.optionSubtitle}>Account and privacy settings</Text>
+            <Text style={styles.optionTitle}>Settings & Privacy</Text>
+            <Text style={styles.optionSubtitle}>Manage your account settings</Text>
           </View>
           <View style={styles.optionArrow}>
             <Text style={styles.optionArrowText}>›</Text>
           </View>
         </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const renderRecentPosts = () => {
-    if (!profile.recent_posts || profile.recent_posts.length === 0) {
-      return (
-        <View style={styles.noPostsContainer}>
-          <Text style={styles.noPostsText}>
-            {isOwnProfile ? "You haven't posted anything yet!" : "No posts yet"}
-          </Text>
-          {isOwnProfile && (
-            <TouchableOpacity
-              style={styles.createPostButton}
-              onPress={() => {
-                try {
-                  navigation.navigate('CreatePost');
-                } catch (error) {
-                  Alert.alert('Coming Soon', 'Create Post feature will be available soon!');
-                }
-              }}
-            >
-              <Text style={styles.createPostButtonText}>Create Your First Post</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.postsSection}>
-        <View style={styles.postsSectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Posts</Text>
-          <TouchableOpacity>
-            <Text style={styles.viewAllText}>View All</Text>
-          </TouchableOpacity>
-        </View>
-        
-        {/* Posts will be rendered here when available */}
       </View>
     );
   };
@@ -415,12 +412,6 @@ const ProfileScreen = ({ route, navigation }) => {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Profile not found</Text>
-          <TouchableOpacity
-            style={styles.goBackButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.goBackButtonText}>Go Back</Text>
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -429,17 +420,57 @@ const ProfileScreen = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
-        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        showsVerticalScrollIndicator={false}
       >
+        {/* Profile Header */}
         {renderProfileHeader()}
+        
+        {/* Stats */}
         {renderStats()}
+        
+        {/* Bio */}
         {renderBio()}
+        
+        {/* Profile Options */}
         {renderProfileOptions()}
-        {renderRecentPosts()}
+        
+        {/* Posts Section */}
+        <View style={styles.postsSection}>
+          <View style={styles.postsSectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Posts</Text>
+            <TouchableOpacity>
+              <Text style={styles.viewAllText}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {profile.recent_posts && profile.recent_posts.length > 0 ? (
+            profile.recent_posts.map(post => (
+              <View key={post.id} style={styles.postItem}>
+                {/* Post content would go here */}
+              </View>
+            ))
+          ) : (
+            <View style={styles.noPostsContainer}>
+              <Text style={styles.noPostsText}>
+                {isOwnProfile 
+                  ? "You haven't shared any posts yet. Start sharing your medical insights with the community!"
+                  : `${profile.full_name} hasn't shared any posts yet.`
+                }
+              </Text>
+              {isOwnProfile && (
+                <TouchableOpacity 
+                  style={styles.createPostButton}
+                  onPress={() => navigation.navigate('CreatePost')}
+                >
+                  <Text style={styles.createPostButtonText}>Create Your First Post</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -450,63 +481,47 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.gray100,
   },
-  scrollView: {
-    flex: 1,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    ...typography.body,
+    fontSize: 16,
     color: colors.gray600,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
   },
   errorText: {
-    ...typography.h3,
+    fontSize: 16,
     color: colors.gray600,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  goBackButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  goBackButtonText: {
-    color: colors.white,
-    fontWeight: 'bold',
   },
   headerGradient: {
+    paddingTop: 20,
     paddingBottom: 30,
+    paddingHorizontal: 20,
   },
   headerContent: {
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
   },
   avatarContainer: {
     position: 'relative',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 4,
     borderColor: colors.white,
   },
   avatarPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
@@ -514,7 +529,7 @@ const styles = StyleSheet.create({
     borderColor: colors.white,
   },
   avatarInitials: {
-    fontSize: 40,
+    fontSize: 32,
     fontWeight: 'bold',
     color: colors.white,
   },
@@ -528,7 +543,7 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: colors.white,
   },
   userInfo: {
@@ -537,30 +552,36 @@ const styles = StyleSheet.create({
   },
   fullName: {
     fontSize: 24,
-    color: colors.white,
     fontWeight: 'bold',
-    textAlign: 'center',
+    color: colors.white,
+    marginBottom: 4,
   },
   username: {
     fontSize: 16,
-    color: colors.gray200,
-    marginTop: 4,
+    color: colors.white,
+    opacity: 0.9,
+    marginBottom: 8,
   },
   userTypeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
   },
   userType: {
-    fontSize: 14,
-    color: colors.gray200,
+    fontSize: 16,
+    color: colors.white,
+    marginRight: 8,
   },
   verifiedBadge: {
-    backgroundColor: colors.success,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accent,
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginLeft: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  // ADDED: Admin Badge Style
+  adminBadge: {
+    backgroundColor: colors.success,
   },
   verifiedText: {
     fontSize: 12,
@@ -575,15 +596,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.white,
-    paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 24,
+    borderRadius: 25,
   },
   editButtonText: {
-    marginLeft: 8,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: colors.primary,
+    marginLeft: 8,
   },
   followButtons: {
     flexDirection: 'row',
@@ -593,25 +614,25 @@ const styles = StyleSheet.create({
   followButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    marginRight: 10,
-    paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    marginRight: 12,
+    flex: 1,
+    justifyContent: 'center',
   },
   notFollowingButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
   },
   followingButton: {
     backgroundColor: colors.white,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.primary,
   },
   followButtonText: {
-    marginLeft: 8,
     fontSize: 16,
     fontWeight: 'bold',
+    marginLeft: 8,
   },
   notFollowingText: {
     color: colors.white,
@@ -620,10 +641,10 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   moreButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: colors.white,
-    borderRadius: 8,
-    width: 44,
-    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -634,39 +655,39 @@ const styles = StyleSheet.create({
     marginTop: -15,
     borderRadius: 12,
     paddingVertical: 20,
-    elevation: 2,
-    shadowColor: colors.black,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 3,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: colors.gray900,
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
     color: colors.gray600,
-    marginTop: 4,
   },
   bioContainer: {
     backgroundColor: colors.white,
     marginHorizontal: 20,
     marginTop: 12,
-    padding: 16,
     borderRadius: 12,
+    padding: 16,
   },
   bioText: {
     fontSize: 16,
     color: colors.gray700,
     lineHeight: 22,
   },
-  // NEW: Profile Options Styles
+  // Profile Options Styles
   optionsContainer: {
     backgroundColor: colors.white,
     marginHorizontal: 20,
@@ -690,6 +711,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+  },
+  // ADDED: Admin Option Icon Style
+  adminOptionIcon: {
+    backgroundColor: colors.success,
   },
   optionContent: {
     flex: 1,

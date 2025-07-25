@@ -1,3 +1,4 @@
+// mobile/src/utils/constants.js
 // API Configuration
 export const API_CONFIG = {
   BASE_URL: 'http://192.0.0.2:8000/api/v1',
@@ -29,6 +30,12 @@ export const ENDPOINTS = {
   
   // Comments endpoints
   COMMENTS: '/comments',
+  
+  // ADDED: Admin endpoints
+  ADMIN_USERS: '/admin/users',
+  ADMIN_DASHBOARD: '/admin/dashboard',
+  ADMIN_DELETE_USER: '/admin/users',    // DELETE /admin/users/{user_id}
+  ADMIN_DELETE_POST: '/admin/posts',    // DELETE /admin/posts/{post_id}
 };
 
 // Storage Keys
@@ -58,6 +65,13 @@ export const SCREEN_NAMES = {
   AUTH_STACK: 'AuthStack',
   MAIN_STACK: 'MainStack',
   TAB_NAVIGATOR: 'TabNavigator'
+};
+
+// ADDED: User Types
+export const USER_TYPES = {
+  DOCTOR: 'doctor',
+  STUDENT: 'student',
+  ADMIN: 'admin'
 };
 
 // Colors

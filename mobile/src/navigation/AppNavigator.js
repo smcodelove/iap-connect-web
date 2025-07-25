@@ -1,4 +1,5 @@
-// navigation/AppNavigator.js - Updated with BookmarksScreen
+// mobile/src/navigation/AppNavigator.js
+// navigation/AppNavigator.js - Updated with Admin Dashboard
 import React, { useEffect } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useDispatch, useSelector } from 'react-redux';
@@ -14,7 +15,9 @@ import CreatePostScreen from '../screens/post/CreatePostScreen';
 import PostDetailScreen from '../screens/post/PostDetailScreen';
 import SearchScreen from '../screens/search/SearchScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
-import BookmarksScreen from '../screens/bookmarks/BookmarksScreen'; // NEW: Import BookmarksScreen
+import BookmarksScreen from '../screens/bookmarks/BookmarksScreen';
+// ADDED: Import Admin Dashboard Screen
+import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 
 // Import components
 import Loading from '../components/common/LoadingSpinner';
@@ -31,6 +34,8 @@ const AppNavigator = () => {
   const isAuthenticated = useSelector(selectIsAuthenticated);
   const authInitialized = useSelector(selectAuthInitialized);
   const authLoading = useSelector(selectAuthLoading);
+  // ADDED: Get current user to check admin status
+  const user = useSelector(state => state.auth.user);
 
   useEffect(() => {
     // Initialize authentication state on app start
@@ -112,7 +117,6 @@ const AppNavigator = () => {
               }}
             />
 
-            {/* NEW: Bookmarks Screen */}
             <Stack.Screen 
               name="Bookmarks" 
               component={BookmarksScreen}
@@ -133,6 +137,19 @@ const AppNavigator = () => {
                 gestureDirection: 'vertical',
               }}
             />
+
+            {/* ADDED: Admin Dashboard Screen - Only accessible to admins */}
+            {user?.user_type === 'admin' && (
+              <Stack.Screen 
+                name={SCREEN_NAMES.ADMIN_DASHBOARD}
+                component={AdminDashboardScreen}
+                options={{
+                  headerShown: false,
+                  gestureEnabled: true,
+                  presentation: 'card',
+                }}
+              />
+            )}
           </>
         )}
       </Stack.Navigator>
