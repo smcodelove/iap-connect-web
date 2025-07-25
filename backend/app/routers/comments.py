@@ -1,14 +1,17 @@
 """
 Comment routes for IAP Connect application.
-Handles comment creation and management.
+Handles comment creation, replies, likes and management.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from ..config.database import get_db
-from ..schemas.comment import CommentCreate, CommentResponse, CommentListResponse
+from ..schemas.comment import CommentCreate, CommentResponse, CommentListResponse, CommentLikeResponse
 from ..schemas.user import UserSearchResponse
-from ..services.comment_service import create_comment, get_post_comments, delete_comment, get_comment_by_id
+from ..services.comment_service import (
+    create_comment, get_post_comments, delete_comment, get_comment_by_id,
+    like_comment, unlike_comment, get_comment_replies
+)
 from ..services.post_service import get_post_by_id
 from ..utils.dependencies import get_current_active_user
 from ..models.user import User
@@ -25,13 +28,13 @@ def get_comments(
     db: Session = Depends(get_db)
 ):
     """
-    Get comments for a specific post.
+    Get comments for a specific post with nested replies.
     
     - **post_id**: Post ID to get comments for
     - **page**: Page number (default: 1)
     - **size**: Number of comments per page (default: 50, max: 100)
     
-    Returns list of comments ordered by creation date (newest first).
+    Returns list of top-level comments with their replies ordered by creation date.
     """
     # Verify post exists
     post = get_post_by_id(post_id, db)
@@ -41,28 +44,10 @@ def get_comments(
             detail="Post not found"
         )
     
-    comments, total = get_post_comments(post_id, db, page, size)
-    
-    comment_responses = []
-    for comment in comments:
-        comment_response = CommentResponse(
-            id=comment.id,
-            content=comment.content,
-            created_at=comment.created_at,
-            author=UserSearchResponse(
-                id=comment.author.id,
-                username=comment.author.username,
-                full_name=comment.author.full_name,
-                user_type=comment.author.user_type,
-                profile_picture_url=comment.author.profile_picture_url,
-                specialty=comment.author.specialty,
-                college=comment.author.college
-            )
-        )
-        comment_responses.append(comment_response)
+    comments, total = get_post_comments(post_id, db, page, size, current_user.id)
     
     return CommentListResponse(
-        comments=comment_responses,
+        comments=comments,
         total=total
     )
 
@@ -75,10 +60,11 @@ def create_new_comment(
     db: Session = Depends(get_db)
 ):
     """
-    Create a new comment on a post.
+    Create a new comment or reply on a post.
     
     - **post_id**: Post ID to comment on
     - **content**: Comment text content (required)
+    - **parent_id**: Parent comment ID for replies (optional)
     
     Returns the created comment with author information.
     """
@@ -90,24 +76,92 @@ def create_new_comment(
             detail="Post not found"
         )
     
+    # If parent_id provided, verify parent comment exists and belongs to same post
+    if comment_data.parent_id:
+        parent_comment = get_comment_by_id(comment_data.parent_id, db)
+        if parent_comment.post_id != post_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Parent comment does not belong to this post"
+            )
+    
     new_comment = create_comment(current_user, post, comment_data, db)
     
-    # Get comment with author data
-    db.refresh(new_comment)
+    return new_comment
+
+
+@router.get("/comments/{comment_id}/replies", response_model=CommentListResponse)
+def get_comment_replies_endpoint(
+    comment_id: int,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=50),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get replies for a specific comment.
     
-    return CommentResponse(
-        id=new_comment.id,
-        content=new_comment.content,
-        created_at=new_comment.created_at,
-        author=UserSearchResponse(
-            id=current_user.id,
-            username=current_user.username,
-            full_name=current_user.full_name,
-            user_type=current_user.user_type,
-            profile_picture_url=current_user.profile_picture_url,
-            specialty=current_user.specialty,
-            college=current_user.college
-        )
+    - **comment_id**: Comment ID to get replies for
+    - **page**: Page number (default: 1)
+    - **size**: Number of replies per page (default: 20, max: 50)
+    
+    Returns list of reply comments.
+    """
+    comment = get_comment_by_id(comment_id, db)
+    
+    replies, total = get_comment_replies(comment_id, db, page, size, current_user.id)
+    
+    return CommentListResponse(
+        comments=replies,
+        total=total
+    )
+
+
+@router.post("/comments/{comment_id}/like", response_model=CommentLikeResponse)
+def like_comment_endpoint(
+    comment_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Like a comment.
+    
+    - **comment_id**: Comment ID to like
+    
+    Returns updated like status and count.
+    """
+    comment = get_comment_by_id(comment_id, db)
+    
+    result = like_comment(comment, current_user, db)
+    
+    return CommentLikeResponse(
+        success=True,
+        liked=True,
+        likes_count=result['likes_count']
+    )
+
+
+@router.delete("/comments/{comment_id}/like", response_model=CommentLikeResponse)
+def unlike_comment_endpoint(
+    comment_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Unlike a comment.
+    
+    - **comment_id**: Comment ID to unlike
+    
+    Returns updated like status and count.
+    """
+    comment = get_comment_by_id(comment_id, db)
+    
+    result = unlike_comment(comment, current_user, db)
+    
+    return CommentLikeResponse(
+        success=True,
+        liked=False,
+        likes_count=result['likes_count']
     )
 
 

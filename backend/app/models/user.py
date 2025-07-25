@@ -74,6 +74,9 @@ class User(Base):
     comments = relationship("Comment", back_populates="author", cascade="all, delete-orphan")
     likes = relationship("Like", back_populates="user", cascade="all, delete-orphan")
     
+    # NEW: Comment likes relationship
+    comment_likes = relationship("CommentLike", back_populates="user", cascade="all, delete-orphan")
+    
     # Following relationships
     following = relationship(
         "Follow", 
@@ -124,4 +127,3 @@ class User(Base):
 
 
 from .follow import Follow
-

@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from .config.database import engine, Base
 from .middleware.cors import add_cors_middleware
-from .routers import auth, users, posts, comments, admin
+from .routers import auth, users, posts, comments, admin, bookmarks  # NEW: Import bookmarks
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -29,6 +29,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(posts.router, prefix="/api/v1")
 app.include_router(comments.router, prefix="/api/v1")
+app.include_router(bookmarks.router, prefix="/api/v1")  # NEW: Include bookmark routes
 app.include_router(admin.router, prefix="/api/v1")
 
 

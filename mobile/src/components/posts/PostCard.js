@@ -1,7 +1,7 @@
-// components/posts/PostCard.js - Updated with Enhanced Hashtags
+// components/posts/PostCard.js - Updated with Working Save Feature
 /**
- * PostCard - Beautiful, interactive post component with enhanced hashtags
- * Features: Clickable hashtags, trending indicators, improved UI
+ * PostCard - Beautiful, interactive post component with save functionality
+ * Features: Like, Comment, Share, Save with backend integration
  */
 
 import React, { useState, useCallback, memo } from 'react';
@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import Avatar from '../common/Avatar';
 import HashtagText from '../common/HashtagText';
+import api from '../../services/api'; // Import API service
 
 const { width: screenWidth } = Dimensions.get('window');
 const POST_IMAGE_HEIGHT = screenWidth * 0.6;
@@ -55,7 +56,9 @@ const PostCard = memo(({
 }) => {
   const [liked, setLiked] = useState(post.is_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
+  const [saved, setSaved] = useState(post.is_bookmarked || false); // NEW: Save state
   const [likeAnimation] = useState(new Animated.Value(1));
+  const [saveAnimation] = useState(new Animated.Value(1)); // NEW: Save animation
 
   // Format timestamp
   const formatTimestamp = (timestamp) => {
@@ -127,6 +130,43 @@ const PostCard = memo(({
       Alert.alert('Error', 'Failed to share post');
     }
   }, [post, onShare]);
+
+  // NEW: Handle save/unsave
+  const handleSave = useCallback(async () => {
+    const newSaved = !saved;
+    setSaved(newSaved);
+
+    // Animate bookmark
+    Animated.sequence([
+      Animated.timing(saveAnimation, {
+        toValue: 1.2,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(saveAnimation, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    try {
+      if (newSaved) {
+        // Save post
+        await api.post(`/posts/${post.id}/bookmark`);
+        Alert.alert('Saved!', 'Post saved to your bookmarks');
+      } else {
+        // Unsave post
+        await api.delete(`/posts/${post.id}/bookmark`);
+        Alert.alert('Removed', 'Post removed from bookmarks');
+      }
+    } catch (error) {
+      // Revert on error
+      setSaved(!newSaved);
+      console.error('Save error:', error.response?.data);
+      Alert.alert('Error', error.response?.data?.detail || 'Failed to save post');
+    }
+  }, [saved, post.id, saveAnimation]);
 
   // Handle user press
   const handleUserPress = useCallback(() => {
@@ -395,12 +435,23 @@ const PostCard = memo(({
           <Text style={styles.actionText}>Share</Text>
         </TouchableOpacity>
 
+        {/* FIXED: Save Button with Proper Handler */}
         <TouchableOpacity 
-          style={styles.actionButton}
+          style={[styles.actionButton, saved && styles.actionButtonSaved]}
+          onPress={handleSave}
           activeOpacity={0.8}
         >
-          <Icon name="bookmark" size={20} color={colors.gray600} />
-          <Text style={styles.actionText}>Save</Text>
+          <Animated.View style={{ transform: [{ scale: saveAnimation }] }}>
+            <Icon 
+              name="bookmark" 
+              size={20} 
+              color={saved ? colors.primary : colors.gray600}
+              fill={saved ? colors.primary : 'none'}
+            />
+          </Animated.View>
+          <Text style={[styles.actionText, saved && styles.actionTextSaved]}>
+            {saved ? 'Saved' : 'Save'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -622,6 +673,9 @@ const styles = StyleSheet.create({
   actionButtonLiked: {
     backgroundColor: '#FFE8E8',
   },
+  actionButtonSaved: {  // NEW: Saved button style
+    backgroundColor: '#E8F0FF',
+  },
   actionText: {
     fontSize: 12,
     color: colors.gray600,
@@ -630,6 +684,9 @@ const styles = StyleSheet.create({
   },
   actionTextLiked: {
     color: colors.danger,
+  },
+  actionTextSaved: {  // NEW: Saved text style
+    color: colors.primary,
   },
 });
 

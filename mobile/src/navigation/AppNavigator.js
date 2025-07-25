@@ -1,4 +1,4 @@
-// navigation/AppNavigator.js - Updated with Search Screen
+// navigation/AppNavigator.js - Updated with BookmarksScreen
 import React, { useEffect } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useDispatch, useSelector } from 'react-redux';
@@ -14,6 +14,7 @@ import CreatePostScreen from '../screens/post/CreatePostScreen';
 import PostDetailScreen from '../screens/post/PostDetailScreen';
 import SearchScreen from '../screens/search/SearchScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import BookmarksScreen from '../screens/bookmarks/BookmarksScreen'; // NEW: Import BookmarksScreen
 
 // Import components
 import Loading from '../components/common/LoadingSpinner';
@@ -104,6 +105,17 @@ const AppNavigator = () => {
             <Stack.Screen 
               name="Search" 
               component={SearchScreen}
+              options={{
+                headerShown: false,
+                gestureEnabled: true,
+                presentation: 'card',
+              }}
+            />
+
+            {/* NEW: Bookmarks Screen */}
+            <Stack.Screen 
+              name="Bookmarks" 
+              component={BookmarksScreen}
               options={{
                 headerShown: false,
                 gestureEnabled: true,

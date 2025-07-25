@@ -1,7 +1,7 @@
-// services/postService.js - Updated Post Service with Trending functionality
+// services/postService.js - Enhanced Post Service with Comment Features
 /**
  * Post service for IAP Connect mobile app
- * Handles all post-related API calls including trending posts
+ * Handles all post-related API calls including comments, replies, and likes
  */
 
 import api from './api';
@@ -120,7 +120,7 @@ class PostService {
     }
   }
 
-  // Get post comments
+  // Get post comments with nested replies
   async getPostComments(postId, page = 1, size = 50) {
     try {
       const response = await api.get(`/posts/${postId}/comments?page=${page}&size=${size}`);
@@ -134,12 +134,15 @@ class PostService {
     }
   }
 
-  // Add comment to post
-  async addComment(postId, content) {
+  // Add comment to post (or reply to comment)
+  async addComment(postId, content, parentId = null) {
     try {
-      const response = await api.post(`/posts/${postId}/comments`, {
-        content: content
-      });
+      const requestData = { content };
+      if (parentId) {
+        requestData.parent_id = parentId;
+      }
+
+      const response = await api.post(`/posts/${postId}/comments`, requestData);
       return {
         comment: response.data,
         success: true
@@ -147,6 +150,76 @@ class PostService {
     } catch (error) {
       console.error('Add comment error:', error.response?.data);
       throw new Error(error.response?.data?.detail || 'Failed to add comment');
+    }
+  }
+
+  // Get replies for a specific comment
+  async getCommentReplies(commentId, page = 1, size = 20) {
+    try {
+      const response = await api.get(`/posts/comments/${commentId}/replies?page=${page}&size=${size}`);
+      return {
+        comments: response.data.comments,
+        total: response.data.total,
+        success: true
+      };
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || 'Failed to fetch replies');
+    }
+  }
+
+  // Like a comment
+  async likeComment(commentId) {
+    try {
+      const response = await api.post(`/posts/comments/${commentId}/like`);
+      return {
+        success: response.data.success,
+        liked: response.data.liked,
+        likes_count: response.data.likes_count
+      };
+    } catch (error) {
+      console.error('Like comment error:', error.response?.data);
+      throw new Error(error.response?.data?.detail || 'Failed to like comment');
+    }
+  }
+
+  // Unlike a comment
+  async unlikeComment(commentId) {
+    try {
+      const response = await api.delete(`/posts/comments/${commentId}/like`);
+      return {
+        success: response.data.success,
+        liked: response.data.liked,
+        likes_count: response.data.likes_count
+      };
+    } catch (error) {
+      console.error('Unlike comment error:', error.response?.data);
+      throw new Error(error.response?.data?.detail || 'Failed to unlike comment');
+    }
+  }
+
+  // Delete comment
+  async deleteComment(commentId) {
+    try {
+      await api.delete(`/posts/comments/${commentId}`);
+      return { success: true };
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || 'Failed to delete comment');
+    }
+  }
+
+  // Share post functionality
+  async sharePost(postId) {
+    try {
+      // This would typically update share count on backend
+      // For now, we'll just return success
+      console.log(`📤 Sharing post: ${postId}`);
+      return {
+        success: true,
+        shared: true
+      };
+    } catch (error) {
+      console.error('Share post error:', error);
+      throw new Error('Failed to share post');
     }
   }
 

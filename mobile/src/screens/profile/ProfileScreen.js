@@ -1,8 +1,8 @@
-// screens/profile/ProfileScreen.js
+// screens/profile/ProfileScreen.js - Updated with Saved Posts
 /**
  * ProfileScreen component displays user profiles with follow functionality
  * Shows user info, stats, and recent posts with beautiful UI
- * UPDATED: Fixed to work with current app structure and mock data
+ * UPDATED: Added Saved Posts option for own profile
  */
 
 import React, { useState, useEffect } from 'react';
@@ -29,7 +29,9 @@ import {
   Edit3,
   UserPlus,
   UserMinus,
-  MoreHorizontal
+  MoreHorizontal,
+  Bookmark, // NEW: Bookmark icon
+  Settings
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -167,6 +169,16 @@ const ProfileScreen = ({ route, navigation }) => {
       navigation.navigate('EditProfile');
     } catch (error) {
       Alert.alert('Coming Soon', 'Edit Profile feature will be available soon!');
+    }
+  };
+
+  // NEW: Handle Saved Posts navigation
+  const handleSavedPosts = () => {
+    console.log('📚 Navigating to Saved Posts...');
+    try {
+      navigation.navigate('Bookmarks');
+    } catch (error) {
+      Alert.alert('Coming Soon', 'Saved Posts feature will be available soon!');
     }
   };
 
@@ -308,6 +320,47 @@ const ProfileScreen = ({ route, navigation }) => {
     );
   };
 
+  // NEW: Profile Options for Own Profile
+  const renderProfileOptions = () => {
+    if (!isOwnProfile) return null;
+
+    return (
+      <View style={styles.optionsContainer}>
+        <TouchableOpacity 
+          style={styles.optionItem}
+          onPress={handleSavedPosts}
+        >
+          <View style={styles.optionIcon}>
+            <Bookmark size={20} color={colors.primary} />
+          </View>
+          <View style={styles.optionContent}>
+            <Text style={styles.optionTitle}>Saved Posts</Text>
+            <Text style={styles.optionSubtitle}>View your bookmarked posts</Text>
+          </View>
+          <View style={styles.optionArrow}>
+            <Text style={styles.optionArrowText}>›</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.optionItem}
+          onPress={() => Alert.alert('Coming Soon', 'Settings feature will be available soon!')}
+        >
+          <View style={styles.optionIcon}>
+            <Settings size={20} color={colors.primary} />
+          </View>
+          <View style={styles.optionContent}>
+            <Text style={styles.optionTitle}>Settings</Text>
+            <Text style={styles.optionSubtitle}>Account and privacy settings</Text>
+          </View>
+          <View style={styles.optionArrow}>
+            <Text style={styles.optionArrowText}>›</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   const renderRecentPosts = () => {
     if (!profile.recent_posts || profile.recent_posts.length === 0) {
       return (
@@ -385,6 +438,7 @@ const ProfileScreen = ({ route, navigation }) => {
         {renderProfileHeader()}
         {renderStats()}
         {renderBio()}
+        {renderProfileOptions()}
         {renderRecentPosts()}
       </ScrollView>
     </SafeAreaView>
@@ -611,6 +665,52 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.gray700,
     lineHeight: 22,
+  },
+  // NEW: Profile Options Styles
+  optionsContainer: {
+    backgroundColor: colors.white,
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderRadius: 12,
+    paddingVertical: 8,
+  },
+  optionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray100,
+  },
+  optionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.gray100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  optionContent: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.gray900,
+    marginBottom: 2,
+  },
+  optionSubtitle: {
+    fontSize: 14,
+    color: colors.gray600,
+  },
+  optionArrow: {
+    marginLeft: 8,
+  },
+  optionArrowText: {
+    fontSize: 20,
+    color: colors.gray400,
+    fontWeight: '300',
   },
   postsSection: {
     marginTop: 12,

@@ -1,4 +1,4 @@
-// screens/main/HomeScreen.js - Fixed with Create Post Button
+// screens/main/HomeScreen.js - Updated with Enhanced PostCard
 import React, { useState, useEffect } from 'react';
 import { 
   View, 
@@ -15,14 +15,61 @@ import Icon from 'react-native-vector-icons/Feather';
 import { colors } from '../../utils/constants';
 import api from '../../services/api';
 
-// Post Card Component
-const PostCard = ({ post }) => {
+// Enhanced Post Card Component with Save Feature
+const PostCard = ({ post, navigation }) => {
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
+  const [saved, setSaved] = useState(post.is_bookmarked || false); // NEW: Save state
 
   const handleLike = () => {
     setLiked(!liked);
     setLikesCount(liked ? likesCount - 1 : likesCount + 1);
+  };
+
+  // Handle comment navigation
+  const handleComment = () => {
+    console.log('🏃‍♂️ Navigating to PostDetail for comments...');
+    navigation.navigate('PostDetail', { 
+      postId: post.id,
+      openComments: true 
+    });
+  };
+
+  // Handle share
+  const handleShare = () => {
+    console.log('📤 Sharing post:', post.id);
+    Alert.alert('Share', 'Share functionality will be implemented soon!');
+  };
+
+  // NEW: Handle save/unsave
+  const handleSave = async () => {
+    const newSaved = !saved;
+    setSaved(newSaved);
+
+    try {
+      if (newSaved) {
+        // Save post
+        console.log('💾 Saving post:', post.id);
+        await api.post(`/posts/${post.id}/bookmark`);
+        Alert.alert('Saved!', 'Post saved to your bookmarks');
+      } else {
+        // Unsave post
+        console.log('🗑️ Unsaving post:', post.id);
+        await api.delete(`/posts/${post.id}/bookmark`);
+        Alert.alert('Removed', 'Post removed from bookmarks');
+      }
+    } catch (error) {
+      // Revert on error
+      setSaved(!newSaved);
+      console.error('Save error:', error.response?.data);
+      Alert.alert('Error', error.response?.data?.detail || 'Failed to save post');
+    }
+  };
+
+  // Handle user press
+  const handleUserPress = () => {
+    console.log('👤 Navigating to user profile:', post.author.id);
+    // navigation.navigate('UserProfile', { userId: post.author.id });
   };
 
   // Format timestamp
@@ -69,7 +116,11 @@ const PostCard = ({ post }) => {
     <View style={styles.postCard}>
       {/* Header */}
       <View style={styles.postHeader}>
-        <View style={styles.userInfo}>
+        <TouchableOpacity 
+          style={styles.userInfo}
+          onPress={handleUserPress}
+          activeOpacity={0.7}
+        >
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
               {post.author.full_name.charAt(0)}
@@ -86,22 +137,27 @@ const PostCard = ({ post }) => {
               <Text style={styles.timestamp}>{formatTime(post.created_at)}</Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.moreButton}>
           <Icon name="more-horizontal" size={20} color={colors.gray600} />
         </TouchableOpacity>
       </View>
 
       {/* Content */}
-      <View style={styles.postContentContainer}>
+      <TouchableOpacity 
+        style={styles.postContentContainer}
+        onPress={handleComment}
+        activeOpacity={0.95}
+      >
         {renderContent(post.content)}
-      </View>
+      </TouchableOpacity>
 
       {/* Actions */}
       <View style={styles.postActions}>
         <TouchableOpacity 
           style={[styles.actionButton, liked && styles.actionButtonLiked]}
           onPress={handleLike}
+          activeOpacity={0.8}
         >
           <Icon 
             name="heart" 
@@ -114,16 +170,41 @@ const PostCard = ({ post }) => {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={handleComment}
+          activeOpacity={0.8}
+        >
           <Icon name="message-circle" size={20} color={colors.gray600} />
           <Text style={styles.actionText}>
             {post.comments_count > 0 ? post.comments_count : 'Comment'}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={handleShare}
+          activeOpacity={0.8}
+        >
           <Icon name="share" size={20} color={colors.gray600} />
           <Text style={styles.actionText}>Share</Text>
+        </TouchableOpacity>
+
+        {/* NEW: Save Button with Functionality */}
+        <TouchableOpacity 
+          style={[styles.actionButton, saved && styles.actionButtonSaved]}
+          onPress={handleSave}
+          activeOpacity={0.8}
+        >
+          <Icon 
+            name="bookmark" 
+            size={20} 
+            color={saved ? '#0066CC' : colors.gray600}
+            fill={saved ? '#0066CC' : 'none'}
+          />
+          <Text style={[styles.actionText, saved && styles.actionTextSaved]}>
+            {saved ? 'Saved' : 'Save'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -168,7 +249,10 @@ export default function HomeScreen({ navigation }) {
     navigation.navigate('CreatePost');
   };
 
-  const renderItem = ({ item }) => <PostCard post={item} />;
+  // Render item with navigation prop
+  const renderItem = ({ item }) => (
+    <PostCard post={item} navigation={navigation} />
+  );
 
   if (loading) {
     return (
@@ -357,27 +441,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12, // Reduced to fit 4 buttons
     borderRadius: 20,
     backgroundColor: '#F8F9FA',
     flex: 1,
-    marginHorizontal: 4,
+    marginHorizontal: 2, // Reduced margin
     justifyContent: 'center',
   },
   actionButtonLiked: {
     backgroundColor: '#FFE8E8',
   },
+  actionButtonSaved: { // NEW: Saved button style
+    backgroundColor: '#E8F0FF',
+  },
   actionText: {
-    fontSize: 12,
+    fontSize: 11, // Slightly smaller for 4 buttons
     color: '#6C757D',
-    marginLeft: 6,
+    marginLeft: 4, // Reduced margin
     fontWeight: '500',
   },
   actionTextLiked: {
     color: '#DC3545',
   },
+  actionTextSaved: { // NEW: Saved text style
+    color: '#0066CC',
+  },
   
-  // Floating Action Button - MOST IMPORTANT!
+  // Floating Action Button
   fab: {
     position: 'absolute',
     bottom: 30,
@@ -396,6 +486,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 8,
-    zIndex: 1000, // Ensure it's on top
+    zIndex: 1000,
   },
 });

@@ -1,7 +1,7 @@
-// screens/post/PostDetailScreen.js - Complete Post Detail with Comments
+// screens/post/PostDetailScreen.js - Enhanced with Reply & Like Comments
 /**
- * PostDetailScreen - Detailed view of a post with comments
- * Features: Full post display, comments list, add comment, like/unlike
+ * PostDetailScreen - Detailed view of a post with advanced comments
+ * Features: Nested replies, comment likes, enhanced UI
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -21,6 +21,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/Feather';
 
 import PostCard from '../../components/posts/PostCard';
+import CommentItem from '../../components/comments/CommentItem';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Avatar from '../../components/common/Avatar';
 import { likePost, unlikePost } from '../../store/slices/postSlice';
@@ -29,6 +30,8 @@ import postService from '../../services/postService';
 // Color constants
 const colors = {
   primary: '#0066CC',
+  primaryLight: '#3385DB',
+  accent: '#FF6B35',
   white: '#FFFFFF',
   gray100: '#F8F9FA',
   gray200: '#E9ECEF',
@@ -51,6 +54,7 @@ const PostDetailScreen = ({ route, navigation }) => {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [addingComment, setAddingComment] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null); // For reply functionality
   
   const commentInputRef = useRef(null);
   const scrollViewRef = useRef(null);
@@ -96,7 +100,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     }
   };
 
-  // Handle like/unlike
+  // Handle like/unlike post
   const handleLike = useCallback(async (postId, liked) => {
     try {
       if (liked) {
@@ -119,7 +123,17 @@ const PostDetailScreen = ({ route, navigation }) => {
     }
   }, [dispatch]);
 
-  // Handle add comment
+  // Handle share post
+  const handleShare = useCallback(async (postId) => {
+    try {
+      await postService.sharePost(postId);
+      Alert.alert('Success', 'Post shared successfully!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to share post');
+    }
+  }, []);
+
+  // Handle add comment or reply
   const handleAddComment = useCallback(async () => {
     if (!commentText.trim()) {
       Alert.alert('Error', 'Please enter a comment');
@@ -133,21 +147,36 @@ const PostDetailScreen = ({ route, navigation }) => {
 
     try {
       setAddingComment(true);
-      const response = await postService.addComment(postId, commentText.trim());
+      const parentId = replyingTo?.parentId || replyingTo?.id || null;
+      const response = await postService.addComment(postId, commentText.trim(), parentId);
       
       if (response.success) {
-        // Add new comment to the list
-        setComments(prev => [...prev, response.comment]);
-        setCommentText('');
-        commentInputRef.current?.blur();
-        
-        // Update post comment count
-        setPost(prev => ({
-          ...prev,
-          comments_count: prev.comments_count + 1
-        }));
+        // If it's a reply, update the parent comment's replies
+        if (parentId) {
+          setComments(prev => prev.map(comment => {
+            if (comment.id === parentId) {
+              return {
+                ...comment,
+                replies: [...(comment.replies || []), response.comment],
+                replies_count: comment.replies_count + 1
+              };
+            }
+            return comment;
+          }));
+        } else {
+          // Top-level comment
+          setComments(prev => [response.comment, ...prev]);
+          setPost(prev => ({
+            ...prev,
+            comments_count: prev.comments_count + 1
+          }));
+        }
 
-        // Scroll to bottom to show new comment
+        setCommentText('');
+        setReplyingTo(null);
+        commentInputRef.current?.blur();
+
+        // Scroll to show new comment
         setTimeout(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
         }, 100);
@@ -157,75 +186,49 @@ const PostDetailScreen = ({ route, navigation }) => {
     } finally {
       setAddingComment(false);
     }
-  }, [commentText, postId]);
+  }, [commentText, postId, replyingTo]);
+
+  // Handle reply to comment
+  const handleReply = useCallback((comment, parentId = null) => {
+    setReplyingTo({
+      id: comment.id,
+      parentId: parentId,
+      authorName: comment.author.full_name
+    });
+    setCommentText(`@${comment.author.username} `);
+    commentInputRef.current?.focus();
+  }, []);
+
+  // Handle load replies for a comment
+  const handleLoadReplies = useCallback(async (commentId) => {
+    try {
+      const response = await postService.getCommentReplies(commentId);
+      
+      setComments(prev => prev.map(comment => {
+        if (comment.id === commentId) {
+          return {
+            ...comment,
+            replies: response.comments
+          };
+        }
+        return comment;
+      }));
+    } catch (error) {
+      console.error('Failed to load replies:', error);
+      throw error;
+    }
+  }, []);
 
   // Handle user press
   const handleUserPress = useCallback((userId) => {
     navigation.navigate('UserProfile', { userId });
   }, [navigation]);
 
-  // Format timestamp
-  const formatTimestamp = (timestamp) => {
-    const now = new Date();
-    const commentTime = new Date(timestamp);
-    const diffInMs = now - commentTime;
-    const diffInMins = Math.floor(diffInMs / (1000 * 60));
-    const diffInHours = Math.floor(diffInMins / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
-
-    if (diffInMins < 1) return 'Just now';
-    if (diffInMins < 60) return `${diffInMins}m`;
-    if (diffInHours < 24) return `${diffInHours}h`;
-    if (diffInDays < 7) return `${diffInDays}d`;
-    
-    return commentTime.toLocaleDateString('en-IN', { 
-      day: 'numeric', 
-      month: 'short' 
-    });
-  };
-
-  // Render comment item
-  const renderCommentItem = (comment, index) => (
-    <View key={comment.id} style={[styles.commentItem, index < comments.length - 1 && styles.commentItemBorder]}>
-      <TouchableOpacity onPress={() => handleUserPress(comment.author.id)}>
-        <Avatar 
-          size={36}
-          uri={comment.author.profile_picture_url}
-          name={comment.author.full_name}
-        />
-      </TouchableOpacity>
-
-      <View style={styles.commentContent}>
-        <View style={styles.commentBubble}>
-          <TouchableOpacity onPress={() => handleUserPress(comment.author.id)}>
-            <Text style={styles.commentAuthorName}>{comment.author.full_name}</Text>
-            <Text style={styles.commentAuthorType}>
-              {comment.author.user_type === 'doctor' 
-                ? comment.author.specialty || 'Doctor'
-                : comment.author.college || 'Medical Student'
-              }
-            </Text>
-          </TouchableOpacity>
-          
-          <Text style={styles.commentText}>{comment.content}</Text>
-        </View>
-
-        <View style={styles.commentActions}>
-          <Text style={styles.commentTimestamp}>
-            {formatTimestamp(comment.created_at)}
-          </Text>
-          
-          <TouchableOpacity style={styles.commentLikeButton}>
-            <Icon name="heart" size={14} color={colors.gray500} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.commentReplyButton}>
-            <Text style={styles.commentReplyText}>Reply</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
+  // Cancel reply
+  const cancelReply = useCallback(() => {
+    setReplyingTo(null);
+    setCommentText('');
+  }, []);
 
   if (loading) {
     return (
@@ -276,7 +279,10 @@ const PostDetailScreen = ({ route, navigation }) => {
           <Icon name="arrow-left" size={24} color={colors.gray700} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Post</Text>
-        <TouchableOpacity style={styles.headerButton}>
+        <TouchableOpacity 
+          style={styles.headerButton}
+          onPress={() => handleShare(post.id)}
+        >
           <Icon name="share" size={20} color={colors.gray700} />
         </TouchableOpacity>
       </View>
@@ -294,6 +300,7 @@ const PostDetailScreen = ({ route, navigation }) => {
           <PostCard 
             post={post}
             onLike={handleLike}
+            onShare={handleShare}
             onUserPress={handleUserPress}
             currentUserId={user?.id}
           />
@@ -320,11 +327,33 @@ const PostDetailScreen = ({ route, navigation }) => {
               </View>
             ) : (
               <View style={styles.commentsList}>
-                {comments.map((comment, index) => renderCommentItem(comment, index))}
+                {comments.map((comment) => (
+                  <CommentItem
+                    key={comment.id}
+                    comment={comment}
+                    onReply={handleReply}
+                    onUserPress={handleUserPress}
+                    onLoadReplies={handleLoadReplies}
+                    currentUserId={user?.id}
+                    depth={0}
+                  />
+                ))}
               </View>
             )}
           </View>
         </ScrollView>
+
+        {/* Reply Indicator */}
+        {replyingTo && (
+          <View style={styles.replyIndicator}>
+            <Text style={styles.replyText}>
+              Replying to {replyingTo.authorName}
+            </Text>
+            <TouchableOpacity onPress={cancelReply}>
+              <Icon name="x" size={16} color={colors.gray600} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Add Comment Input */}
         <View style={styles.commentInputContainer}>
@@ -337,7 +366,7 @@ const PostDetailScreen = ({ route, navigation }) => {
             <TextInput
               ref={commentInputRef}
               style={styles.commentInput}
-              placeholder="Write a comment..."
+              placeholder={replyingTo ? `Reply to ${replyingTo.authorName}...` : "Write a comment..."}
               placeholderTextColor={colors.gray500}
               value={commentText}
               onChangeText={setCommentText}
@@ -452,62 +481,17 @@ const styles = StyleSheet.create({
   commentsList: {
     paddingBottom: 16,
   },
-  commentItem: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.white,
-  },
-  commentItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray100,
-  },
-  commentContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  commentBubble: {
-    backgroundColor: colors.gray100,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  commentAuthorName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.gray900,
-    marginBottom: 2,
-  },
-  commentAuthorType: {
-    fontSize: 12,
-    color: colors.primary,
-    marginBottom: 6,
-  },
-  commentText: {
-    fontSize: 14,
-    color: colors.gray800,
-    lineHeight: 20,
-  },
-  commentActions: {
+  replyIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: colors.primaryLight,
   },
-  commentTimestamp: {
-    fontSize: 12,
-    color: colors.gray500,
-    marginRight: 16,
-  },
-  commentLikeButton: {
-    marginRight: 16,
-  },
-  commentReplyButton: {
-    marginRight: 16,
-  },
-  commentReplyText: {
-    fontSize: 12,
-    color: colors.gray600,
+  replyText: {
+    fontSize: 14,
+    color: colors.white,
     fontWeight: '500',
   },
   commentInputContainer: {
