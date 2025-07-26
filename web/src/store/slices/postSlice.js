@@ -1,29 +1,25 @@
-// web/src/store/slices/postSlice.js
-/**
- * Enhanced Post Redux Slice with complete social features
- * Features: Posts, comments, likes, follows, bookmarks
- * FIXED: Import/export syntax errors resolved
- */
-
+// src/store/slices/postSlice.js - UPDATED WITH YOUR EXISTING CODE
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { postService, commentService } from '../../services/api';
 
-// Async thunks for API calls
+// Async thunks for API calls - FIXED: Use correct service methods
 
-// Fetch feed posts
+// Fetch feed posts - FIXED: Proper API integration
 export const fetchFeedPosts = createAsyncThunk(
   'posts/fetchFeed',
-  async ({ page = 1, size = 20 }, { rejectWithValue }) => {
+  async ({ page = 1, size = 20 } = {}, { rejectWithValue }) => {
     try {
       const response = await postService.getFeed(page, size);
       return {
-        posts: response.posts,
-        total: response.total,
-        hasNext: response.hasNext,
-        page
+        posts: response.posts || [],
+        total: response.total || 0,
+        hasNext: response.hasNext || false,
+        page,
+        pagination: response.pagination || { page, has_more: false }
       };
     } catch (error) {
-      return rejectWithValue(error.message);
+      console.error('Fetch feed error:', error);
+      return rejectWithValue(error.message || 'Failed to fetch feed');
     }
   }
 );
@@ -31,30 +27,34 @@ export const fetchFeedPosts = createAsyncThunk(
 // Fetch trending posts
 export const fetchTrendingPosts = createAsyncThunk(
   'posts/fetchTrending',
-  async ({ page = 1, size = 20, hoursWindow = 72 }, { rejectWithValue }) => {
+  async ({ page = 1, size = 20, hoursWindow = 72 } = {}, { rejectWithValue }) => {
     try {
       const response = await postService.getTrendingPosts(page, size, hoursWindow);
       return {
-        posts: response.posts,
-        total: response.total,
-        hasNext: response.hasNext,
-        page
+        posts: response.posts || [],
+        total: response.total || 0,
+        hasNext: response.hasNext || false,
+        page,
+        pagination: response.pagination || { page, has_more: false }
       };
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.message || 'Failed to fetch trending posts');
     }
   }
 );
 
-// Create new post
+// Create new post - FIXED: Proper data handling
 export const createPost = createAsyncThunk(
   'posts/create',
   async (postData, { rejectWithValue }) => {
     try {
+      console.log('Creating post with data:', postData);
       const response = await postService.createPost(postData);
+      console.log('Post created successfully:', response);
       return response.post;
     } catch (error) {
-      return rejectWithValue(error.message);
+      console.error('Create post error:', error);
+      return rejectWithValue(error.message || 'Failed to create post');
     }
   }
 );
@@ -71,29 +71,29 @@ export const togglePostLike = createAsyncThunk(
       return {
         postId,
         liked: response.liked,
-        likesCount: response.likes_count
+        likesCount: response.likes_count || 0
       };
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.message || 'Failed to toggle like');
     }
   }
 );
 
-// Bookmark/unbookmark post
-export const togglePostBookmark = createAsyncThunk(
-  'posts/toggleBookmark',
-  async ({ postId, currentlyBookmarked }, { rejectWithValue }) => {
+// Search posts
+export const searchPosts = createAsyncThunk(
+  'posts/search',
+  async ({ query, page = 1, size = 20 }, { rejectWithValue }) => {
     try {
-      const response = currentlyBookmarked 
-        ? await postService.unbookmarkPost(postId)
-        : await postService.bookmarkPost(postId);
-      
+      const response = await postService.searchPosts(query, page, size);
       return {
-        postId,
-        bookmarked: response.bookmarked
+        posts: response.posts || [],
+        total: response.total || 0,
+        hasNext: response.hasNext || false,
+        query,
+        page
       };
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.message || 'Failed to search posts');
     }
   }
 );
@@ -106,12 +106,12 @@ export const fetchPostComments = createAsyncThunk(
       const response = await commentService.getPostComments(postId, page, size);
       return {
         postId,
-        comments: response.comments,
-        total: response.total,
+        comments: response.comments || [],
+        total: response.total || 0,
         page
       };
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.message || 'Failed to fetch comments');
     }
   }
 );
@@ -128,64 +128,12 @@ export const addComment = createAsyncThunk(
         parentId
       };
     } catch (error) {
-      return rejectWithValue(error.message);
+      return rejectWithValue(error.message || 'Failed to add comment');
     }
   }
 );
 
-// Like/unlike comment
-export const toggleCommentLike = createAsyncThunk(
-  'posts/toggleCommentLike',
-  async ({ commentId, currentlyLiked }, { rejectWithValue }) => {
-    try {
-      const response = currentlyLiked 
-        ? await commentService.unlikeComment(commentId)
-        : await commentService.likeComment(commentId);
-      
-      return {
-        commentId,
-        liked: response.liked,
-        likesCount: response.likes_count
-      };
-    } catch (error) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
-
-// Delete comment
-export const deleteComment = createAsyncThunk(
-  'posts/deleteComment',
-  async ({ commentId, postId }, { rejectWithValue }) => {
-    try {
-      await commentService.deleteComment(commentId);
-      return { commentId, postId };
-    } catch (error) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
-
-// Search posts
-export const searchPosts = createAsyncThunk(
-  'posts/search',
-  async ({ query, page = 1, size = 20 }, { rejectWithValue }) => {
-    try {
-      const response = await postService.searchPosts(query, page, size);
-      return {
-        posts: response.posts,
-        total: response.total,
-        hasNext: response.hasNext,
-        query,
-        page
-      };
-    } catch (error) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
-
-// Initial state
+// Initial state - UPDATED: Better structure
 const initialState = {
   // Feed posts
   feedPosts: [],
@@ -220,10 +168,20 @@ const initialState = {
   // UI state
   createPostLoading: false,
   createPostError: null,
+  loading: false, // General loading state
+  error: null,    // General error state
   
   // Stats
   totalPosts: 0,
-  userPostsCount: 0
+  userPostsCount: 0,
+  
+  // For FeedPage compatibility
+  posts: [], // This will mirror feedPosts for backward compatibility
+  stats: {
+    total_posts: 0,
+    active_users: 0,
+    discussions: 0
+  }
 };
 
 // Create slice
@@ -238,6 +196,7 @@ const postSlice = createSlice({
       state.searchError = null;
       state.currentPostError = null;
       state.createPostError = null;
+      state.error = null;
     },
     
     // Reset search
@@ -271,62 +230,21 @@ const postSlice = createSlice({
         state.searchPosts[searchIndex] = { ...state.searchPosts[searchIndex], ...updates };
       }
       
+      // Update in posts array (for backward compatibility)
+      const postsIndex = state.posts.findIndex(post => post.id === postId);
+      if (postsIndex !== -1) {
+        state.posts[postsIndex] = { ...state.posts[postsIndex], ...updates };
+      }
+      
       // Update current post
       if (state.currentPost?.id === postId) {
         state.currentPost = { ...state.currentPost, ...updates };
       }
     },
     
-    // Remove post from all arrays
-    removePostFromAllArrays: (state, action) => {
-      const postId = action.payload;
-      
-      state.feedPosts = state.feedPosts.filter(post => post.id !== postId);
-      state.trendingPosts = state.trendingPosts.filter(post => post.id !== postId);
-      state.searchPosts = state.searchPosts.filter(post => post.id !== postId);
-      
-      if (state.currentPost?.id === postId) {
-        state.currentPost = null;
-      }
-      
-      // Remove comments for this post
-      delete state.comments[postId];
-    },
-    
     // Set current post
     setCurrentPost: (state, action) => {
       state.currentPost = action.payload;
-    },
-    
-    // Update comment in comments array
-    updateCommentInArray: (state, action) => {
-      const { postId, commentId, updates } = action.payload;
-      
-      if (state.comments[postId]) {
-        const commentIndex = state.comments[postId].comments.findIndex(
-          comment => comment.id === commentId
-        );
-        
-        if (commentIndex !== -1) {
-          state.comments[postId].comments[commentIndex] = {
-            ...state.comments[postId].comments[commentIndex],
-            ...updates
-          };
-        }
-        
-        // Also check replies
-        state.comments[postId].comments.forEach(comment => {
-          if (comment.replies) {
-            const replyIndex = comment.replies.findIndex(reply => reply.id === commentId);
-            if (replyIndex !== -1) {
-              comment.replies[replyIndex] = {
-                ...comment.replies[replyIndex],
-                ...updates
-              };
-            }
-          }
-        });
-      }
     }
   },
   
@@ -336,27 +254,37 @@ const postSlice = createSlice({
       .addCase(fetchFeedPosts.pending, (state) => {
         state.feedLoading = true;
         state.feedError = null;
+        state.loading = true; // For backward compatibility
       })
       .addCase(fetchFeedPosts.fulfilled, (state, action) => {
         state.feedLoading = false;
-        const { posts, total, hasNext, page } = action.payload;
+        state.loading = false;
+        
+        const { posts, total, hasNext, page, pagination } = action.payload;
         
         if (page === 1) {
           state.feedPosts = posts;
+          state.posts = posts; // For backward compatibility
         } else {
           // Append new posts, avoiding duplicates
           const existingIds = new Set(state.feedPosts.map(post => post.id));
           const newPosts = posts.filter(post => !existingIds.has(post.id));
           state.feedPosts.push(...newPosts);
+          state.posts = state.feedPosts; // Sync
         }
         
-        state.feedHasNext = hasNext;
+        state.feedHasNext = hasNext || pagination?.has_more || false;
         state.feedPage = page;
         state.totalPosts = total;
+        
+        // Update stats for backward compatibility
+        state.stats.total_posts = total;
       })
       .addCase(fetchFeedPosts.rejected, (state, action) => {
         state.feedLoading = false;
+        state.loading = false;
         state.feedError = action.payload;
+        state.error = action.payload; // For backward compatibility
       });
 
     // Fetch trending posts
@@ -390,16 +318,25 @@ const postSlice = createSlice({
       .addCase(createPost.pending, (state) => {
         state.createPostLoading = true;
         state.createPostError = null;
+        state.loading = true;
       })
       .addCase(createPost.fulfilled, (state, action) => {
         state.createPostLoading = false;
+        state.loading = false;
+        
         // Add new post to the beginning of feed
-        state.feedPosts.unshift(action.payload);
+        const newPost = action.payload;
+        state.feedPosts.unshift(newPost);
+        state.posts.unshift(newPost); // For backward compatibility
         state.userPostsCount += 1;
+        state.totalPosts += 1;
+        state.stats.total_posts += 1;
       })
       .addCase(createPost.rejected, (state, action) => {
         state.createPostLoading = false;
+        state.loading = false;
         state.createPostError = action.payload;
+        state.error = action.payload;
       });
 
     // Toggle post like
@@ -414,21 +351,6 @@ const postSlice = createSlice({
             updates: {
               is_liked: liked,
               likes_count: likesCount
-            }
-          }
-        });
-      });
-
-    // Toggle post bookmark
-    builder
-      .addCase(togglePostBookmark.fulfilled, (state, action) => {
-        const { postId, bookmarked } = action.payload;
-        
-        postSlice.caseReducers.updatePostInAllArrays(state, {
-          payload: {
-            postId,
-            updates: {
-              is_bookmarked: bookmarked
             }
           }
         });
@@ -452,7 +374,7 @@ const postSlice = createSlice({
         state.comments[postId].error = null;
       })
       .addCase(fetchPostComments.fulfilled, (state, action) => {
-        const { postId, comments, total, page } = action.payload;
+        const { postId, comments, total } = action.payload;
         
         if (!state.comments[postId]) {
           state.comments[postId] = {
@@ -509,7 +431,7 @@ const postSlice = createSlice({
           state.comments[postId].total += 1;
         }
         
-        // Update post comments count
+        // Update post comments count in all arrays
         postSlice.caseReducers.updatePostInAllArrays(state, {
           payload: {
             postId,
@@ -518,67 +440,6 @@ const postSlice = createSlice({
             }
           }
         });
-      });
-
-    // Toggle comment like
-    builder
-      .addCase(toggleCommentLike.fulfilled, (state, action) => {
-        const { commentId, liked, likesCount } = action.payload;
-        
-        // Find and update comment in all posts
-        Object.keys(state.comments).forEach(postId => {
-          postSlice.caseReducers.updateCommentInArray(state, {
-            payload: {
-              postId,
-              commentId,
-              updates: {
-                is_liked: liked,
-                likes_count: likesCount
-              }
-            }
-          });
-        });
-      });
-
-    // Delete comment
-    builder
-      .addCase(deleteComment.fulfilled, (state, action) => {
-        const { commentId, postId } = action.payload;
-        
-        if (state.comments[postId]) {
-          // Remove from top-level comments
-          const commentIndex = state.comments[postId].comments.findIndex(
-            comment => comment.id === commentId
-          );
-          
-          if (commentIndex !== -1) {
-            state.comments[postId].comments.splice(commentIndex, 1);
-            state.comments[postId].total -= 1;
-          } else {
-            // Remove from replies
-            state.comments[postId].comments.forEach(comment => {
-              if (comment.replies) {
-                const replyIndex = comment.replies.findIndex(
-                  reply => reply.id === commentId
-                );
-                if (replyIndex !== -1) {
-                  comment.replies.splice(replyIndex, 1);
-                  comment.replies_count -= 1;
-                }
-              }
-            });
-          }
-          
-          // Update post comments count
-          postSlice.caseReducers.updatePostInAllArrays(state, {
-            payload: {
-              postId,
-              updates: {
-                comments_count: state.comments[postId].total
-              }
-            }
-          });
-        }
       });
 
     // Search posts
@@ -616,12 +477,10 @@ export const {
   clearErrors,
   resetSearch,
   updatePostInAllArrays,
-  removePostFromAllArrays,
-  setCurrentPost,
-  updateCommentInArray
+  setCurrentPost
 } = postSlice.actions;
 
-// Selectors
+// Selectors for compatibility
 export const selectFeedPosts = (state) => state.posts.feedPosts;
 export const selectTrendingPosts = (state) => state.posts.trendingPosts;
 export const selectSearchPosts = (state) => state.posts.searchPosts;

@@ -1,20 +1,20 @@
-// web/src/pages/auth/RegisterPage.js
-import React, { useState } from 'react';
+// web/src/pages/auth/RegisterPage.js - UPDATED VERSION
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  User, 
-  GraduationCap, 
+  Heart, 
+  Users, 
+  CheckCircle, 
+  AlertCircle,
   Stethoscope,
-  School,
-  BookOpen
+  GraduationCap,
+  Shield,
+  Clock
 } from 'lucide-react';
-import { registerUser } from '../../store/slices/authSlice';
+import { registerUser, clearError, clearRegistrationSuccess } from '../../store/slices/authSlice';
+import SignupForm from '../../components/auth/SignupForm';
 
 const RegisterContainer = styled.div`
   min-height: 100vh;
@@ -23,484 +23,557 @@ const RegisterContainer = styled.div`
   justify-content: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 20px;
+  position: relative;
+  overflow: hidden;
+  
+  /* Animated background elements */
+  &::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 2px, transparent 2px);
+    background-size: 50px 50px;
+    animation: float 20s linear infinite;
+    opacity: 0.3;
+  }
+  
+  @keyframes float {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    100% { transform: translate(-50px, -50px) rotate(360deg); }
+  }
 `;
 
 const RegisterCard = styled.div`
-  background: white;
-  border-radius: 20px;
-  padding: 40px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 48px;
   width: 100%;
-  max-width: 500px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  max-width: 540px;
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  z-index: 1;
   max-height: 90vh;
   overflow-y: auto;
+  
+  /* Custom scrollbar */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: ${props => props.theme.colors.gray100};
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: ${props => props.theme.colors.primary};
+    border-radius: 3px;
+  }
+  
+  @media (max-width: 640px) {
+    padding: 32px 24px;
+    margin: 16px;
+    max-width: none;
+  }
 `;
 
 const Logo = styled.div`
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 40px;
+  
+  .logo-icon {
+    width: 64px;
+    height: 64px;
+    background: linear-gradient(135deg, ${props => props.theme.colors.primary} 0%, ${props => props.theme.colors.primaryDark} 100%);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    color: white;
+    font-size: 24px;
+    box-shadow: 0 8px 24px rgba(0, 102, 204, 0.3);
+  }
   
   h1 {
     color: ${props => props.theme.colors.primary};
     font-size: 2.5rem;
-    font-weight: bold;
+    font-weight: 800;
     margin-bottom: 8px;
+    background: linear-gradient(135deg, ${props => props.theme.colors.primary} 0%, ${props => props.theme.colors.primaryDark} 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
   
   p {
     color: ${props => props.theme.colors.gray600};
     font-size: 1.1rem;
-  }
-`;
-
-const Form = styled.form`
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-`;
-
-const SectionTitle = styled.h3`
-  color: ${props => props.theme.colors.textPrimary};
-  font-size: 1.1rem;
-  margin: 20px 0 10px 0;
-  border-bottom: 2px solid ${props => props.theme.colors.gray200};
-  padding-bottom: 8px;
-`;
-
-const InputGroup = styled.div`
-  position: relative;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  padding: 15px 50px 15px 15px;
-  border: 2px solid ${props => props.theme.colors.gray200};
-  border-radius: 12px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  
-  &:focus {
-    border-color: ${props => props.theme.colors.primary};
-    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+    font-weight: 500;
   }
   
-  &::placeholder {
+  .subtitle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
     color: ${props => props.theme.colors.gray500};
+    font-size: 0.9rem;
   }
 `;
 
-const Select = styled.select`
-  width: 100%;
-  padding: 15px 50px 15px 15px;
-  border: 2px solid ${props => props.theme.colors.gray200};
+const WelcomeMessage = styled.div`
+  background: linear-gradient(135deg, ${props => props.theme.colors.primary}10 0%, ${props => props.theme.colors.accent}10 100%);
+  border: 1px solid ${props => props.theme.colors.primary}20;
   border-radius: 12px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  background: white;
+  padding: 20px;
+  margin-bottom: 32px;
+  text-align: center;
   
-  &:focus {
-    border-color: ${props => props.theme.colors.primary};
-    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+  .welcome-icon {
+    color: ${props => props.theme.colors.success};
+    margin-bottom: 12px;
+  }
+  
+  .welcome-title {
+    font-weight: 600;
+    color: ${props => props.theme.colors.gray800};
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+  }
+  
+  .welcome-text {
+    color: ${props => props.theme.colors.gray600};
+    font-size: 0.9rem;
+    line-height: 1.5;
   }
 `;
 
-const TextArea = styled.textarea`
-  width: 100%;
-  padding: 15px;
-  border: 2px solid ${props => props.theme.colors.gray200};
-  border-radius: 12px;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  resize: vertical;
-  min-height: 80px;
-  font-family: inherit;
+const SuccessMessage = styled.div`
+  background: linear-gradient(135deg, ${props => props.theme.colors.success}10 0%, ${props => props.theme.colors.success}05 100%);
+  border: 1px solid ${props => props.theme.colors.success}30;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  text-align: center;
   
-  &:focus {
-    border-color: ${props => props.theme.colors.primary};
-    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+  .success-icon {
+    color: ${props => props.theme.colors.success};
+    margin-bottom: 16px;
   }
   
-  &::placeholder {
-    color: ${props => props.theme.colors.gray500};
-  }
-`;
-
-const InputIcon = styled.div`
-  position: absolute;
-  right: 15px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: ${props => props.theme.colors.gray400};
-  cursor: ${props => props.clickable ? 'pointer' : 'default'};
-  
-  &:hover {
-    color: ${props => props.clickable ? props.theme.colors.primary : props.theme.colors.gray400};
-  }
-`;
-
-const RegisterButton = styled.button`
-  background: linear-gradient(135deg, ${props => props.theme.colors.primary} 0%, ${props => props.theme.colors.primaryDark} 100%);
-  color: white;
-  padding: 15px;
-  border: none;
-  border-radius: 12px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(0, 102, 204, 0.3);
+  .success-title {
+    font-weight: 700;
+    color: ${props => props.theme.colors.success};
+    margin-bottom: 8px;
+    font-size: 1.2rem;
   }
   
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    transform: none;
+  .success-text {
+    color: ${props => props.theme.colors.gray600};
+    line-height: 1.5;
+    margin-bottom: 16px;
+  }
+  
+  .success-button {
+    background: ${props => props.theme.colors.success};
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      background: ${props => props.theme.colors.successDark || '#1e7e34'};
+      transform: translateY(-1px);
+    }
   }
 `;
 
 const ErrorMessage = styled.div`
-  background: #fee;
+  background: linear-gradient(135deg, ${props => props.theme.colors.danger}10 0%, ${props => props.theme.colors.danger}05 100%);
+  border: 1px solid ${props => props.theme.colors.danger}30;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   color: ${props => props.theme.colors.danger};
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid #f5c6cb;
-  text-align: center;
-  margin-bottom: 20px;
+  font-weight: 500;
+  
+  .error-icon {
+    flex-shrink: 0;
+  }
+`;
+
+const BenefitsSection = styled.div`
+  margin-top: 24px;
+  padding: 20px;
+  background: linear-gradient(135deg, ${props => props.theme.colors.gray50} 0%, ${props => props.theme.colors.white} 100%);
+  border-radius: 12px;
+  border: 1px solid ${props => props.theme.colors.gray200};
+  
+  .benefits-title {
+    font-weight: 600;
+    color: ${props => props.theme.colors.gray800};
+    margin-bottom: 16px;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .benefits-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    
+    @media (max-width: 480px) {
+      grid-template-columns: 1fr;
+    }
+    
+    .benefit-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: ${props => props.theme.colors.gray600};
+      font-size: 0.85rem;
+      
+      .benefit-icon {
+        color: ${props => props.theme.colors.success};
+        flex-shrink: 0;
+      }
+    }
+  }
+`;
+
+const UserTypeInfo = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 24px 0;
+  
+  .user-type-card {
+    padding: 16px;
+    background: linear-gradient(135deg, ${props => props.theme.colors.primary}05 0%, ${props => props.theme.colors.accent}05 100%);
+    border-radius: 12px;
+    border: 1px solid ${props => props.theme.colors.gray200};
+    text-align: center;
+    
+    .type-icon {
+      color: ${props => props.theme.colors.primary};
+      margin-bottom: 8px;
+    }
+    
+    .type-title {
+      font-weight: 600;
+      color: ${props => props.theme.colors.gray800};
+      margin-bottom: 4px;
+      font-size: 0.9rem;
+    }
+    
+    .type-description {
+      color: ${props => props.theme.colors.gray600};
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+  }
+`;
+
+const SecurityInfo = styled.div`
+  background: linear-gradient(135deg, ${props => props.theme.colors.primary}05 0%, ${props => props.theme.colors.success}05 100%);
+  border: 1px solid ${props => props.theme.colors.primary}20;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 24px;
+  
+  .security-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: ${props => props.theme.colors.gray800};
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+  }
+  
+  .security-text {
+    color: ${props => props.theme.colors.gray600};
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
 `;
 
 const RegisterFooter = styled.div`
   text-align: center;
-  margin-top: 30px;
+  margin-top: 32px;
   
-  p {
+  .login-prompt {
     color: ${props => props.theme.colors.gray600};
-    margin-bottom: 10px;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
   }
   
-  a {
+  .login-link {
     color: ${props => props.theme.colors.primary};
     font-weight: 600;
     text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    display: inline-block;
     
     &:hover {
-      text-decoration: underline;
+      background: ${props => props.theme.colors.primary}10;
+      text-decoration: none;
+      transform: translateY(-1px);
     }
   }
 `;
 
-const UserTypeSelector = styled.div`
+const ProcessSteps = styled.div`
   display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-`;
-
-const UserTypeButton = styled.button`
-  flex: 1;
-  padding: 12px;
-  border: 2px solid ${props => props.selected ? props.theme.colors.primary : props.theme.colors.gray200};
-  background: ${props => props.selected ? props.theme.colors.primary : 'white'};
-  color: ${props => props.selected ? 'white' : props.theme.colors.gray600};
-  border-radius: 10px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  justify-content: space-between;
+  margin: 24px 0;
   
-  &:hover {
-    border-color: ${props => props.theme.colors.primary};
-    color: ${props => props.selected ? 'white' : props.theme.colors.primary};
+  .step {
+    flex: 1;
+    text-align: center;
+    position: relative;
+    
+    &:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 12px;
+      right: -50%;
+      width: 100%;
+      height: 2px;
+      background: ${props => props.theme.colors.gray200};
+      z-index: 0;
+    }
+    
+    .step-icon {
+      width: 24px;
+      height: 24px;
+      background: ${props => props.theme.colors.primary};
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 8px;
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .step-text {
+      font-size: 0.75rem;
+      color: ${props => props.theme.colors.gray600};
+      font-weight: 500;
+    }
   }
 `;
-
-const InfoBox = styled.div`
-  background: ${props => props.theme.colors.gray50};
-  border: 1px solid ${props => props.theme.colors.gray200};
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 15px;
-  font-size: 0.9rem;
-  color: ${props => props.theme.colors.gray700};
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
-
-// Specialty options for doctors
-const MEDICAL_SPECIALTIES = [
-  'General Medicine',
-  'Cardiology',
-  'Neurology',
-  'Pediatrics',
-  'Orthopedics',
-  'Dermatology',
-  'Psychiatry',
-  'Surgery',
-  'Anesthesiology',
-  'Radiology',
-  'Pathology',
-  'Emergency Medicine',
-  'Family Medicine',
-  'Internal Medicine',
-  'Obstetrics & Gynecology',
-  'Ophthalmology',
-  'ENT (Otolaryngology)',
-  'Urology',
-  'Oncology',
-  'Gastroenterology',
-  'Pulmonology',
-  'Nephrology',
-  'Endocrinology',
-  'Rheumatology',
-  'Other'
-];
 
 const RegisterPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { loading, error } = useSelector(state => state.auth);
-  
-  const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    full_name: '',
-    password: '',
-    confirm_password: '',
-    user_type: 'doctor',
-    bio: '',
-    specialty: '',
-    college: ''
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { loading, error, isAuthenticated, registrationSuccess } = useSelector(state => state.auth);
 
-  const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/feed');
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Clear error on component mount
+  useEffect(() => {
+    dispatch(clearError());
+  }, [dispatch]);
+
+  const handleRegistrationSuccess = () => {
+    // Show success message briefly, then redirect
+    setTimeout(() => {
+      dispatch(clearRegistrationSuccess());
+      navigate('/login', { 
+        state: { 
+          message: 'Registration successful! Please log in with your credentials.' 
+        }
+      });
+    }, 3000);
   };
 
-  const handleUserTypeSelect = (type) => {
-    setFormData({
-      ...formData,
-      user_type: type,
-      specialty: type === 'doctor' ? formData.specialty : '',
-      college: type === 'student' ? formData.college : ''
-    });
-  };
+  // Show success state
+  if (registrationSuccess) {
+    return (
+      <RegisterContainer>
+        <RegisterCard>
+          <Logo>
+            <div className="logo-icon">
+              <Heart size={28} />
+            </div>
+            <h1>IAP Connect</h1>
+            <p>Welcome to the Community!</p>
+          </Logo>
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (formData.password !== formData.confirm_password) {
-      alert('Passwords do not match!');
-      return;
-    }
-
-    // Validate required fields based on user type
-    if (formData.user_type === 'doctor' && !formData.specialty) {
-      alert('Please select your medical specialty');
-      return;
-    }
-
-    if (formData.user_type === 'student' && !formData.college) {
-      alert('Please enter your college/university name');
-      return;
-    }
-    
-    try {
-      const { confirm_password, ...registerData } = formData;
-      const result = await dispatch(registerUser(registerData)).unwrap();
-      if (result.access_token) {
-        navigate('/feed');
-      }
-    } catch (error) {
-      console.error('Registration failed:', error);
-    }
-  };
+          <SuccessMessage>
+            <CheckCircle size={48} className="success-icon" />
+            <div className="success-title">Registration Successful!</div>
+            <div className="success-text">
+              Your account has been created successfully. You can now log in and 
+              start connecting with the medical community.
+            </div>
+            <button 
+              className="success-button"
+              onClick={() => navigate('/login')}
+            >
+              Continue to Login
+            </button>
+          </SuccessMessage>
+        </RegisterCard>
+      </RegisterContainer>
+    );
+  }
 
   return (
     <RegisterContainer>
       <RegisterCard>
         <Logo>
+          <div className="logo-icon">
+            <Heart size={28} />
+          </div>
           <h1>IAP Connect</h1>
           <p>Join the Medical Community</p>
+          <div className="subtitle">
+            <Users size={16} />
+            <span>Connect, Learn, Grow</span>
+          </div>
         </Logo>
 
-        {error && <ErrorMessage>{error}</ErrorMessage>}
+        {/* Error Message */}
+        {error && (
+          <ErrorMessage>
+            <AlertCircle size={20} className="error-icon" />
+            <div>{error}</div>
+          </ErrorMessage>
+        )}
 
-        <Form onSubmit={handleSubmit}>
-          {/* User Type Selection */}
-          <SectionTitle>Account Type</SectionTitle>
-          <UserTypeSelector>
-            <UserTypeButton
-              type="button"
-              selected={formData.user_type === 'doctor'}
-              onClick={() => handleUserTypeSelect('doctor')}
-            >
-              <Stethoscope size={16} />
-              Doctor
-            </UserTypeButton>
-            <UserTypeButton
-              type="button"
-              selected={formData.user_type === 'student'}
-              onClick={() => handleUserTypeSelect('student')}
-            >
-              <GraduationCap size={16} />
-              Student
-            </UserTypeButton>
-          </UserTypeSelector>
+        {/* Welcome Message */}
+        <WelcomeMessage>
+          <div className="welcome-icon">
+            <Heart size={24} />
+          </div>
+          <div className="welcome-title">Create Your Professional Account</div>
+          <div className="welcome-text">
+            Join thousands of medical professionals in advancing healthcare 
+            through knowledge sharing and collaboration.
+          </div>
+        </WelcomeMessage>
 
-          {/* Basic Information */}
-          <SectionTitle>Basic Information</SectionTitle>
-          
-          <InputGroup>
-            <Input
-              type="text"
-              name="full_name"
-              placeholder="Full Name"
-              value={formData.full_name}
-              onChange={handleInputChange}
-              required
-            />
-            <InputIcon>
-              <User size={20} />
-            </InputIcon>
-          </InputGroup>
+        {/* Process Steps */}
+        <ProcessSteps>
+          <div className="step">
+            <div className="step-icon">1</div>
+            <div className="step-text">Choose Role</div>
+          </div>
+          <div className="step">
+            <div className="step-icon">2</div>
+            <div className="step-text">Enter Details</div>
+          </div>
+          <div className="step">
+            <div className="step-icon">3</div>
+            <div className="step-text">Join Community</div>
+          </div>
+        </ProcessSteps>
 
-          <InputGroup>
-            <Input
-              type="text"
-              name="username"
-              placeholder="Username"
-              value={formData.username}
-              onChange={handleInputChange}
-              required
-            />
-            <InputIcon>
-              <User size={20} />
-            </InputIcon>
-          </InputGroup>
+        {/* User Type Information */}
+        <UserTypeInfo>
+          <div className="user-type-card">
+            <div className="type-icon">
+              <Stethoscope size={24} />
+            </div>
+            <div className="type-title">Medical Doctors</div>
+            <div className="type-description">
+              Connect with peers, share clinical experiences, and advance medical knowledge
+            </div>
+          </div>
+          <div className="user-type-card">
+            <div className="type-icon">
+              <GraduationCap size={24} />
+            </div>
+            <div className="type-title">Medical Students</div>
+            <div className="type-description">
+              Learn from professionals, ask questions, and prepare for your career
+            </div>
+          </div>
+        </UserTypeInfo>
 
-          <InputGroup>
-            <Input
-              type="email"
-              name="email"
-              placeholder="Email Address"
-              value={formData.email}
-              onChange={handleInputChange}
-              required
-            />
-            <InputIcon>
-              <Mail size={20} />
-            </InputIcon>
-          </InputGroup>
+        {/* Registration Form */}
+        <SignupForm onSuccess={handleRegistrationSuccess} />
 
-          <InputGroup>
-            <Input
-              type={showPassword ? "text" : "password"}
-              name="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={handleInputChange}
-              required
-            />
-            <InputIcon 
-              clickable 
-              onClick={() => setShowPassword(!showPassword)}
-            >
-              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-            </InputIcon>
-          </InputGroup>
+        {/* Benefits Section */}
+        <BenefitsSection>
+          <div className="benefits-title">
+            <CheckCircle size={18} />
+            What You'll Get
+          </div>
+          <div className="benefits-grid">
+            <div className="benefit-item">
+              <CheckCircle size={14} className="benefit-icon" />
+              <span>Professional networking</span>
+            </div>
+            <div className="benefit-item">
+              <CheckCircle size={14} className="benefit-icon" />
+              <span>Knowledge sharing</span>
+            </div>
+            <div className="benefit-item">
+              <CheckCircle size={14} className="benefit-icon" />
+              <span>Case discussions</span>
+            </div>
+            <div className="benefit-item">
+              <CheckCircle size={14} className="benefit-icon" />
+              <span>Career opportunities</span>
+            </div>
+            <div className="benefit-item">
+              <CheckCircle size={14} className="benefit-icon" />
+              <span>Medical updates</span>
+            </div>
+            <div className="benefit-item">
+              <CheckCircle size={14} className="benefit-icon" />
+              <span>Community support</span>
+            </div>
+          </div>
+        </BenefitsSection>
 
-          <InputGroup>
-            <Input
-              type={showConfirmPassword ? "text" : "password"}
-              name="confirm_password"
-              placeholder="Confirm Password"
-              value={formData.confirm_password}
-              onChange={handleInputChange}
-              required
-            />
-            <InputIcon 
-              clickable 
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            >
-              {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-            </InputIcon>
-          </InputGroup>
+        {/* Security Information */}
+        <SecurityInfo>
+          <div className="security-title">
+            <Shield size={16} />
+            Your Privacy & Security
+          </div>
+          <div className="security-text">
+            We protect your professional information with enterprise-grade security. 
+            Your data is encrypted and never shared without your explicit consent.
+          </div>
+        </SecurityInfo>
 
-          {/* Professional Information */}
-          <SectionTitle>Professional Information</SectionTitle>
-
-          {formData.user_type === 'doctor' && (
-            <>
-              <InfoBox>
-                <Stethoscope size={16} />
-                Please select your medical specialty for better networking
-              </InfoBox>
-              <InputGroup>
-                <Select
-                  name="specialty"
-                  value={formData.specialty}
-                  onChange={handleInputChange}
-                  required
-                >
-                  <option value="">Select Medical Specialty</option>
-                  {MEDICAL_SPECIALTIES.map(specialty => (
-                    <option key={specialty} value={specialty}>{specialty}</option>
-                  ))}
-                </Select>
-                <InputIcon>
-                  <Stethoscope size={20} />
-                </InputIcon>
-              </InputGroup>
-            </>
-          )}
-
-          {formData.user_type === 'student' && (
-            <>
-              <InfoBox>
-                <School size={16} />
-                Enter your college/university to connect with peers
-              </InfoBox>
-              <InputGroup>
-                <Input
-                  type="text"
-                  name="college"
-                  placeholder="College/University Name"
-                  value={formData.college}
-                  onChange={handleInputChange}
-                  required
-                />
-                <InputIcon>
-                  <School size={20} />
-                </InputIcon>
-              </InputGroup>
-            </>
-          )}
-
-          <TextArea
-            name="bio"
-            placeholder="Tell us about yourself (optional)"
-            value={formData.bio}
-            onChange={handleInputChange}
-            maxLength={500}
-          />
-
-          <RegisterButton type="submit" disabled={loading}>
-            {loading ? 'Creating Account...' : 'Create Account'}
-          </RegisterButton>
-        </Form>
-
+        {/* Footer */}
         <RegisterFooter>
-          <p>Already have an account?</p>
-          <Link to="/login">Sign In</Link>
+          <div className="login-prompt">Already have an account?</div>
+          <Link to="/login" className="login-link">
+            Sign In Here
+          </Link>
         </RegisterFooter>
       </RegisterCard>
     </RegisterContainer>

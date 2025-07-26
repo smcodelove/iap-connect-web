@@ -1,9 +1,4 @@
-// web/src/services/api.js - Updated with fallback notification service
-/**
- * Enhanced API services for IAP Connect
- * UPDATED: Fixed token storage key and added better error handling
- */
-
+// src/services/api.js - UPDATED WITH YOUR EXISTING CODE
 import axios from 'axios';
 
 // Create axios instance
@@ -54,13 +49,23 @@ api.interceptors.response.use(
   }
 );
 
-// Auth Service - FIXED: Better token storage
+// Auth Service - FIXED: Proper backend format
 export const authService = {
   async login(credentials) {
     try {
-      const response = await api.post('/auth/login', credentials);
+      // FIXED: Backend expects form data for login
+      const formData = new FormData();
+      formData.append('username', credentials.email); // Backend expects 'username' field
+      formData.append('password', credentials.password);
+      
+      const response = await api.post('/auth/login', formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      
       if (response.data.access_token) {
-        // FIXED: Store token with consistent key
+        // Store token with consistent key
         localStorage.setItem('access_token', response.data.access_token);
         localStorage.setItem('token', response.data.access_token); // Backup key
         console.log('✅ Token stored successfully');
@@ -110,30 +115,43 @@ export const authService = {
   }
 };
 
-// Post Service
+// Post Service - FIXED: Match backend API exactly
 export const postService = {
   async getFeed(page = 1, size = 20) {
     try {
-      const response = await api.get(`/posts/feed?page=${page}&size=${size}`);
+      const response = await api.get('/posts/feed', {
+        params: { page, size }
+      });
+      
+      // Handle different response formats
+      const data = response.data;
+      
       return {
         success: true,
-        posts: response.data.posts,
-        total: response.data.total,
-        hasNext: response.data.has_next
+        posts: data.posts || data || [],
+        total: data.total || 0,
+        hasNext: data.has_next || false,
+        pagination: data.pagination || { page, has_more: false }
       };
     } catch (error) {
+      console.error('Feed error:', error.response?.data);
       throw new Error(error.response?.data?.detail || 'Failed to fetch feed');
     }
   },
 
   async getTrendingPosts(page = 1, size = 20, hoursWindow = 72) {
     try {
-      const response = await api.get(`/posts/trending?page=${page}&size=${size}&hours_window=${hoursWindow}`);
+      const response = await api.get('/posts/trending', {
+        params: { page, size, hours_window: hoursWindow }
+      });
+      
+      const data = response.data;
       return {
         success: true,
-        posts: response.data.posts,
-        total: response.data.total,
-        hasNext: response.data.has_next
+        posts: data.posts || data || [],
+        total: data.total || 0,
+        hasNext: data.has_next || false,
+        pagination: data.pagination || { page, has_more: false }
       };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to fetch trending posts');
@@ -142,9 +160,16 @@ export const postService = {
 
   async createPost(postData) {
     try {
-      const response = await api.post('/posts', postData);
+      // Handle both form data and JSON
+      const config = {};
+      if (postData instanceof FormData) {
+        config.headers = { 'Content-Type': 'multipart/form-data' };
+      }
+      
+      const response = await api.post('/posts', postData, config);
       return { success: true, post: response.data };
     } catch (error) {
+      console.error('Create post error:', error.response?.data);
       throw new Error(error.response?.data?.detail || 'Failed to create post');
     }
   },
@@ -164,7 +189,7 @@ export const postService = {
       return {
         success: true,
         liked: true,
-        likes_count: response.data.likes_count
+        likes_count: response.data.likes_count || 0
       };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to like post');
@@ -177,55 +202,26 @@ export const postService = {
       return {
         success: true,
         liked: false,
-        likes_count: response.data.likes_count
+        likes_count: response.data.likes_count || 0
       };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to unlike post');
     }
   },
 
-  async bookmarkPost(postId) {
-    try {
-      await api.post(`/posts/${postId}/bookmark`);
-      return {
-        success: true,
-        bookmarked: true
-      };
-    } catch (error) {
-      // Fallback for when bookmark endpoint doesn't exist yet
-      console.log('Bookmark feature coming soon');
-      return {
-        success: true,
-        bookmarked: true
-      };
-    }
-  },
-
-  async unbookmarkPost(postId) {
-    try {
-      await api.delete(`/posts/${postId}/bookmark`);
-      return {
-        success: true,
-        bookmarked: false
-      };
-    } catch (error) {
-      // Fallback for when bookmark endpoint doesn't exist yet
-      console.log('Bookmark feature coming soon');
-      return {
-        success: true,
-        bookmarked: false
-      };
-    }
-  },
-
   async searchPosts(query, page = 1, size = 20) {
     try {
-      const response = await api.get(`/posts/search?q=${encodeURIComponent(query)}&page=${page}&size=${size}`);
+      const response = await api.get('/posts/search', {
+        params: { q: query, page, size }
+      });
+      
+      const data = response.data;
       return {
         success: true,
-        posts: response.data.posts,
-        total: response.data.total,
-        hasNext: response.data.has_next
+        posts: data.posts || data || [],
+        total: data.total || 0,
+        hasNext: data.has_next || false,
+        query: query
       };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to search posts');
@@ -237,11 +233,14 @@ export const postService = {
 export const commentService = {
   async getPostComments(postId, page = 1, size = 50) {
     try {
-      const response = await api.get(`/posts/${postId}/comments?page=${page}&size=${size}`);
+      const response = await api.get(`/posts/${postId}/comments`, {
+        params: { page, size }
+      });
+      
       return {
         success: true,
-        comments: response.data.comments,
-        total: response.data.total
+        comments: response.data.comments || response.data || [],
+        total: response.data.total || 0
       };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to fetch comments');
@@ -280,7 +279,7 @@ export const commentService = {
       return {
         success: true,
         liked: true,
-        likes_count: response.data.likes_count
+        likes_count: response.data.likes_count || 0
       };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to like comment');
@@ -293,7 +292,7 @@ export const commentService = {
       return {
         success: true,
         liked: false,
-        likes_count: response.data.likes_count
+        likes_count: response.data.likes_count || 0
       };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to unlike comment');
@@ -318,7 +317,7 @@ export const userService = {
       return {
         success: true,
         following: true,
-        followersCount: response.data.followers_count
+        followersCount: response.data.followers_count || 0
       };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to follow user');
@@ -331,7 +330,7 @@ export const userService = {
       return {
         success: true,
         following: false,
-        followersCount: response.data.followers_count
+        followersCount: response.data.followers_count || 0
       };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to unfollow user');
@@ -340,12 +339,15 @@ export const userService = {
 
   async searchUsers(query, page = 1, size = 20) {
     try {
-      const response = await api.get(`/users/search?q=${encodeURIComponent(query)}&page=${page}&size=${size}`);
+      const response = await api.get('/users/search', {
+        params: { q: query, page, size }
+      });
+      
       return {
         success: true,
-        users: response.data.users,
-        total: response.data.total,
-        hasNext: response.data.has_next
+        users: response.data.users || response.data || [],
+        total: response.data.total || 0,
+        hasNext: response.data.has_next || false
       };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to search users');
@@ -357,7 +359,10 @@ export const userService = {
 export const notificationService = {
   async getNotifications(page = 1, size = 20) {
     try {
-      const response = await api.get(`/notifications?page=${page}&size=${size}`);
+      const response = await api.get('/notifications', {
+        params: { page, size }
+      });
+      
       return {
         success: true,
         notifications: response.data.notifications || [],
@@ -379,34 +384,6 @@ export const notificationService = {
     }
   },
 
-  async markAsRead(notificationId) {
-    try {
-      await api.put(`/notifications/${notificationId}/read`);
-      return { success: true };
-    } catch (error) {
-      // FALLBACK: Silent success when endpoint doesn't exist
-      if (error.response?.status === 404 || error.response?.status === 403) {
-        console.log('ℹ️ Using fallback mark as read');
-        return { success: true };
-      }
-      throw new Error(error.response?.data?.detail || 'Failed to mark notification as read');
-    }
-  },
-
-  async markAllAsRead() {
-    try {
-      await api.put('/notifications/mark-all-read');
-      return { success: true };
-    } catch (error) {
-      // FALLBACK: Silent success when endpoint doesn't exist
-      if (error.response?.status === 404 || error.response?.status === 403) {
-        console.log('ℹ️ Using fallback mark all as read');
-        return { success: true };
-      }
-      throw new Error(error.response?.data?.detail || 'Failed to mark all notifications as read');
-    }
-  },
-
   async getUnreadCount() {
     try {
       const response = await api.get('/notifications/unread-count');
@@ -424,37 +401,6 @@ export const notificationService = {
         };
       }
       throw new Error(error.response?.data?.detail || 'Failed to get unread count');
-    }
-  }
-};
-
-// Media Service
-export const mediaService = {
-  async uploadImage(imageFile, onProgress = null) {
-    try {
-      const formData = new FormData();
-      formData.append('file', imageFile);
-
-      const response = await api.post('/upload/image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (progressEvent) => {
-          if (onProgress) {
-            const progress = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
-            );
-            onProgress(progress);
-          }
-        }
-      });
-
-      return {
-        success: true,
-        url: response.data.url,
-        thumbnailUrl: response.data.thumbnail_url,
-        filename: response.data.filename
-      };
-    } catch (error) {
-      throw new Error(error.response?.data?.detail || 'Failed to upload image');
     }
   }
 };
