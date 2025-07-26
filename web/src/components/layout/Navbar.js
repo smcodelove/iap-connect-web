@@ -1,15 +1,38 @@
 // web/src/components/layout/Navbar.js
-import React, { useState } from 'react';
-import styled from 'styled-components';
-import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { Bell, LogOut, Settings, User, Search } from 'lucide-react';
-import { logoutUser } from '../../store/slices/authSlice';
+/**
+ * Enhanced Navbar with notification system integration
+ * Features: Search, notifications, user menu, mobile responsiveness
+ * FIXED: Import issues and auth slice integration
+ */
 
-const NavbarContainer = styled.header`
+import React, { useState, useRef, useEffect } from 'react';
+import styled from 'styled-components';
+import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate, Link } from 'react-router-dom';
+import { 
+  Search, 
+  Plus, 
+  User, 
+  Settings, 
+  LogOut, 
+  Menu,
+  X,
+  Home,
+  TrendingUp,
+  Bookmark,
+  MessageCircle
+} from 'lucide-react';
+
+import NotificationBadge from '../notifications/NotificationBadge';
+import NotificationDropdown from '../notifications/NotificationDropdown';
+import { logoutUser } from '../../store/slices/authSlice'; // FIXED: Changed from logout to logoutUser
+import { resetSearch } from '../../store/slices/postSlice';
+
+const NavbarContainer = styled.nav`
   background: white;
   border-bottom: 1px solid ${props => props.theme.colors.gray200};
-  padding: 15px 25px;
+  padding: 0 20px;
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -19,30 +42,55 @@ const NavbarContainer = styled.header`
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 `;
 
-const SearchContainer = styled.div`
-  position: relative;
+const NavLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 20px;
+`;
+
+const Logo = styled(Link)`
+  font-size: 24px;
+  font-weight: 800;
+  color: ${props => props.theme.colors.primary};
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  &:hover {
+    color: ${props => props.theme.colors.primaryDark};
+  }
+`;
+
+const NavCenter = styled.div`
   flex: 1;
   max-width: 500px;
   margin: 0 20px;
   
-  @media (max-width: ${props => props.theme.breakpoints.tablet}) {
+  @media (max-width: 768px) {
     display: none;
   }
 `;
 
+const SearchContainer = styled.div`
+  position: relative;
+  width: 100%;
+`;
+
 const SearchInput = styled.input`
   width: 100%;
-  padding: 12px 45px 12px 15px;
-  border: 2px solid ${props => props.theme.colors.gray200};
-  border-radius: 25px;
-  font-size: 1rem;
+  padding: 10px 16px 10px 40px;
+  border: 1px solid ${props => props.theme.colors.gray300};
+  border-radius: 24px;
   background: ${props => props.theme.colors.gray50};
-  transition: all 0.3s ease;
+  font-size: 14px;
+  transition: all 0.2s ease;
   
   &:focus {
+    outline: none;
     border-color: ${props => props.theme.colors.primary};
     background: white;
-    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+    box-shadow: 0 0 0 3px ${props => props.theme.colors.primary}20;
   }
   
   &::placeholder {
@@ -50,343 +98,456 @@ const SearchInput = styled.input`
   }
 `;
 
-const SearchIcon = styled.div`
+const SearchIcon = styled(Search)`
   position: absolute;
-  right: 15px;
+  left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  color: ${props => props.theme.colors.gray400};
-  cursor: pointer;
-  
-  &:hover {
-    color: ${props => props.theme.colors.primary};
-  }
+  color: ${props => props.theme.colors.gray500};
+  z-index: 1;
 `;
 
-const NavActions = styled.div`
+const NavRight = styled.div`
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 16px;
 `;
 
-const IconButton = styled.button`
+const NavButton = styled.button`
   background: none;
   border: none;
-  padding: 10px;
-  border-radius: 50%;
   color: ${props => props.theme.colors.gray600};
   cursor: pointer;
-  position: relative;
-  transition: all 0.3s ease;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   
   &:hover {
     background: ${props => props.theme.colors.gray100};
     color: ${props => props.theme.colors.primary};
   }
   
-  @media (max-width: ${props => props.theme.breakpoints.tablet}) {
-    padding: 8px;
+  @media (max-width: 768px) {
+    display: ${props => props.hideOnMobile ? 'none' : 'flex'};
   }
 `;
 
-const NotificationBadge = styled.div`
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 8px;
-  height: 8px;
-  background: ${props => props.theme.colors.danger};
-  border-radius: 50%;
-`;
-
-const UserMenu = styled.div`
-  position: relative;
-  display: inline-block;
-`;
-
-const UserMenuButton = styled.button`
-  background: none;
-  border: none;
+const CreateButton = styled(Link)`
+  background: ${props => props.theme.colors.primary};
+  color: white;
+  padding: 10px 20px;
+  border-radius: 24px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px;
-  border-radius: 20px;
+  gap: 8px;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: ${props => props.theme.colors.primaryDark};
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px ${props => props.theme.colors.primary}40;
+  }
+  
+  @media (max-width: 768px) {
+    padding: 8px 12px;
+    span {
+      display: none;
+    }
+  }
+`;
+
+const UserMenuContainer = styled.div`
+  position: relative;
+`;
+
+const UserButton = styled.button`
+  background: none;
+  border: none;
   cursor: pointer;
-  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 24px;
+  transition: all 0.2s ease;
   
   &:hover {
     background: ${props => props.theme.colors.gray100};
-  }
-  
-  @media (max-width: ${props => props.theme.breakpoints.tablet}) {
-    gap: 0;
   }
 `;
 
 const UserAvatar = styled.div`
-  width: 35px;
-  height: 35px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, ${props => props.theme.colors.primary} 0%, ${props => props.theme.colors.primaryLight} 100%);
+  background: linear-gradient(135deg, ${props => props.theme.colors.primary}, ${props => props.theme.colors.primaryLight});
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-weight: bold;
-  font-size: 0.9rem;
+  font-weight: 700;
+  font-size: 14px;
+  
+  img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
 `;
 
-const UserInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+const UserName = styled.span`
+  font-weight: 600;
+  color: ${props => props.theme.colors.gray800};
+  font-size: 14px;
   
-  .name {
-    font-weight: 600;
-    color: ${props => props.theme.colors.textPrimary};
-    font-size: 0.9rem;
-  }
-  
-  .role {
-    font-size: 0.75rem;
-    color: ${props => props.theme.colors.gray600};
-    text-transform: capitalize;
-  }
-  
-  @media (max-width: ${props => props.theme.breakpoints.tablet}) {
+  @media (max-width: 768px) {
     display: none;
   }
 `;
 
-const DropdownMenu = styled.div`
+const UserDropdown = styled.div`
   position: absolute;
   top: 100%;
   right: 0;
+  width: 220px;
   background: white;
-  border: 1px solid ${props => props.theme.colors.gray200};
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-  min-width: 220px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  border: 1px solid ${props => props.theme.colors.gray200};
   z-index: 1000;
   overflow: hidden;
-  transform: ${props => props.open ? 'translateY(5px)' : 'translateY(-10px)'};
-  opacity: ${props => props.open ? 1 : 0};
-  visibility: ${props => props.open ? 'visible' : 'hidden'};
-  transition: all 0.3s ease;
+  margin-top: 8px;
 `;
 
-const DropdownHeader = styled.div`
-  padding: 15px 20px;
-  border-bottom: 1px solid ${props => props.theme.colors.gray200};
-  background: ${props => props.theme.colors.gray50};
-  
-  .name {
-    font-weight: 600;
-    color: ${props => props.theme.colors.textPrimary};
-    margin-bottom: 2px;
-  }
-  
-  .email {
-    font-size: 0.85rem;
-    color: ${props => props.theme.colors.gray600};
-  }
-`;
-
-const DropdownItem = styled.button`
+const UserDropdownItem = styled.button`
   width: 100%;
+  padding: 12px 16px;
   background: none;
   border: none;
-  padding: 15px 20px;
   text-align: left;
-  color: ${props => props.theme.colors.textPrimary};
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 12px;
-  transition: all 0.3s ease;
-  font-size: 0.9rem;
+  color: ${props => props.theme.colors.gray700};
+  font-size: 14px;
+  transition: all 0.2s ease;
   
   &:hover {
     background: ${props => props.theme.colors.gray50};
+    color: ${props => props.theme.colors.primary};
   }
   
   &.danger {
     color: ${props => props.theme.colors.danger};
     
     &:hover {
-      background: #fee;
+      background: ${props => props.theme.colors.danger}10;
     }
   }
 `;
 
-const WelcomeText = styled.div`
-  display: flex;
-  flex-direction: column;
-  
-  .greeting {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: ${props => props.theme.colors.textPrimary};
-  }
-  
-  .subtitle {
-    font-size: 0.9rem;
-    color: ${props => props.theme.colors.gray600};
-  }
-  
-  @media (max-width: ${props => props.theme.breakpoints.tablet}) {
-    display: none;
-  }
-`;
-
-const MobileMenuButton = styled.button`
+const MobileMenu = styled.div`
   display: none;
-  background: none;
-  border: none;
-  padding: 8px;
-  color: ${props => props.theme.colors.gray600};
-  cursor: pointer;
   
-  @media (max-width: ${props => props.theme.breakpoints.tablet}) {
+  @media (max-width: 768px) {
     display: block;
   }
 `;
 
+const MobileSearchOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  display: ${props => props.show ? 'block' : 'none'};
+`;
+
+const MobileSearchContainer = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  padding: 16px 20px;
+  border-bottom: 1px solid ${props => props.theme.colors.gray200};
+  z-index: 1000;
+  display: ${props => props.show ? 'block' : 'none'};
+`;
+
+const NotificationContainer = styled.div`
+  position: relative;
+`;
+
 const Navbar = () => {
-  const dispatch = useDispatch();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  
+  // State management
   const [searchQuery, setSearchQuery] = useState('');
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  
+  const userMenuRef = useRef(null);
 
-  const handleLogout = async () => {
-    try {
-      await dispatch(logoutUser()).unwrap();
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout failed:', error);
-      // Force logout even if API call fails
-      navigate('/login');
-    }
-  };
-
+  // Handle search
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery('');
+      setShowMobileSearch(false);
     }
   };
 
-  const getInitials = (name) => {
-    return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
+  // Handle logout - FIXED: Using correct action name
+  const handleLogout = () => {
+    dispatch(logoutUser());
+    navigate('/login');
   };
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
+  // Handle notification click
+  const handleNotificationClick = (notification) => {
+    setShowNotifications(false);
+    
+    // Navigate based on notification type
+    if (notification.data) {
+      const data = notification.data;
+      if (data.post_id) {
+        navigate(`/post/${data.post_id}`);
+      } else if (data.user_id) {
+        navigate(`/user/${data.user_id}`);
+      }
+    }
   };
 
-  // Close dropdown when clicking outside
-  React.useEffect(() => {
+  // Close dropdowns when clicking outside
+  useEffect(() => {
     const handleClickOutside = (event) => {
-      if (userMenuOpen && !event.target.closest('.user-menu')) {
-        setUserMenuOpen(false);
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setShowUserMenu(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [userMenuOpen]);
+  }, []);
 
   return (
-    <NavbarContainer>
-      <WelcomeText>
-        <div className="greeting">
-          {getGreeting()}, {user?.full_name?.split(' ')[0] || user?.username}!
-        </div>
-        <div className="subtitle">
-          Welcome to the medical community
-        </div>
-      </WelcomeText>
+    <>
+      <NavbarContainer>
+        <NavLeft>
+          <Logo to="/feed">
+            <div style={{ 
+              width: '32px', 
+              height: '32px', 
+              background: 'linear-gradient(135deg, #0066CC, #3385DB)',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontWeight: '800',
+              fontSize: '16px'
+            }}>
+              IAP
+            </div>
+            <span>Connect</span>
+          </Logo>
+        </NavLeft>
 
-      <SearchContainer>
-        <form onSubmit={handleSearch}>
-          <SearchInput
-            type="text"
-            placeholder="Search posts, users, topics..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <SearchIcon onClick={handleSearch}>
-            <Search size={20} />
-          </SearchIcon>
-        </form>
-      </SearchContainer>
+        <NavCenter>
+          <SearchContainer>
+            <form onSubmit={handleSearch}>
+              <SearchIcon size={18} />
+              <SearchInput
+                type="text"
+                placeholder="Search posts, users, medical topics..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </form>
+          </SearchContainer>
+        </NavCenter>
 
-      <NavActions>
-        <IconButton onClick={() => navigate('/search')}>
-          <Search size={20} />
-        </IconButton>
+        <NavRight>
+          {/* Mobile search button */}
+          <MobileMenu>
+            <NavButton onClick={() => setShowMobileSearch(true)}>
+              <Search size={20} />
+            </NavButton>
+          </MobileMenu>
 
-        <IconButton>
-          <Bell size={20} />
-          <NotificationBadge />
-        </IconButton>
+          {/* Create post button */}
+          <CreateButton to="/create-post">
+            <Plus size={18} />
+            <span>Create</span>
+          </CreateButton>
 
-        <UserMenu className="user-menu">
-          <UserMenuButton onClick={() => setUserMenuOpen(!userMenuOpen)}>
-            <UserAvatar>
-              {user?.avatar_url ? (
-                <img 
-                  src={user.avatar_url} 
-                  alt={user.full_name}
-                  style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
-                />
-              ) : (
-                getInitials(user?.full_name || user?.username)
-              )}
-            </UserAvatar>
-            <UserInfo>
-              <div className="name">{user?.full_name || user?.username}</div>
-              <div className="role">{user?.specialty || user?.college || user?.user_type}</div>
-            </UserInfo>
-          </UserMenuButton>
+          {/* Navigation buttons */}
+          <NavButton 
+            as={Link} 
+            to="/feed" 
+            hideOnMobile
+            title="Home Feed"
+          >
+            <Home size={20} />
+          </NavButton>
 
-          <DropdownMenu open={userMenuOpen}>
-            <DropdownHeader>
-              <div className="name">{user?.full_name || user?.username}</div>
-              <div className="email">{user?.email}</div>
-            </DropdownHeader>
-            
-            <DropdownItem onClick={() => { navigate('/profile'); setUserMenuOpen(false); }}>
-              <User size={16} />
-              My Profile
-            </DropdownItem>
-            
-            <DropdownItem onClick={() => setUserMenuOpen(false)}>
-              <Settings size={16} />
-              Settings
-            </DropdownItem>
-            
-            {user?.user_type === 'admin' && (
-              <DropdownItem onClick={() => { navigate('/admin'); setUserMenuOpen(false); }}>
-                <User size={16} />
-                Admin Dashboard
-              </DropdownItem>
+          <NavButton 
+            as={Link} 
+            to="/trending" 
+            hideOnMobile
+            title="Trending Posts"
+          >
+            <TrendingUp size={20} />
+          </NavButton>
+
+          <NavButton 
+            as={Link} 
+            to="/bookmarks" 
+            hideOnMobile
+            title="Saved Posts"
+          >
+            <Bookmark size={20} />
+          </NavButton>
+
+          {/* Notifications */}
+          <NotificationContainer>
+            <NotificationBadge 
+              onClick={() => setShowNotifications(!showNotifications)}
+            />
+            <NotificationDropdown
+              isOpen={showNotifications}
+              onClose={() => setShowNotifications(false)}
+              onNotificationClick={handleNotificationClick}
+            />
+          </NotificationContainer>
+
+          {/* User menu */}
+          <UserMenuContainer ref={userMenuRef}>
+            <UserButton onClick={() => setShowUserMenu(!showUserMenu)}>
+              <UserAvatar>
+                {user?.profile_picture_url ? (
+                  <img src={user.profile_picture_url} alt={user.full_name} />
+                ) : (
+                  user?.full_name?.charAt(0) || 'U'
+                )}
+              </UserAvatar>
+              <UserName>{user?.full_name}</UserName>
+            </UserButton>
+
+            {showUserMenu && (
+              <UserDropdown>
+                <UserDropdownItem 
+                  as={Link} 
+                  to="/profile"
+                  onClick={() => setShowUserMenu(false)}
+                >
+                  <User size={16} />
+                  Profile
+                </UserDropdownItem>
+                
+                <UserDropdownItem 
+                  as={Link} 
+                  to="/bookmarks"
+                  onClick={() => setShowUserMenu(false)}
+                >
+                  <Bookmark size={16} />
+                  Saved Posts
+                </UserDropdownItem>
+                
+                <UserDropdownItem 
+                  as={Link} 
+                  to="/messages"
+                  onClick={() => setShowUserMenu(false)}
+                >
+                  <MessageCircle size={16} />
+                  Messages
+                </UserDropdownItem>
+                
+                <UserDropdownItem 
+                  as={Link} 
+                  to="/settings"
+                  onClick={() => setShowUserMenu(false)}
+                >
+                  <Settings size={16} />
+                  Settings
+                </UserDropdownItem>
+                
+                {user?.user_type === 'admin' && (
+                  <UserDropdownItem 
+                    as={Link} 
+                    to="/admin"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <Settings size={16} />
+                    Admin Dashboard
+                  </UserDropdownItem>
+                )}
+                
+                <UserDropdownItem 
+                  className="danger"
+                  onClick={handleLogout}
+                >
+                  <LogOut size={16} />
+                  Sign out
+                </UserDropdownItem>
+              </UserDropdown>
             )}
-            
-            <DropdownItem className="danger" onClick={handleLogout}>
-              <LogOut size={16} />
-              Logout
-            </DropdownItem>
-          </DropdownMenu>
-        </UserMenu>
-      </NavActions>
-    </NavbarContainer>
+          </UserMenuContainer>
+        </NavRight>
+      </NavbarContainer>
+
+      {/* Mobile search overlay */}
+      <MobileSearchOverlay 
+        show={showMobileSearch}
+        onClick={() => setShowMobileSearch(false)}
+      />
+      
+      <MobileSearchContainer show={showMobileSearch}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <form onSubmit={handleSearch}>
+              <SearchIcon size={18} />
+              <SearchInput
+                type="text"
+                placeholder="Search posts, users, medical topics..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus
+              />
+            </form>
+          </div>
+          <button
+            onClick={() => setShowMobileSearch(false)}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: '8px',
+              cursor: 'pointer',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <X size={20} />
+          </button>
+        </div>
+      </MobileSearchContainer>
+    </>
   );
 };
 

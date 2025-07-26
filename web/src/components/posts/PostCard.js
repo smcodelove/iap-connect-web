@@ -1,17 +1,36 @@
 // web/src/components/posts/PostCard.js
-import React, { useState } from 'react';
-import styled from 'styled-components';
-import { Heart, MessageCircle, Share2, MoreHorizontal, Clock, User } from 'lucide-react';
-import { useDispatch, useSelector } from 'react-redux';
-import { Link } from 'react-router-dom';
-import { likePost, unlikePost } from '../../store/slices/postSlice';
+/**
+ * Enhanced PostCard with complete social features
+ * Features: Like, Comment, Share, Follow, Image display, Medical theme
+ */
 
-const Card = styled.div`
+import React, { useState, useCallback } from 'react';
+import styled from 'styled-components';
+import { useSelector } from 'react-redux';
+import { 
+  Heart, 
+  MessageCircle, 
+  Share2, 
+  Bookmark, 
+  MoreHorizontal,
+  MapPin,
+  Calendar,
+  Stethoscope,
+  GraduationCap
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+import LikeButton from '../common/LikeButton';
+import FollowButton from '../common/FollowButton';
+import CommentSection from '../comments/CommentSection';
+import { postService, userService } from '../../services/api';
+
+const PostCardContainer = styled.div`
   background: white;
   border-radius: 12px;
-  padding: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border: 1px solid ${props => props.theme.colors.gray200};
+  margin-bottom: 20px;
+  overflow: hidden;
   transition: all 0.3s ease;
   
   &:hover {
@@ -21,106 +40,205 @@ const Card = styled.div`
 `;
 
 const PostHeader = styled.div`
+  padding: 16px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 15px;
 `;
 
 const UserInfo = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
 `;
 
-const Avatar = styled.div`
+const UserAvatar = styled(Link)`
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, ${props => props.theme.colors.primary} 0%, ${props => props.theme.colors.primaryLight} 100%);
+  background: linear-gradient(135deg, ${props => props.theme.colors.primary}, ${props => props.theme.colors.primaryLight});
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-weight: bold;
-  font-size: 1.2rem;
+  font-weight: 700;
+  font-size: 18px;
+  text-decoration: none;
+  transition: transform 0.2s ease;
+  
+  &:hover {
+    transform: scale(1.05);
+  }
+  
+  img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
 `;
 
 const UserDetails = styled.div`
-  .name {
-    font-weight: 600;
-    color: ${props => props.theme.colors.textPrimary};
-    margin-bottom: 2px;
-  }
+  flex: 1;
+`;
+
+const UserName = styled(Link)`
+  font-weight: 700;
+  color: ${props => props.theme.colors.gray800};
+  text-decoration: none;
+  font-size: 16px;
   
-  .meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.875rem;
-    color: ${props => props.theme.colors.gray600};
+  &:hover {
+    color: ${props => props.theme.colors.primary};
   }
+`;
+
+const UserMeta = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
 `;
 
 const UserType = styled.span`
-  background: ${props => {
-    if (props.type === 'doctor') return props.theme.colors.primary;
-    if (props.type === 'student') return props.theme.colors.success;
-    return props.theme.colors.gray400;
-  }};
-  color: white;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: ${props => props.theme.colors.gray600};
+  background: ${props => props.type === 'doctor' ? '#e3f2fd' : '#f3e5f5'};
+  color: ${props => props.type === 'doctor' ? '#1976d2' : '#7b1fa2'};
   padding: 2px 8px;
   border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
+  font-weight: 500;
 `;
 
-const MenuButton = styled.button`
-  background: none;
-  border: none;
-  padding: 8px;
-  border-radius: 50%;
+const PostTime = styled.span`
+  font-size: 13px;
   color: ${props => props.theme.colors.gray500};
-  cursor: pointer;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    background: ${props => props.theme.colors.gray100};
-    color: ${props => props.theme.colors.gray700};
-  }
-`;
-
-const PostContent = styled.div`
-  margin-bottom: 15px;
-  
-  h3 {
-    color: ${props => props.theme.colors.textPrimary};
-    margin-bottom: 8px;
-    font-size: 1.1rem;
-  }
-  
-  p {
-    color: ${props => props.theme.colors.gray700};
-    line-height: 1.6;
-    margin-bottom: 10px;
-  }
-`;
-
-const PostImage = styled.img`
-  width: 100%;
-  border-radius: 8px;
-  margin: 10px 0;
-  object-fit: cover;
-  max-height: 400px;
 `;
 
 const PostActions = styled.div`
   display: flex;
   align-items: center;
+  gap: 8px;
+`;
+
+const ActionButton = styled.button`
+  background: none;
+  border: none;
+  color: ${props => props.theme.colors.gray600};
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: ${props => props.theme.colors.gray100};
+    color: ${props => props.theme.colors.primary};
+  }
+`;
+
+const PostContent = styled.div`
+  padding: 0 20px 16px;
+`;
+
+const PostText = styled.p`
+  font-size: 15px;
+  line-height: 1.6;
+  color: ${props => props.theme.colors.gray800};
+  margin: 0 0 16px 0;
+  white-space: pre-wrap;
+  
+  .hashtag {
+    color: ${props => props.theme.colors.primary};
+    font-weight: 600;
+    cursor: pointer;
+    
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+`;
+
+const PostImages = styled.div`
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  
+  ${props => props.count === 1 && `
+    grid-template-columns: 1fr;
+  `}
+  
+  ${props => props.count === 2 && `
+    grid-template-columns: 1fr 1fr;
+  `}
+  
+  ${props => props.count === 3 && `
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    
+    img:first-child {
+      grid-row: 1 / 3;
+    }
+  `}
+  
+  ${props => props.count >= 4 && `
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  `}
+`;
+
+const PostImage = styled.img`
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  
+  &:hover {
+    transform: scale(1.02);
+  }
+  
+  ${props => props.single && `
+    height: 300px;
+  `}
+`;
+
+const MoreImagesOverlay = styled.div`
+  position: relative;
+  
+  &::after {
+    content: '+${props => props.count}';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+  }
+`;
+
+const PostFooter = styled.div`
+  padding: 0 20px 16px;
+`;
+
+const SocialActions = styled.div`
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding-top: 15px;
+  padding: 12px 0;
   border-top: 1px solid ${props => props.theme.colors.gray200};
+  margin-top: 12px;
 `;
 
 const ActionGroup = styled.div`
@@ -129,141 +247,269 @@ const ActionGroup = styled.div`
   gap: 20px;
 `;
 
-const ActionButton = styled.button`
+const SocialButton = styled.button`
   background: none;
   border: none;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
-  border-radius: 8px;
   color: ${props => props.active ? props.theme.colors.primary : props.theme.colors.gray600};
   cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 0.9rem;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
   
   &:hover {
     background: ${props => props.theme.colors.gray100};
     color: ${props => props.theme.colors.primary};
-  }
-  
-  svg {
-    width: 18px;
-    height: 18px;
-    fill: ${props => props.active ? 'currentColor' : 'none'};
+    transform: translateY(-1px);
   }
 `;
 
-const Stats = styled.div`
+const BookmarkButton = styled(SocialButton)`
+  color: ${props => props.bookmarked ? '#f59e0b' : props.theme.colors.gray600};
+`;
+
+const PostStats = styled.div`
   display: flex;
   align-items: center;
-  gap: 15px;
-  font-size: 0.875rem;
+  justify-content: space-between;
+  font-size: 13px;
   color: ${props => props.theme.colors.gray600};
+  margin-bottom: 8px;
 `;
 
-const formatTimeAgo = (date) => {
-  const now = new Date();
-  const postDate = new Date(date);
-  const diffInMinutes = Math.floor((now - postDate) / (1000 * 60));
+const StatButton = styled.button`
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: inherit;
   
-  if (diffInMinutes < 1) return 'Just now';
-  if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-  if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
-  return `${Math.floor(diffInMinutes / 1440)}d ago`;
-};
+  &:hover {
+    text-decoration: underline;
+    color: ${props => props.theme.colors.primary};
+  }
+`;
 
-const PostCard = ({ post }) => {
-  const dispatch = useDispatch();
+const PostCard = ({ 
+  post, 
+  showComments = false, 
+  onLike, 
+  onComment, 
+  onShare,
+  onBookmark,
+  currentUser 
+}) => {
   const { user } = useSelector(state => state.auth);
-  const [isLiked, setIsLiked] = useState(post.is_liked_by_user || false);
-  const [likesCount, setLikesCount] = useState(post.likes_count || 0);
+  const [commentsVisible, setCommentsVisible] = useState(showComments);
+  const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked || false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
 
-  const handleLike = async () => {
-    try {
-      if (isLiked) {
-        await dispatch(unlikePost(post.id)).unwrap();
-        setIsLiked(false);
-        setLikesCount(prev => prev - 1);
-      } else {
-        await dispatch(likePost(post.id)).unwrap();
-        setIsLiked(true);
-        setLikesCount(prev => prev + 1);
-      }
-    } catch (error) {
-      console.error('Error toggling like:', error);
-    }
+  // Format timestamp
+  const formatTime = (timestamp) => {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffInMs = now - time;
+    const diffInMins = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMins / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+
+    if (diffInMins < 1) return 'Just now';
+    if (diffInMins < 60) return `${diffInMins}m`;
+    if (diffInHours < 24) return `${diffInHours}h`;
+    if (diffInDays < 7) return `${diffInDays}d`;
+    
+    return time.toLocaleDateString('en-IN', { 
+      day: 'numeric', 
+      month: 'short' 
+    });
   };
 
-  const getInitials = (name) => {
-    return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
+  // Parse hashtags in text
+  const parseHashtags = (text) => {
+    return text.replace(/#(\w+)/g, '<span class="hashtag">#$1</span>');
+  };
+
+  // Handle bookmark
+  const handleBookmark = useCallback(async () => {
+    if (bookmarkLoading) return;
+
+    setBookmarkLoading(true);
+    setIsBookmarked(!isBookmarked);
+
+    try {
+      let response;
+      if (isBookmarked) {
+        response = await postService.unbookmarkPost(post.id);
+      } else {
+        response = await postService.bookmarkPost(post.id);
+      }
+
+      if (!response.success) {
+        // Revert on failure
+        setIsBookmarked(isBookmarked);
+      }
+
+      if (onBookmark) {
+        onBookmark(post.id, !isBookmarked);
+      }
+    } catch (error) {
+      // Revert on error
+      setIsBookmarked(isBookmarked);
+      console.error('Bookmark error:', error);
+    } finally {
+      setBookmarkLoading(false);
+    }
+  }, [isBookmarked, bookmarkLoading, post.id, onBookmark]);
+
+  // Handle share
+  const handleShare = useCallback(async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${post.author.full_name}'s post`,
+          text: post.content.substring(0, 100) + '...',
+          url: `${window.location.origin}/post/${post.id}`
+        });
+      } else {
+        // Fallback to clipboard
+        await navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
+        alert('Post link copied to clipboard!');
+      }
+
+      if (onShare) {
+        onShare(post.id);
+      }
+    } catch (error) {
+      console.error('Share error:', error);
+    }
+  }, [post, onShare]);
+
+  // Get user type icon
+  const getUserTypeIcon = (userType) => {
+    return userType === 'doctor' ? <Stethoscope size={12} /> : <GraduationCap size={12} />;
+  };
+
+  // Get user avatar
+  const getUserAvatar = () => {
+    if (post.author.profile_picture_url) {
+      return <img src={post.author.profile_picture_url} alt={post.author.full_name} />;
+    }
+    return post.author.full_name?.charAt(0) || 'U';
   };
 
   return (
-    <Card>
+    <PostCardContainer>
       <PostHeader>
         <UserInfo>
-          <Avatar>
-            {post.user?.avatar_url ? (
-              <img 
-                src={post.user.avatar_url} 
-                alt={post.user.full_name}
-                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
-              />
-            ) : (
-              getInitials(post.user?.full_name || post.user?.username)
-            )}
-          </Avatar>
+          <UserAvatar to={`/user/${post.author.id}`}>
+            {getUserAvatar()}
+          </UserAvatar>
+          
           <UserDetails>
-            <div className="name">
-              <Link to={`/user/${post.user?.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                {post.user?.full_name || post.user?.username}
-              </Link>
-            </div>
-            <div className="meta">
-              <UserType type={post.user?.user_type}>
-                {post.user?.user_type}
+            <UserName to={`/user/${post.author.id}`}>
+              {post.author.full_name}
+            </UserName>
+            <UserMeta>
+              <UserType type={post.author.user_type}>
+                {getUserTypeIcon(post.author.user_type)}
+                {post.author.user_type === 'doctor' ? 'Doctor' : 'Student'}
               </UserType>
-              <Clock size={14} />
-              {formatTimeAgo(post.created_at)}
-            </div>
+              <PostTime>{formatTime(post.created_at)}</PostTime>
+            </UserMeta>
           </UserDetails>
         </UserInfo>
-        <MenuButton>
-          <MoreHorizontal size={20} />
-        </MenuButton>
+
+        <PostActions>
+          {user?.id !== post.author.id && (
+            <FollowButton
+              userId={post.author.id}
+              initialFollowing={post.author.is_following}
+              size="small"
+            />
+          )}
+          <ActionButton>
+            <MoreHorizontal size={20} />
+          </ActionButton>
+        </PostActions>
       </PostHeader>
 
       <PostContent>
-        {post.title && <h3>{post.title}</h3>}
-        <p>{post.content}</p>
-        {post.image_url && (
-          <PostImage src={post.image_url} alt="Post content" />
+        <PostText dangerouslySetInnerHTML={{ __html: parseHashtags(post.content) }} />
+        
+        {post.media_urls && post.media_urls.length > 0 && (
+          <PostImages count={post.media_urls.length}>
+            {post.media_urls.slice(0, 4).map((url, index) => (
+              <div key={index} style={{ position: 'relative' }}>
+                {index === 3 && post.media_urls.length > 4 ? (
+                  <MoreImagesOverlay count={post.media_urls.length - 3}>
+                    <PostImage src={url} alt={`Post image ${index + 1}`} />
+                  </MoreImagesOverlay>
+                ) : (
+                  <PostImage 
+                    src={url} 
+                    alt={`Post image ${index + 1}`}
+                    single={post.media_urls.length === 1}
+                  />
+                )}
+              </div>
+            ))}
+          </PostImages>
         )}
       </PostContent>
 
-      <PostActions>
-        <ActionGroup>
-          <ActionButton active={isLiked} onClick={handleLike}>
-            <Heart size={18} />
-            {likesCount}
-          </ActionButton>
-          <ActionButton as={Link} to={`/post/${post.id}`}>
-            <MessageCircle size={18} />
-            {post.comments_count || 0}
-          </ActionButton>
-          <ActionButton>
-            <Share2 size={18} />
-            Share
-          </ActionButton>
-        </ActionGroup>
-        
-        <Stats>
-          {likesCount > 0 && <span>{likesCount} likes</span>}
-          {post.comments_count > 0 && <span>{post.comments_count} comments</span>}
-        </Stats>
-      </PostActions>
-    </Card>
+      <PostFooter>
+        {(post.likes_count > 0 || post.comments_count > 0) && (
+          <PostStats>
+            <StatButton>
+              {post.likes_count > 0 && `${post.likes_count} ${post.likes_count === 1 ? 'like' : 'likes'}`}
+            </StatButton>
+            <StatButton onClick={() => setCommentsVisible(!commentsVisible)}>
+              {post.comments_count > 0 && `${post.comments_count} ${post.comments_count === 1 ? 'comment' : 'comments'}`}
+            </StatButton>
+          </PostStats>
+        )}
+
+        <SocialActions>
+          <ActionGroup>
+            <LikeButton
+              postId={post.id}
+              initialLiked={post.is_liked}
+              initialCount={post.likes_count}
+              onLikeChange={onLike}
+            />
+            
+            <SocialButton onClick={() => setCommentsVisible(!commentsVisible)}>
+              <MessageCircle size={20} />
+              Comment
+            </SocialButton>
+            
+            <SocialButton onClick={handleShare}>
+              <Share2 size={20} />
+              Share
+            </SocialButton>
+          </ActionGroup>
+
+          <BookmarkButton 
+            bookmarked={isBookmarked}
+            onClick={handleBookmark}
+            disabled={bookmarkLoading}
+          >
+            <Bookmark 
+              size={20} 
+              fill={isBookmarked ? 'currentColor' : 'none'} 
+            />
+          </BookmarkButton>
+        </SocialActions>
+
+        {commentsVisible && (
+          <CommentSection postId={post.id} />
+        )}
+      </PostFooter>
+    </PostCardContainer>
   );
 };
 

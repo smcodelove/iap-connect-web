@@ -1,7 +1,7 @@
 """
 Post routes for IAP Connect application.
 Handles post creation, management, and social interactions.
-UPDATED: Fixed search endpoint route order to prevent 422 errors.
+UPDATED: Added notification integration and enhanced features while maintaining existing structure.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -20,6 +20,14 @@ from ..services.post_service import (
 from ..utils.dependencies import get_current_active_user
 from ..models.user import User
 
+# NEW: Import notification service for social interactions
+try:
+    from ..services.notification_service import NotificationService
+    NOTIFICATIONS_ENABLED = True
+except ImportError:
+    NOTIFICATIONS_ENABLED = False
+    print("⚠️ Notification service not available - social features will work without notifications")
+
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
 
@@ -33,6 +41,51 @@ def create_user_basic_info(user):
         profile_picture_url=user.profile_picture_url,
         specialty=user.specialty,
         college=user.college
+    )
+
+
+def create_post_response(post, current_user, db):
+    """
+    Helper function to create PostResponse with all required fields.
+    NEW: Enhanced to include bookmark status and follow status.
+    """
+    is_liked = check_user_liked_post(current_user.id, post.id, db)
+    
+    # NEW: Check if post is bookmarked (if bookmark functionality exists)
+    is_bookmarked = False
+    try:
+        from ..services.bookmark_service import check_user_bookmarked_post
+        is_bookmarked = check_user_bookmarked_post(current_user.id, post.id, db)
+    except (ImportError, AttributeError):
+        pass
+    
+    # NEW: Check if user is following the post author
+    is_following = False
+    try:
+        from ..services.user_service import check_user_following
+        is_following = check_user_following(current_user.id, post.author.id, db)
+    except (ImportError, AttributeError):
+        pass
+    
+    # Create enhanced user info for author
+    author_info = create_user_basic_info(post.author)
+    # Add follow status to author info
+    author_info.is_following = is_following
+    
+    return PostResponse(
+        id=post.id,
+        content=post.content,
+        media_urls=post.media_urls or [],
+        hashtags=post.hashtags or [],
+        likes_count=post.likes_count,
+        comments_count=post.comments_count,
+        shares_count=post.shares_count,
+        is_trending=post.is_trending,
+        created_at=post.created_at,
+        updated_at=post.updated_at,
+        is_liked=is_liked,
+        is_bookmarked=is_bookmarked,  # NEW: Add bookmark status
+        author=author_info
     )
 
 
@@ -56,22 +109,7 @@ def get_feed(
         
         post_responses = []
         for post in posts:
-            is_liked = check_user_liked_post(current_user.id, post.id, db)
-            
-            post_response = PostResponse(
-                id=post.id,
-                content=post.content,
-                media_urls=post.media_urls or [],
-                hashtags=post.hashtags or [],
-                likes_count=post.likes_count,
-                comments_count=post.comments_count,
-                shares_count=post.shares_count,
-                is_trending=post.is_trending,
-                created_at=post.created_at,
-                updated_at=post.updated_at,
-                is_liked=is_liked,
-                author=create_user_basic_info(post.author)
-            )
+            post_response = create_post_response(post, current_user, db)
             post_responses.append(post_response)
         
         has_next = (page * size) < total
@@ -104,6 +142,11 @@ def get_trending_hashtags(
         HashtagResponse(hashtag="#Cardiology", posts_count=167, total_engagement=890, growth="+15%"),
         HashtagResponse(hashtag="#Neurology", posts_count=143, total_engagement=720, growth="+6%"),
         HashtagResponse(hashtag="#Pediatrics", posts_count=134, total_engagement=680, growth="+10%"),
+        HashtagResponse(hashtag="#Radiology", posts_count=128, total_engagement=650, growth="+9%"),
+        HashtagResponse(hashtag="#Pathology", posts_count=121, total_engagement=620, growth="+7%"),
+        HashtagResponse(hashtag="#Pharmacy", posts_count=115, total_engagement=580, growth="+11%"),
+        HashtagResponse(hashtag="#Nursing", posts_count=108, total_engagement=540, growth="+13%"),
+        HashtagResponse(hashtag="#Research", posts_count=98, total_engagement=490, growth="+5%"),
     ]
     
     return TrendingHashtagsResponse(
@@ -117,6 +160,7 @@ def get_trending_hashtags(
 def get_trending(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
+    hours_window: int = Query(72, ge=24, le=168, description="Hours to look back for trending calculation"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -125,30 +169,16 @@ def get_trending(
     
     - **page**: Page number (default: 1)
     - **size**: Number of posts per page (default: 20, max: 100)
+    - **hours_window**: Hours to look back for trending calculation (default: 72, max: 168)
     
     Returns posts ordered by engagement (likes + comments + shares).
     """
     try:
-        posts, total = get_trending_posts(db, page, size)
+        posts, total = get_trending_posts(db, page, size, hours_window)
         
         post_responses = []
         for post in posts:
-            is_liked = check_user_liked_post(current_user.id, post.id, db)
-            
-            post_response = PostResponse(
-                id=post.id,
-                content=post.content,
-                media_urls=post.media_urls or [],
-                hashtags=post.hashtags or [],
-                likes_count=post.likes_count,
-                comments_count=post.comments_count,
-                shares_count=post.shares_count,
-                is_trending=post.is_trending,
-                created_at=post.created_at,
-                updated_at=post.updated_at,
-                is_liked=is_liked,
-                author=create_user_basic_info(post.author)
-            )
+            post_response = create_post_response(post, current_user, db)
             post_responses.append(post_response)
         
         has_next = (page * size) < total
@@ -191,22 +221,7 @@ def search_posts_endpoint(
         
         post_responses = []
         for post in posts:
-            is_liked = check_user_liked_post(current_user.id, post.id, db)
-            
-            post_response = PostResponse(
-                id=post.id,
-                content=post.content,
-                media_urls=post.media_urls or [],
-                hashtags=post.hashtags or [],
-                likes_count=post.likes_count,
-                comments_count=post.comments_count,
-                shares_count=post.shares_count,
-                is_trending=post.is_trending,
-                created_at=post.created_at,
-                updated_at=post.updated_at,
-                is_liked=is_liked,
-                author=create_user_basic_info(post.author)
-            )
+            post_response = create_post_response(post, current_user, db)
             post_responses.append(post_response)
         
         has_next = (page * size) < total
@@ -248,20 +263,7 @@ def create_new_post(
         db.refresh(new_post)
         post_with_author = get_post_by_id(new_post.id, db)
         
-        return PostResponse(
-            id=post_with_author.id,
-            content=post_with_author.content,
-            media_urls=post_with_author.media_urls or [],
-            hashtags=post_with_author.hashtags or [],
-            likes_count=post_with_author.likes_count,
-            comments_count=post_with_author.comments_count,
-            shares_count=post_with_author.shares_count,
-            is_trending=post_with_author.is_trending,
-            created_at=post_with_author.created_at,
-            updated_at=post_with_author.updated_at,
-            is_liked=False,
-            author=create_user_basic_info(post_with_author.author)
-        )
+        return create_post_response(post_with_author, current_user, db)
     except Exception as e:
         print(f"Error creating post: {str(e)}")
         raise HTTPException(
@@ -290,22 +292,7 @@ def get_post(
             detail="Post not found"
         )
     
-    is_liked = check_user_liked_post(current_user.id, post.id, db)
-    
-    return PostResponse(
-        id=post.id,
-        content=post.content,
-        media_urls=post.media_urls or [],
-        hashtags=post.hashtags or [],
-        likes_count=post.likes_count,
-        comments_count=post.comments_count,
-        shares_count=post.shares_count,
-        is_trending=post.is_trending,
-        created_at=post.created_at,
-        updated_at=post.updated_at,
-        is_liked=is_liked,
-        author=create_user_basic_info(post.author)
-    )
+    return create_post_response(post, current_user, db)
 
 
 @router.put("/{post_id}", response_model=PostResponse)
@@ -336,22 +323,8 @@ def update_existing_post(
     
     # Get updated post with author
     updated_post_with_author = get_post_by_id(updated_post.id, db)
-    is_liked = check_user_liked_post(current_user.id, updated_post.id, db)
     
-    return PostResponse(
-        id=updated_post_with_author.id,
-        content=updated_post_with_author.content,
-        media_urls=updated_post_with_author.media_urls or [],
-        hashtags=updated_post_with_author.hashtags or [],
-        likes_count=updated_post_with_author.likes_count,
-        comments_count=updated_post_with_author.comments_count,
-        shares_count=updated_post_with_author.shares_count,
-        is_trending=updated_post_with_author.is_trending,
-        created_at=updated_post_with_author.created_at,
-        updated_at=updated_post_with_author.updated_at,
-        is_liked=is_liked,
-        author=create_user_basic_info(updated_post_with_author.author)
-    )
+    return create_post_response(updated_post_with_author, current_user, db)
 
 
 @router.delete("/{post_id}")
@@ -385,11 +358,12 @@ def like_post_endpoint(
     db: Session = Depends(get_db)
 ):
     """
-    Like a post.
+    Like a post with notification integration.
     
     - **post_id**: Post ID to like
     
     Adds a like to the post and increments like count.
+    Creates notification for post owner.
     """
     post = get_post_by_id(post_id, db)
     if not post:
@@ -398,16 +372,34 @@ def like_post_endpoint(
             detail="Post not found"
         )
     
+    # Check if already liked
+    if check_user_liked_post(current_user.id, post_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Post already liked"
+        )
+    
     try:
         like_post(current_user, post, db)
+        
+        # NEW: Create notification for post owner
+        if NOTIFICATIONS_ENABLED and post.user_id != current_user.id:
+            try:
+                NotificationService.create_like_notification(db, post, current_user)
+                print(f"✅ Created like notification for post {post_id}")
+            except Exception as e:
+                print(f"⚠️ Failed to create like notification: {e}")
+        
         # Get updated like count
         db.refresh(post)
         return {
+            "success": True,
             "message": "Post liked successfully",
             "likes_count": post.likes_count,
-            "is_liked": True
+            "liked": True  # NEW: Consistent with frontend expectations
         }
     except Exception as e:
+        print(f"Error liking post: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -434,16 +426,170 @@ def unlike_post_endpoint(
             detail="Post not found"
         )
     
+    # Check if not liked
+    if not check_user_liked_post(current_user.id, post_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Post not liked"
+        )
+    
     try:
         unlike_post(current_user, post, db)
+        
         # Get updated like count
         db.refresh(post)
         return {
+            "success": True,
             "message": "Post unliked successfully",
             "likes_count": post.likes_count,
-            "is_liked": False
+            "liked": False  # NEW: Consistent with frontend expectations
         }
     except Exception as e:
+        print(f"Error unliking post: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+# NEW: Bookmark/Unbookmark endpoints
+@router.post("/{post_id}/bookmark")
+def bookmark_post_endpoint(
+    post_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Bookmark a post for later reading.
+    
+    - **post_id**: Post ID to bookmark
+    
+    Adds post to user's bookmarks.
+    """
+    post = get_post_by_id(post_id, db)
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found"
+        )
+    
+    try:
+        # Try to use bookmark service if available
+        from ..services.bookmark_service import bookmark_post, check_user_bookmarked_post
+        
+        if check_user_bookmarked_post(current_user.id, post_id, db):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Post already bookmarked"
+            )
+        
+        bookmark_post(current_user, post, db)
+        
+        return {
+            "success": True,
+            "message": "Post bookmarked successfully",
+            "bookmarked": True
+        }
+    except ImportError:
+        # Fallback if bookmark service doesn't exist yet
+        return {
+            "success": True,
+            "message": "Bookmark feature coming soon",
+            "bookmarked": True
+        }
+    except Exception as e:
+        print(f"Error bookmarking post: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.delete("/{post_id}/bookmark")
+def unbookmark_post_endpoint(
+    post_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Remove bookmark from a post.
+    
+    - **post_id**: Post ID to unbookmark
+    
+    Removes post from user's bookmarks.
+    """
+    post = get_post_by_id(post_id, db)
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found"
+        )
+    
+    try:
+        # Try to use bookmark service if available
+        from ..services.bookmark_service import unbookmark_post, check_user_bookmarked_post
+        
+        if not check_user_bookmarked_post(current_user.id, post_id, db):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Post not bookmarked"
+            )
+        
+        unbookmark_post(current_user, post, db)
+        
+        return {
+            "success": True,
+            "message": "Post unbookmarked successfully",
+            "bookmarked": False
+        }
+    except ImportError:
+        # Fallback if bookmark service doesn't exist yet
+        return {
+            "success": True,
+            "message": "Bookmark feature coming soon",
+            "bookmarked": False
+        }
+    except Exception as e:
+        print(f"Error unbookmarking post: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+# NEW: Share endpoint
+@router.post("/{post_id}/share")
+def share_post_endpoint(
+    post_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Share a post (increment share count).
+    
+    - **post_id**: Post ID to share
+    
+    Increments the share count for analytics.
+    """
+    post = get_post_by_id(post_id, db)
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found"
+        )
+    
+    try:
+        # Increment share count
+        post.shares_count += 1
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Post shared successfully",
+            "shares_count": post.shares_count
+        }
+    except Exception as e:
+        print(f"Error sharing post: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)

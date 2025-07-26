@@ -1,6 +1,7 @@
 """
 Bookmark service for IAP Connect application.
 Handles bookmark-related business logic.
+UPDATED: Enhanced with additional helper functions while keeping existing code intact.
 """
 
 from sqlalchemy.orm import Session, joinedload
@@ -167,3 +168,77 @@ def is_post_bookmarked(user: User, post_id: int, db: Session) -> bool:
     return db.query(Bookmark).filter(
         and_(Bookmark.post_id == post_id, Bookmark.user_id == user.id)
     ).first() is not None
+
+
+# NEW: Additional helper functions for enhanced functionality
+def check_user_bookmarked_post(user_id: int, post_id: int, db: Session) -> bool:
+    """
+    Check if a user has bookmarked a specific post (helper function for posts router).
+    
+    Args:
+        user_id: User ID
+        post_id: Post ID
+        db: Database session
+        
+    Returns:
+        bool: True if bookmarked, False otherwise
+    """
+    return db.query(Bookmark).filter(
+        and_(Bookmark.user_id == user_id, Bookmark.post_id == post_id)
+    ).first() is not None
+
+
+def get_bookmark_stats(user: User, db: Session) -> dict:
+    """
+    Get bookmark statistics for a user.
+    
+    Args:
+        user: User to get stats for
+        db: Database session
+        
+    Returns:
+        dict: Statistics including total bookmarks, recent bookmarks, etc.
+    """
+    from datetime import datetime, timedelta
+    
+    total_bookmarks = db.query(Bookmark).filter(Bookmark.user_id == user.id).count()
+    
+    # Recent bookmarks (last 7 days)
+    week_ago = datetime.utcnow() - timedelta(days=7)
+    recent_bookmarks = db.query(Bookmark).filter(
+        and_(
+            Bookmark.user_id == user.id,
+            Bookmark.created_at >= week_ago
+        )
+    ).count()
+    
+    return {
+        "total_bookmarks": total_bookmarks,
+        "recent_bookmarks": recent_bookmarks
+    }
+
+
+def get_most_bookmarked_posts(db: Session, limit: int = 10, days: int = 30) -> List[Post]:
+    """
+    Get most bookmarked posts in the given time period.
+    
+    Args:
+        db: Database session
+        limit: Number of posts to return
+        days: Number of days to look back
+        
+    Returns:
+        List[Post]: Most bookmarked posts
+    """
+    from datetime import datetime, timedelta
+    from sqlalchemy import func
+    
+    since_date = datetime.utcnow() - timedelta(days=days)
+    
+    most_bookmarked = db.query(Post).join(Bookmark).filter(
+        Bookmark.created_at >= since_date
+    ).group_by(Post.id).order_by(
+        desc(func.count(Bookmark.id))
+    ).limit(limit).all()
+    
+    return most_bookmarked
