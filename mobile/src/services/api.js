@@ -5,13 +5,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // API Configuration for different environments
 const API_CONFIG = {
   // For iOS Simulator (using your Mac's IP)
-  iOS_SIMULATOR: 'http://192.168.1.10:8000/api/v1',
+  iOS_SIMULATOR: 'http://192.0.0.2:8000/api/v1',  // ✅ UPDATED TO CORRECT IP
   
   // For Android Emulator
   ANDROID_EMULATOR: 'http://10.0.2.2:8000/api/v1',
   
   // For Physical Device (using your Mac's IP)
-  PHYSICAL_DEVICE: 'http://192.168.1.10:8000/api/v1',
+  PHYSICAL_DEVICE: 'http://192.0.0.2:8000/api/v1',  // ✅ UPDATED TO CORRECT IP
   
   // For Web
   WEB: 'http://localhost:8000/api/v1'
