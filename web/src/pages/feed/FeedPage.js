@@ -1,4 +1,4 @@
-// web/src/pages/feed/FeedPage.js - FIXED TEMPLATE LITERAL ERROR
+// web/src/pages/feed/FeedPage.js - FIXED REFRESH BUTTON
 import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useSelector, useDispatch } from 'react-redux';
@@ -107,6 +107,7 @@ const FeedTabs = styled.div`
   display: flex;
   gap: 8px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
 `;
 
 const FeedTab = styled.button`
@@ -141,20 +142,33 @@ const RefreshButton = styled.button`
   align-items: center;
   gap: 8px;
   margin-left: auto;
+  font-weight: 600;
   
-  &:hover {
+  &:hover:not(:disabled) {
     border-color: ${props => props.theme.colors.primary};
     color: ${props => props.theme.colors.primary};
     transform: translateY(-1px);
+    background: ${props => props.theme.colors.primary}05;
+  }
+  
+  &:active {
+    transform: translateY(0);
+    background: ${props => props.theme.colors.primary}10;
   }
   
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    transform: none;
   }
   
   .icon {
     animation: ${props => props.loading ? 'spin 1s linear infinite' : 'none'};
+    transition: transform 0.2s ease;
+  }
+  
+  &:hover:not(:disabled) .icon {
+    transform: rotate(45deg);
   }
   
   @keyframes spin {
@@ -340,16 +354,27 @@ const FeedPage = () => {
   // Handle tab change
   const handleTabChange = (tab) => {
     if (tab !== activeTab) {
+      console.log(`🔄 Switching to ${tab} tab`);
       setActiveTab(tab);
       setPage(1);
       setHasMore(false);
     }
   };
 
-  // Handle refresh
-  const handleRefresh = () => {
+  // Handle refresh - FIXED: Added proper logging and error handling
+  const handleRefresh = useCallback((event) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    
+    console.log('🔄 Refresh button clicked - Refreshing feed...');
+    
+    if (refreshing) {
+      console.log('⏳ Already refreshing, ignoring request');
+      return;
+    }
+    
     fetchPosts(1, true);
-  };
+  }, [fetchPosts, refreshing]);
 
   // Handle load more
   const handleLoadMore = () => {
@@ -421,12 +446,16 @@ const FeedPage = () => {
             <div className="label">Posts in Feed</div>
           </StatCard>
           <StatCard color="#4caf50">
-            <div className="number">0</div>
-            <div className="label">Active Users</div>
+            <div className="number">
+              {posts.filter(post => new Date(post.created_at) > new Date(Date.now() - 24*60*60*1000)).length}
+            </div>
+            <div className="label">Today's Posts</div>
           </StatCard>
           <StatCard color="#ff9800">
-            <div className="number">0</div>
-            <div className="label">Discussions</div>
+            <div className="number">
+              {posts.reduce((sum, post) => sum + post.comments_count, 0)}
+            </div>
+            <div className="label">Total Comments</div>
           </StatCard>
           <StatCard color="#9c27b0">
             <div className="number">
@@ -475,13 +504,29 @@ const FeedPage = () => {
           onClick={handleRefresh} 
           disabled={refreshing}
           loading={refreshing}
+          title="Refresh feed"
+          type="button"
         >
           <RefreshCw size={16} className="icon" />
-          Refresh
+          {refreshing ? 'Refreshing...' : 'Refresh'}
         </RefreshButton>
       </FeedTabs>
 
       <PostsContainer>
+        {refreshing && posts.length > 0 && (
+          <div style={{
+            textAlign: 'center',
+            padding: '10px',
+            background: '#e3f2fd',
+            borderRadius: '8px',
+            marginBottom: '15px',
+            color: '#1976d2',
+            fontWeight: '600'
+          }}>
+            🔄 Refreshing feed...
+          </div>
+        )}
+        
         {posts.length === 0 ? (
           <EmptyState>
             <div className="icon">📋</div>
