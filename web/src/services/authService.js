@@ -1,4 +1,4 @@
-// src/services/authService.js
+// src/services/authService.js - FINAL FIX FOR BACKEND COMPATIBILITY
 import axios from 'axios';
 import { API_CONFIG, ENDPOINTS, STORAGE_KEYS } from '../utils/constants';
 
@@ -63,90 +63,111 @@ const authService = {
   
   /**
    * Login user with email and password
-   * @param {Object} credentials - { email, password }
+   * @param {Object} credentials - { email, password, user_type? }
    * @returns {Promise<Object>} Response with success/error
    */
-  // Updated login method in authService.js - WITH USER TYPE
-    async login(credentials) {
+  async login(credentials) {
     try {
-        console.log('🔐 Attempting login for:', credentials.email, 'as', credentials.user_type);
-        
-        // Create FormData with user type
-        const formData = new FormData();
-        formData.append('username', credentials.email); // Backend expects 'username' field
-        formData.append('password', credentials.password);
-        
-        // Add user_type if provided
-        if (credentials.user_type) {
-        formData.append('user_type', credentials.user_type);
-        }
-        
-        // Debug: Log what we're sending
-        console.log('📤 Sending login data:', {
-        username: credentials.email,
-        user_type: credentials.user_type,
-        password: '***'
-        });
-        
-        const response = await authApi.post(ENDPOINTS.LOGIN, formData, {
+      console.log('🔐 Attempting login for:', credentials.email, 'as', credentials.user_type);
+      
+      // FIXED: Backend expects JSON data with UserLogin schema
+      // Backend route: login(login_data: UserLogin, db: Session = Depends(get_db))
+      // UserLogin schema has: email: EmailStr, password: str
+      
+      const loginData = {
+        email: credentials.email.trim(),
+        password: credentials.password
+        // Note: user_type is not part of UserLogin schema in backend
+      };
+      
+      // Validate required fields
+      if (!loginData.email || !loginData.password) {
+        throw new Error('Email and password are required');
+      }
+      
+      // Debug: Log what we're sending
+      console.log('📤 Sending login data as JSON:', {
+        email: loginData.email,
+        password: '***',
+        contentType: 'application/json'
+      });
+      
+      const response = await authApi.post(ENDPOINTS.LOGIN, loginData, {
         headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
-        });
-        
-        console.log('📥 Login response:', response.status, response.data);
-        
-        const { access_token, token_type } = response.data;
-        
-        if (access_token) {
+      });
+      
+      console.log('📥 Login response:', response.status, response.data);
+      
+      const { access_token, token_type } = response.data;
+      
+      if (access_token) {
         // Store token
         this.setToken(access_token);
         console.log('✅ Login successful, token stored');
         
         return {
-            success: true,
-            data: {
+          success: true,
+          data: {
             access_token,
             token_type: token_type || 'bearer'
-            }
+          }
         };
-        } else {
+      } else {
         throw new Error('No access token received');
-        }
+      }
     } catch (error) {
-        console.error('❌ Login failed:', error.response?.data || error.message);
-        
-        let errorMessage = 'Login failed';
-        
-        if (error.response?.data) {
+      console.error('❌ Login failed:', error);
+      
+      // FIXED: Better error message extraction
+      let errorMessage = 'Login failed';
+      
+      if (error.response?.data) {
         const errorData = error.response.data;
+        console.log('📥 Error response data:', errorData);
+        
         if (typeof errorData.detail === 'string') {
-            errorMessage = errorData.detail;
+          errorMessage = errorData.detail;
         } else if (errorData.detail && Array.isArray(errorData.detail)) {
-            // Handle validation errors
-            errorMessage = errorData.detail.map(err => err.msg || err.message).join(', ');
+          // Handle FastAPI validation errors
+          errorMessage = errorData.detail
+            .map(err => {
+              if (err.msg) return err.msg;
+              if (err.message) return err.message;
+              if (err.type && err.loc) return `${err.loc.join('.')}: ${err.type}`;
+              return JSON.stringify(err);
+            })
+            .join(', ');
         } else if (errorData.message) {
-            errorMessage = errorData.message;
+          errorMessage = errorData.message;
+        } else if (typeof errorData === 'string') {
+          errorMessage = errorData;
         }
-        } else if (error.message) {
+      } else if (error.message) {
         errorMessage = error.message;
-        }
-        
-        // Common error messages translation
-        if (errorMessage.includes('Incorrect username or password')) {
+      }
+      
+      // Common error messages translation
+      if (errorMessage.includes('Invalid email or password')) {
         errorMessage = 'Invalid email or password';
-        } else if (errorMessage.includes('validation error')) {
+      } else if (errorMessage.includes('validation error')) {
         errorMessage = 'Please check your email and password format';
-        } else if (errorMessage.includes('user_type')) {
-        errorMessage = 'Please select a valid user role';
-        }
-        
-        return {
+      } else if (errorMessage.includes('422')) {
+        errorMessage = 'Invalid login data. Please check your email and password.';
+      } else if (errorMessage.includes('Input should be a valid dictionary')) {
+        errorMessage = 'Login format error. Please try again.';
+      }
+      
+      console.log('📝 Final error message:', errorMessage);
+      
+      return {
         success: false,
         error: errorMessage
-        };
+      };
     }
-    },
+  },
 
   /**
    * Register new user
@@ -165,7 +186,20 @@ const authService = {
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
       }
       
-      const response = await authApi.post(ENDPOINTS.REGISTER, userData);
+      // FIXED: Ensure user_type is in correct format
+      const registrationData = {
+        ...userData,
+        user_type: userData.user_type.toUpperCase(), // Backend expects uppercase
+        email: userData.email.trim(),
+        username: userData.username.trim().toLowerCase()
+      };
+      
+      console.log('📤 Sending registration data:', {
+        ...registrationData,
+        password: '***'
+      });
+      
+      const response = await authApi.post(ENDPOINTS.REGISTER, registrationData);
       
       console.log('✅ Registration successful');
       

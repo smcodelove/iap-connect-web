@@ -1,15 +1,15 @@
-// web/src/pages/feed/FeedPage.js
-import React, { useEffect, useState } from 'react';
+// web/src/pages/feed/FeedPage.js - FIXED TEMPLATE LITERAL ERROR
+import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import { useDispatch, useSelector } from 'react-redux';
-import { Plus, TrendingUp, Clock, Users, RefreshCw } from 'lucide-react';
+import { useSelector, useDispatch } from 'react-redux';
+import { Plus, RefreshCw, TrendingUp, Users, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { fetchFeedPosts, createPost } from '../../store/slices/postSlice';
+
 import PostCard from '../../components/posts/PostCard';
-import CreatePostWidget from '../../components/posts/CreatePostWidget';
+import { postService } from '../../services/api';
 
 const FeedContainer = styled.div`
-  max-width: 800px;
+  max-width: 680px;
   margin: 0 auto;
   padding: 0 20px;
 `;
@@ -25,236 +25,345 @@ const FeedHeader = styled.div`
 const WelcomeSection = styled.div`
   text-align: center;
   margin-bottom: 20px;
-  
-  h1 {
-    color: ${props => props.theme.colors.textPrimary};
-    font-size: 1.8rem;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-  }
-  
-  p {
-    color: ${props => props.theme.colors.gray600};
-    font-size: 1rem;
-  }
 `;
 
-const StatsRow = styled.div`
+const WelcomeTitle = styled.h1`
+  color: ${props => props.theme.colors.gray800};
+  margin-bottom: 8px;
+  font-size: 1.5rem;
+`;
+
+const WelcomeText = styled.p`
+  color: ${props => props.theme.colors.gray600};
+  margin-bottom: 20px;
+  line-height: 1.5;
+`;
+
+const StatsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 15px;
-  margin: 20px 0;
+  margin-bottom: 20px;
 `;
 
 const StatCard = styled.div`
-  background: linear-gradient(135deg, ${props => props.color || '#667eea'} 0%, ${props => props.colorDark || '#764ba2'} 100%);
+  background: ${props => props.color || props.theme.colors.primary};
   color: white;
-  border-radius: 10px;
-  padding: 15px;
+  padding: 16px;
+  border-radius: 8px;
   text-align: center;
   
-  .stat-number {
+  .number {
     font-size: 1.5rem;
     font-weight: bold;
-    margin-bottom: 5px;
+    margin-bottom: 4px;
   }
   
-  .stat-label {
-    font-size: 0.85rem;
+  .label {
+    font-size: 0.875rem;
     opacity: 0.9;
   }
 `;
 
-const FilterSection = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 15px;
-`;
-
-const FeedTabs = styled.div`
-  display: flex;
-  gap: 15px;
-  
-  @media (max-width: ${props => props.theme.breakpoints.mobile}) {
-    width: 100%;
-    justify-content: space-between;
-  }
-`;
-
-const FeedTab = styled.button`
-  background: none;
-  border: none;
-  padding: 10px 16px;
-  border-radius: 20px;
-  color: ${props => props.active ? 'white' : props.theme.colors.gray600};
-  background: ${props => props.active ? props.theme.colors.primary : props.theme.colors.gray100};
-  font-weight: ${props => props.active ? '600' : '400'};
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  
-  &:hover {
-    background: ${props => props.active ? props.theme.colors.primaryDark : props.theme.colors.gray200};
-    color: ${props => props.active ? 'white' : props.theme.colors.primary};
-  }
-`;
-
-const FilterControls = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-`;
-
-const RefreshButton = styled.button`
-  background: none;
-  border: 2px solid ${props => props.theme.colors.gray200};
+const QuickPostSection = styled.div`
+  background: ${props => props.theme.colors.gray50};
+  border: 2px dashed ${props => props.theme.colors.gray300};
   border-radius: 8px;
-  padding: 8px 12px;
-  color: ${props => props.theme.colors.gray600};
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  
-  &:hover {
-    border-color: ${props => props.theme.colors.primary};
-    color: ${props => props.theme.colors.primary};
-  }
-`;
-
-const PostsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-`;
-
-const LoadingSpinner = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 40px;
-  
-  &::after {
-    content: '';
-    width: 40px;
-    height: 40px;
-    border: 3px solid ${props => props.theme.colors.gray200};
-    border-top: 3px solid ${props => props.theme.colors.primary};
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-  
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-`;
-
-const EmptyState = styled.div`
+  padding: 16px;
   text-align: center;
-  padding: 60px 20px;
-  color: ${props => props.theme.colors.gray600};
+  margin-bottom: 20px;
   
   .icon {
-    font-size: 4rem;
-    margin-bottom: 20px;
-    opacity: 0.5;
-  }
-  
-  h3 {
-    margin-bottom: 10px;
-    color: ${props => props.theme.colors.gray700};
+    font-size: 2rem;
+    margin-bottom: 8px;
   }
   
   p {
-    margin-bottom: 20px;
-    line-height: 1.6;
+    color: ${props => props.theme.colors.gray600};
+    margin-bottom: 12px;
   }
 `;
 
 const CreatePostButton = styled(Link)`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
   background: ${props => props.theme.colors.primary};
   color: white;
   padding: 12px 24px;
   border-radius: 8px;
   text-decoration: none;
   font-weight: 600;
-  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
   
   &:hover {
     background: ${props => props.theme.colors.primaryDark};
-    transform: translateY(-2px);
-    text-decoration: none;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px ${props => props.theme.colors.primary}40;
   }
 `;
 
-const ErrorMessage = styled.div`
-  background: #fee;
-  color: ${props => props.theme.colors.danger};
-  padding: 15px;
-  border-radius: 8px;
-  border: 1px solid #f5c6cb;
+const FeedTabs = styled.div`
+  display: flex;
+  gap: 8px;
   margin-bottom: 20px;
+`;
+
+const FeedTab = styled.button`
+  background: ${props => props.active ? props.theme.colors.primary : 'white'};
+  color: ${props => props.active ? 'white' : props.theme.colors.gray600};
+  border: 2px solid ${props => props.active ? props.theme.colors.primary : props.theme.colors.gray300};
+  padding: 12px 20px;
+  border-radius: 25px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  &:hover {
+    border-color: ${props => props.theme.colors.primary};
+    color: ${props => props.active ? 'white' : props.theme.colors.primary};
+    transform: translateY(-1px);
+  }
+`;
+
+const RefreshButton = styled.button`
+  background: white;
+  border: 2px solid ${props => props.theme.colors.gray300};
+  color: ${props => props.theme.colors.gray600};
+  padding: 12px 16px;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  
+  &:hover {
+    border-color: ${props => props.theme.colors.primary};
+    color: ${props => props.theme.colors.primary};
+    transform: translateY(-1px);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  .icon {
+    animation: ${props => props.loading ? 'spin 1s linear infinite' : 'none'};
+  }
+  
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+`;
+
+const PostsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+const LoadingState = styled.div`
   text-align: center;
+  padding: 40px 20px;
+  color: ${props => props.theme.colors.gray600};
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  
+  .icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    opacity: 0.5;
+  }
+`;
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 40px 20px;
+  color: ${props => props.theme.colors.gray600};
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  
+  .icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    opacity: 0.5;
+  }
+  
+  h3 {
+    margin-bottom: 8px;
+    color: ${props => props.theme.colors.gray700};
+  }
+  
+  p {
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+`;
+
+const ErrorState = styled.div`
+  text-align: center;
+  padding: 40px 20px;
+  color: ${props => props.theme.colors.danger};
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid ${props => props.theme.colors.danger}20;
+  
+  .icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    opacity: 0.7;
+  }
+  
+  h3 {
+    margin-bottom: 8px;
+    color: ${props => props.theme.colors.danger};
+  }
+  
+  button {
+    background: ${props => props.theme.colors.danger};
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 15px;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      background: ${props => props.theme.colors.danger}dd;
+      transform: translateY(-1px);
+    }
+  }
+`;
+
+const LoadMoreButton = styled.button`
+  background: white;
+  border: 2px solid ${props => props.theme.colors.primary};
+  color: ${props => props.theme.colors.primary};
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 20px auto;
+  display: block;
+  transition: all 0.2s ease;
+  
+  &:hover:not(:disabled) {
+    background: ${props => props.theme.colors.primary};
+    color: white;
+    transform: translateY(-1px);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 `;
 
 const FeedPage = () => {
-  const dispatch = useDispatch();
-  const { posts, loading, error, stats } = useSelector(state => state.posts);
   const { user } = useSelector(state => state.auth);
   const [activeTab, setActiveTab] = useState('recent');
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
-    loadFeedPosts();
-  }, [dispatch]);
-
-  const loadFeedPosts = async () => {
+  // Fetch posts based on active tab
+  const fetchPosts = useCallback(async (pageNum = 1, isRefresh = false) => {
     try {
-      await dispatch(fetchFeedPosts()).unwrap();
+      if (pageNum === 1) {
+        if (isRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+      } else {
+        setLoadingMore(true);
+      }
+      
+      setError(null);
+      
+      console.log(`📱 Fetching ${activeTab} posts - Page ${pageNum}`);
+      
+      let response;
+      if (activeTab === 'trending') {
+        response = await postService.getTrendingPosts(pageNum, 20, 72);
+      } else {
+        response = await postService.getFeed(pageNum, 20);
+      }
+      
+      const newPosts = response.posts || [];
+      
+      if (pageNum === 1) {
+        setPosts(newPosts);
+      } else {
+        setPosts(prev => [...prev, ...newPosts]);
+      }
+      
+      setHasMore(response.hasNext || false);
+      setPage(pageNum);
+      
+      console.log(`✅ Loaded ${newPosts.length} ${activeTab} posts`);
+      
     } catch (error) {
-      console.error('Failed to load feed:', error);
+      console.error(`❌ Error fetching ${activeTab} posts:`, error);
+      setError(error.message || 'Failed to load posts');
+      
+      if (pageNum === 1) {
+        setPosts([]);
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
     }
-  };
+  }, [activeTab]);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadFeedPosts();
-    setRefreshing(false);
-  };
+  // Initial load
+  useEffect(() => {
+    fetchPosts(1);
+  }, [fetchPosts]);
 
+  // Handle tab change
   const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    // You can implement different API calls based on tab
-    if (tab === 'trending') {
-      // dispatch(fetchTrendingPosts());
-    } else if (tab === 'following') {
-      // dispatch(fetchFollowingPosts());
-    } else {
-      // dispatch(fetchFeedPosts());
+    if (tab !== activeTab) {
+      setActiveTab(tab);
+      setPage(1);
+      setHasMore(false);
     }
   };
 
-  const filteredPosts = posts?.filter(post => {
-    if (activeTab === 'recent') return true;
-    if (activeTab === 'trending') return post.likes_count > 5;
-    if (activeTab === 'following') return post.user?.is_following;
-    return true;
-  }) || [];
+  // Handle refresh
+  const handleRefresh = () => {
+    fetchPosts(1, true);
+  };
 
+  // Handle load more
+  const handleLoadMore = () => {
+    if (hasMore && !loadingMore) {
+      fetchPosts(page + 1);
+    }
+  };
+
+  // Handle post update (after edit, delete, etc.)
+  const handlePostUpdate = () => {
+    fetchPosts(1, true);
+  };
+
+  // Get user greeting
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning';
@@ -262,10 +371,34 @@ const FeedPage = () => {
     return 'Good Evening';
   };
 
-  if (loading && !posts?.length) {
+  // Get user first name
+  const getUserFirstName = () => {
+    return user?.full_name?.split(' ')[0] || 'Doctor';
+  };
+
+  if (loading && posts.length === 0) {
     return (
       <FeedContainer>
-        <LoadingSpinner />
+        <LoadingState>
+          <div className="icon">⏳</div>
+          <h3>Loading your feed...</h3>
+          <p>Getting the latest posts from the medical community</p>
+        </LoadingState>
+      </FeedContainer>
+    );
+  }
+
+  if (error && posts.length === 0) {
+    return (
+      <FeedContainer>
+        <ErrorState>
+          <div className="icon">⚠️</div>
+          <h3>Unable to load feed</h3>
+          <p>{error}</p>
+          <button onClick={() => fetchPosts(1)}>
+            Try Again
+          </button>
+        </ErrorState>
       </FeedContainer>
     );
   }
@@ -274,81 +407,82 @@ const FeedPage = () => {
     <FeedContainer>
       <FeedHeader>
         <WelcomeSection>
-          <h1>
-            <Users size={24} />
-            {getGreeting()}, {user?.full_name?.split(' ')[0] || user?.username}!
-          </h1>
-          <p>
-            Welcome to the medical community. Connect, learn, and share knowledge with 
-            {user?.user_type === 'doctor' ? ' fellow doctors' : ' medical students'} and professionals.
-          </p>
+          <WelcomeTitle>
+            👋 {getGreeting()}, {getUserFirstName()}!
+          </WelcomeTitle>
+          <WelcomeText>
+            Welcome to the medical community. Connect, learn, and share knowledge with medical students and professionals.
+          </WelcomeText>
         </WelcomeSection>
-        
-        <StatsRow>
-          <StatCard color="#0066CC" colorDark="#004499">
-            <div className="stat-number">{stats?.total_posts || 0}</div>
-            <div className="stat-label">Total Posts</div>
+
+        <StatsGrid>
+          <StatCard color="#3f51b5">
+            <div className="number">{posts.length}</div>
+            <div className="label">Posts in Feed</div>
           </StatCard>
-          <StatCard color="#28A745" colorDark="#1e7e34">
-            <div className="stat-number">{stats?.active_users || 0}</div>
-            <div className="stat-label">Active Users</div>
+          <StatCard color="#4caf50">
+            <div className="number">0</div>
+            <div className="label">Active Users</div>
           </StatCard>
-          <StatCard color="#FF6B35" colorDark="#e55a2b">
-            <div className="stat-number">{stats?.discussions || 0}</div>
-            <div className="stat-label">Discussions</div>
+          <StatCard color="#ff9800">
+            <div className="number">0</div>
+            <div className="label">Discussions</div>
           </StatCard>
-          <StatCard color="#6F42C1" colorDark="#5a2d91">
-            <div className="stat-number">
-              {user?.user_type === 'doctor' ? 'MD' : 'Student'}
+          <StatCard color="#9c27b0">
+            <div className="number">
+              {user?.user_type === 'doctor' ? 'Doctor' : 
+               user?.user_type === 'student' ? 'Student' : 
+               user?.user_type === 'admin' ? 'Admin' : 'User'}
             </div>
-            <div className="stat-label">Your Role</div>
+            <div className="label">Your Role</div>
           </StatCard>
-        </StatsRow>
+        </StatsGrid>
+
+        <QuickPostSection>
+          <div className="icon">📝</div>
+          <p>What's on your mind? Share your knowledge, ask questions, or start a discussion.</p>
+          <CreatePostButton to="/create-post">
+            <Plus size={16} />
+            Create Post
+          </CreatePostButton>
+        </QuickPostSection>
       </FeedHeader>
 
-      <FilterSection>
-        <FeedTabs>
-          <FeedTab 
-            active={activeTab === 'recent'} 
-            onClick={() => handleTabChange('recent')}
-          >
-            <Clock size={16} />
-            Recent
-          </FeedTab>
-          <FeedTab 
-            active={activeTab === 'trending'} 
-            onClick={() => handleTabChange('trending')}
-          >
-            <TrendingUp size={16} />
-            Trending
-          </FeedTab>
-          <FeedTab 
-            active={activeTab === 'following'} 
-            onClick={() => handleTabChange('following')}
-          >
-            <Users size={16} />
-            Following
-          </FeedTab>
-        </FeedTabs>
-
-        <FilterControls>
-          <RefreshButton onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw size={16} className={refreshing ? 'spin' : ''} />
-            Refresh
-          </RefreshButton>
-        </FilterControls>
-      </FilterSection>
-
-      <CreatePostWidget />
+      <FeedTabs>
+        <FeedTab 
+          active={activeTab === 'recent'} 
+          onClick={() => handleTabChange('recent')}
+        >
+          <Clock size={16} />
+          Recent
+        </FeedTab>
+        <FeedTab 
+          active={activeTab === 'trending'} 
+          onClick={() => handleTabChange('trending')}
+        >
+          <TrendingUp size={16} />
+          Trending
+        </FeedTab>
+        <FeedTab 
+          active={activeTab === 'following'} 
+          onClick={() => handleTabChange('following')}
+        >
+          <Users size={16} />
+          Following
+        </FeedTab>
+        
+        <RefreshButton 
+          onClick={handleRefresh} 
+          disabled={refreshing}
+          loading={refreshing}
+        >
+          <RefreshCw size={16} className="icon" />
+          Refresh
+        </RefreshButton>
+      </FeedTabs>
 
       <PostsContainer>
-        {error && (
-          <ErrorMessage>
-            Error loading posts: {error}
-          </ErrorMessage>
-        )}
-
-        {filteredPosts.length === 0 && !loading ? (
+        {posts.length === 0 ? (
           <EmptyState>
             <div className="icon">📋</div>
             <h3>No posts yet</h3>
@@ -362,9 +496,35 @@ const FeedPage = () => {
             </CreatePostButton>
           </EmptyState>
         ) : (
-          filteredPosts.map(post => (
-            <PostCard key={post.id} post={post} />
-          ))
+          <>
+            {posts.map(post => (
+              <PostCard 
+                key={post.id} 
+                post={post}
+                onUpdate={handlePostUpdate}
+              />
+            ))}
+            
+            {hasMore && (
+              <LoadMoreButton 
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? 'Loading More...' : 'Load More Posts'}
+              </LoadMoreButton>
+            )}
+            
+            {!hasMore && posts.length > 0 && (
+              <div style={{ 
+                textAlign: 'center', 
+                padding: '20px', 
+                color: '#666',
+                fontStyle: 'italic'
+              }}>
+                You've reached the end of the feed! 🎉
+              </div>
+            )}
+          </>
         )}
       </PostsContainer>
     </FeedContainer>

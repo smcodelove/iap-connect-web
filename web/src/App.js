@@ -1,4 +1,4 @@
-// web/src/App.js
+// web/src/App.js - FIXED WITH CORRECT IMPORTS
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
@@ -12,11 +12,21 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import HomePage from './pages/home/HomePage';
 import FeedPage from './pages/feed/FeedPage';
+import TrendingPage from './pages/trending/TrendingPage';
 import ProfilePage from './pages/profile/ProfilePage';
+import EditProfilePage from './pages/profile/EditProfilePage';
 import CreatePostPage from './pages/post/CreatePostPage';
 import PostDetailPage from './pages/post/PostDetailPage';
 import SearchPage from './pages/search/SearchPage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
+import BookmarksPage from './pages/bookmarks/BookmarksPage';
+
+// Import User Pages (NEW)
+import UserProfilePage from './pages/user/UserProfilePage';
+import UserFollowersPage from './pages/user/UserFollowersPage';
+import UserFollowingPage from './pages/user/UserFollowingPage';
+import UserPostsPage from './pages/user/UserPostsPage';
+import ConnectionsPage from './pages/user/ConnectionsPage';
 
 // Import Components
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -75,13 +85,34 @@ const AppLayout = () => {
           <Routes>
             <Route path="/" element={<Navigate to="/feed" replace />} />
             <Route path="/feed" element={<FeedPage />} />
+            <Route path="/trending" element={<TrendingPage />} />
             <Route path="/home" element={<HomePage />} />
+            
+            {/* Profile Routes */}
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/user/:id" element={<ProfilePage />} />
+            <Route path="/edit-profile" element={<EditProfilePage />} />
+            <Route path="/connections" element={<ConnectionsPage />} />
+            
+            {/* User Profile Routes */}
+            <Route path="/user/:id" element={<UserProfilePage />} />
+            <Route path="/user/:id/posts" element={<UserPostsPage />} />
+            <Route path="/user/:id/followers" element={<UserFollowersPage />} />
+            <Route path="/user/:id/following" element={<UserFollowingPage />} />
+            
+            {/* Post Routes */}
             <Route path="/create-post" element={<CreatePostPage />} />
             <Route path="/post/:id" element={<PostDetailPage />} />
+            
+            {/* Other Routes */}
             <Route path="/search" element={<SearchPage />} />
+            <Route path="/bookmarks" element={<BookmarksPage />} />
             <Route path="/admin" element={<AdminDashboardPage />} />
+            
+            {/* Placeholder Routes */}
+            <Route path="/notifications" element={<div>Notifications page coming soon!</div>} />
+            
+            {/* 404 Route */}
+            <Route path="*" element={<div>Page not found</div>} />
           </Routes>
         </main>
       </div>

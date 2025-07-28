@@ -1,7 +1,7 @@
-# routers/users.py
+# routers/users.py - FIXED: Real followers/following counts
 """
 User management routes for IAP Connect application.
-Handles all user profile related endpoints including follow/unfollow functionality.
+FIXED: Real-time calculation of followers/following counts from database.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
@@ -25,6 +25,58 @@ from app.services.file_service import upload_file, allowed_file
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+def calculate_user_stats(user_id: int, db: Session) -> dict:
+    """
+    Calculate real-time user statistics from database.
+    
+    Args:
+        user_id: User ID to calculate stats for
+        db: Database session
+        
+    Returns:
+        dict: Real statistics
+    """
+    # Calculate followers count (users who follow this user)
+    followers_count = db.query(Follow).filter(Follow.following_id == user_id).count()
+    
+    # Calculate following count (users this user follows)
+    following_count = db.query(Follow).filter(Follow.follower_id == user_id).count()
+    
+    # Calculate posts count
+    posts_count = db.query(Post).filter(Post.user_id == user_id).count()
+    
+    return {
+        "followers_count": followers_count,
+        "following_count": following_count,
+        "posts_count": posts_count
+    }
+
+
+def sync_user_stats(user: User, db: Session) -> User:
+    """
+    Sync user statistics with real database counts.
+    
+    Args:
+        user: User object to sync
+        db: Database session
+        
+    Returns:
+        User: Updated user object
+    """
+    stats = calculate_user_stats(user.id, db)
+    
+    # Update user object with real counts
+    user.followers_count = stats["followers_count"]
+    user.following_count = stats["following_count"]
+    user.posts_count = stats["posts_count"]
+    
+    # Save to database
+    db.commit()
+    db.refresh(user)
+    
+    return user
+
+
 @router.get("/profile/{user_id}", response_model=CompleteProfile)
 async def get_user_profile(
     user_id: int,
@@ -32,7 +84,7 @@ async def get_user_profile(
     db: Session = Depends(get_db)
 ):
     """
-    Get complete user profile by user ID.
+    Get complete user profile by user ID with REAL statistics.
     Returns user info with follow status and recent posts.
     """
     # Get user profile
@@ -42,6 +94,9 @@ async def get_user_profile(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
+    
+    # FIXED: Sync user stats with real database counts
+    user = sync_user_stats(user, db)
     
     # Check follow relationships
     is_following = False
@@ -67,18 +122,28 @@ async def get_user_profile(
         Post.user_id == user_id
     ).order_by(Post.created_at.desc()).limit(5).all()
     
-    # Convert to response format
+    # Convert to response format with REAL stats
     profile_data = user.to_dict()
     profile_data['is_following'] = is_following
     profile_data['is_follower'] = is_follower
     profile_data['recent_posts'] = [post.to_dict() for post in recent_posts]
     
+    print(f"📊 User {user_id} stats: {user.followers_count} followers, {user.following_count} following, {user.posts_count} posts")
+    
     return profile_data
 
 
 @router.get("/profile", response_model=UserResponse)
-async def get_my_profile(current_user: User = Depends(get_current_user)):
-    """Get current user's own profile"""
+async def get_my_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get current user's own profile with REAL statistics"""
+    # FIXED: Sync current user stats
+    current_user = sync_user_stats(current_user, db)
+    
+    print(f"📊 My profile stats: {current_user.followers_count} followers, {current_user.following_count} following, {current_user.posts_count} posts")
+    
     return current_user.to_dict()
 
 
@@ -109,6 +174,9 @@ async def update_profile(
     # Save changes
     db.commit()
     db.refresh(current_user)
+    
+    # FIXED: Sync stats after update
+    current_user = sync_user_stats(current_user, db)
     
     return current_user.to_dict()
 
@@ -209,6 +277,10 @@ async def search_users(
         User.created_at.desc()
     ).offset(offset).limit(per_page).all()
     
+    # FIXED: Sync stats for all search results
+    for user in users:
+        sync_user_stats(user, db)
+    
     # Check follow status for each user
     user_ids = [user.id for user in users]
     following_ids = set()
@@ -245,6 +317,7 @@ async def follow_user(
 ):
     """
     Follow a user. Creates follow relationship and updates counters.
+    FIXED: Real-time count calculation.
     """
     # Check if user exists
     target_user = db.query(User).filter(
@@ -280,12 +353,13 @@ async def follow_user(
     # Create follow relationship
     follow = Follow(follower_id=current_user.id, following_id=user_id)
     db.add(follow)
-    
-    # Update counters
-    current_user.following_count += 1
-    target_user.followers_count += 1
-    
     db.commit()
+    
+    # FIXED: Calculate real counts after follow
+    current_user = sync_user_stats(current_user, db)
+    target_user = sync_user_stats(target_user, db)
+    
+    print(f"✅ {current_user.username} followed {target_user.username}. Target user now has {target_user.followers_count} followers")
     
     return {
         "message": f"Successfully followed {target_user.full_name}",
@@ -302,6 +376,7 @@ async def unfollow_user(
 ):
     """
     Unfollow a user. Removes follow relationship and updates counters.
+    FIXED: Real-time count calculation.
     """
     # Check if user exists
     target_user = db.query(User).filter(
@@ -329,12 +404,13 @@ async def unfollow_user(
     
     # Remove follow relationship
     db.delete(follow)
-    
-    # Update counters
-    current_user.following_count = max(0, current_user.following_count - 1)
-    target_user.followers_count = max(0, target_user.followers_count - 1)
-    
     db.commit()
+    
+    # FIXED: Calculate real counts after unfollow
+    current_user = sync_user_stats(current_user, db)
+    target_user = sync_user_stats(target_user, db)
+    
+    print(f"✅ {current_user.username} unfollowed {target_user.username}. Target user now has {target_user.followers_count} followers")
     
     return {
         "message": f"Successfully unfollowed {target_user.full_name}",
@@ -369,6 +445,10 @@ async def get_user_followers(
         User.is_active == True
     ).offset(offset).limit(per_page).all()
     
+    # FIXED: Sync stats for all followers
+    for follower in followers:
+        sync_user_stats(follower, db)
+    
     return [UserPublic(**user.to_dict()) for user in followers]
 
 
@@ -398,4 +478,43 @@ async def get_user_following(
         User.is_active == True
     ).offset(offset).limit(per_page).all()
     
+    # FIXED: Sync stats for all following users
+    for followed_user in following:
+        sync_user_stats(followed_user, db)
+    
     return [UserPublic(**user.to_dict()) for user in following]
+
+
+@router.get("/stats/{user_id}", response_model=dict)
+async def get_user_stats_endpoint(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    NEW: Get real-time user statistics endpoint.
+    Returns current followers, following, and posts counts.
+    """
+    # Check if user exists
+    user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Calculate and return real stats
+    stats = calculate_user_stats(user_id, db)
+    
+    # Also sync the user object
+    sync_user_stats(user, db)
+    
+    print(f"📊 Stats for user {user_id}: {stats}")
+    
+    return {
+        "user_id": user_id,
+        "username": user.username,
+        "full_name": user.full_name,
+        **stats,
+        "last_updated": datetime.utcnow().isoformat()
+    }

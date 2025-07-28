@@ -1,5 +1,5 @@
 // web/src/pages/post/CreatePostPage.js
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -242,6 +242,12 @@ const ActionButton = styled.button`
     border-color: ${props => props.theme.colors.primary};
     color: ${props => props.theme.colors.primary};
   }
+  
+  &:disabled {
+    background: ${props => props.theme.colors.gray100};
+    color: ${props => props.theme.colors.gray400};
+    cursor: not-allowed;
+  }
 `;
 
 const SubmitButton = styled.button`
@@ -288,6 +294,60 @@ const PreviewCard = styled.div`
   }
 `;
 
+const ImageGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+`;
+
+const ImagePreview = styled.div`
+  position: relative;
+  
+  img {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+  }
+`;
+
+const RemoveImageButton = styled.button`
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background: #c82333;
+  }
+`;
+
+const ImageSize = styled.div`
+  position: absolute;
+  bottom: 5px;
+  left: 5px;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+`;
+
+const HiddenFileInput = styled.input`
+  display: none;
+`;
+
 const CreatePostPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -299,10 +359,17 @@ const CreatePostPage = () => {
     content: '',
     type: 'discussion',
     tags: [],
-    visibility: 'public'
+    visibility: 'public',
+    media_urls: []
   });
+  
   const [currentTag, setCurrentTag] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  
+  // File input ref for image upload
+  const fileInputRef = useRef(null);
 
   const postTypes = [
     { id: 'discussion', label: 'Discussion', icon: Users },
@@ -341,6 +408,62 @@ const CreatePostPage = () => {
     }
   };
 
+  // Handle image upload
+  const handleImageUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event) => {
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
+
+    setUploadingImages(true);
+    
+    try {
+      // Create preview URLs for selected images
+      const imageFiles = files.map(file => ({
+        file,
+        id: Math.random().toString(36).substr(2, 9),
+        name: file.name,
+        size: file.size,
+        previewUrl: URL.createObjectURL(file)
+      }));
+
+      setSelectedImages(prev => [...prev, ...imageFiles]);
+      
+      // In real implementation, upload to server here
+      // For now, just add preview URLs to media_urls
+      const previewUrls = imageFiles.map(img => img.previewUrl);
+      setPostData(prev => ({
+        ...prev,
+        media_urls: [...prev.media_urls, ...previewUrls]
+      }));
+
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      alert('Failed to upload images. Please try again.');
+    } finally {
+      setUploadingImages(false);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoveImage = (imageId) => {
+    setSelectedImages(prev => {
+      const imageToRemove = prev.find(img => img.id === imageId);
+      if (imageToRemove) {
+        URL.revokeObjectURL(imageToRemove.previewUrl);
+      }
+      
+      const updated = prev.filter(img => img.id !== imageId);
+      // Update postData.media_urls as well
+      const urls = updated.map(img => img.previewUrl);
+      setPostData(current => ({ ...current, media_urls: urls }));
+      return updated;
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -352,15 +475,26 @@ const CreatePostPage = () => {
     try {
       const postPayload = {
         content: postData.content,
-        // Add other fields as supported by backend
-        hashtags: postData.tags.map(tag => `#${tag}`).join(' ')
+        // Fix hashtags format - send as array without # symbol
+        hashtags: postData.tags, // Send as array: ["tag1", "tag2"]
+        // For now, don't send blob URLs - they won't work on backend
+        media_urls: [] // Will be implemented with proper image upload later
       };
 
+      console.log('🚀 Sending post payload:', postPayload);
       await dispatch(createPost(postPayload)).unwrap();
+      
+      // Clean up image URLs
+      selectedImages.forEach(image => {
+        URL.revokeObjectURL(image.previewUrl);
+      });
+      
       navigate('/feed');
     } catch (error) {
       console.error('Failed to create post:', error);
-      alert('Failed to create post. Please try again.');
+      // Show more detailed error message
+      const errorMessage = error.message || 'Failed to create post. Please try again.';
+      alert(`Post creation failed: ${errorMessage}`);
     }
   };
 
@@ -472,6 +606,35 @@ const CreatePostPage = () => {
             </TagsContainer>
           </InputGroup>
 
+          {/* Hidden File Input */}
+          <HiddenFileInput
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleFileChange}
+          />
+
+          {/* Selected Images Display */}
+          {selectedImages.length > 0 && (
+            <InputGroup>
+              <Label>Selected Images ({selectedImages.length})</Label>
+              <ImageGrid>
+                {selectedImages.map(image => (
+                  <ImagePreview key={image.id}>
+                    <img src={image.previewUrl} alt={image.name} />
+                    <RemoveImageButton onClick={() => handleRemoveImage(image.id)}>
+                      <X size={12} />
+                    </RemoveImageButton>
+                    <ImageSize>
+                      {(image.size / 1024 / 1024).toFixed(1)}MB
+                    </ImageSize>
+                  </ImagePreview>
+                ))}
+              </ImageGrid>
+            </InputGroup>
+          )}
+
           {showPreview && (
             <PreviewCard>
               <div className="preview-title">
@@ -480,6 +643,29 @@ const CreatePostPage = () => {
               <div className="preview-content">
                 {postData.title && <h3>{postData.title}</h3>}
                 <p>{postData.content}</p>
+                
+                {/* Image Preview */}
+                {selectedImages.length > 0 && (
+                  <div style={{ marginTop: '15px' }}>
+                    <ImageGrid>
+                      {selectedImages.map(image => (
+                        <div key={image.id}>
+                          <img 
+                            src={image.previewUrl} 
+                            alt={image.name}
+                            style={{ 
+                              width: '100%', 
+                              height: '150px', 
+                              objectFit: 'cover', 
+                              borderRadius: '8px' 
+                            }} 
+                          />
+                        </div>
+                      ))}
+                    </ImageGrid>
+                  </div>
+                )}
+                
                 {postData.tags.length > 0 && (
                   <div style={{ marginTop: '10px' }}>
                     {postData.tags.map(tag => (
@@ -499,9 +685,13 @@ const CreatePostPage = () => {
 
           <ActionsSection>
             <SecondaryActions>
-              <ActionButton type="button">
+              <ActionButton 
+                type="button" 
+                onClick={handleImageUpload}
+                disabled={uploadingImages}
+              >
                 <Image size={16} />
-                Add Image
+                {uploadingImages ? 'Uploading...' : 'Add Image'}
               </ActionButton>
               <ActionButton 
                 type="button" 

@@ -1,6 +1,6 @@
 """
 Post schemas for IAP Connect application.
-Updated to fix validation errors with proper user info schema.
+FIXED: Added missing fields to UserBasicInfo schema for feed functionality.
 """
 
 from pydantic import BaseModel, Field
@@ -9,7 +9,7 @@ from datetime import datetime
 
 
 class UserBasicInfo(BaseModel):
-    """Basic user info for post responses - FIXED VERSION"""
+    """Basic user info for post responses - FIXED VERSION with all required fields"""
     id: int
     username: str
     full_name: str
@@ -17,6 +17,9 @@ class UserBasicInfo(BaseModel):
     profile_picture_url: Optional[str] = None
     specialty: Optional[str] = None
     college: Optional[str] = None
+    # FIXED: Add missing fields that frontend expects
+    is_following: Optional[bool] = False
+    is_bookmarked: Optional[bool] = False
     
     class Config:
         from_attributes = True
@@ -54,6 +57,7 @@ class PostResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     is_liked: bool = False
+    is_bookmarked: Optional[bool] = False  # FIXED: Add bookmark field
     author: UserBasicInfo  # FIXED: Use correct user schema
     
     class Config:

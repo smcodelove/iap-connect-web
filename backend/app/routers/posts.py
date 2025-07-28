@@ -31,62 +31,92 @@ except ImportError:
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
 
-def create_user_basic_info(user):
-    """Helper function to create UserBasicInfo from user object"""
-    return UserBasicInfo(
-        id=user.id,
-        username=user.username,
-        full_name=user.full_name,
-        user_type=user.user_type.value if hasattr(user.user_type, 'value') else str(user.user_type),
-        profile_picture_url=user.profile_picture_url,
-        specialty=user.specialty,
-        college=user.college
-    )
+# backend/app/routers/posts.py - HELPER FUNCTION FIX
+# इस code को आपकी existing posts.py file में replace करना है
+
+def create_user_basic_info(user, current_user=None, db=None):
+    """
+    Helper function to create UserBasicInfo from user object
+    FIXED: Properly handle is_following field
+    """
+    is_following = False
+    
+    # Check if current user is following this user
+    if current_user and db and current_user.id != user.id:
+        try:
+            from ..models.follow import Follow
+            follow_check = db.query(Follow).filter(
+                Follow.follower_id == current_user.id,
+                Follow.following_id == user.id
+            ).first()
+            is_following = follow_check is not None
+        except Exception as e:
+            print(f"Error checking follow status: {e}")
+            is_following = False
+    
+    return {
+        "id": user.id,
+        "username": user.username,
+        "full_name": user.full_name,
+        "user_type": user.user_type.value if hasattr(user.user_type, 'value') else str(user.user_type),
+        "profile_picture_url": user.profile_picture_url,
+        "specialty": user.specialty,
+        "college": user.college,
+        "is_following": is_following,
+        "is_bookmarked": False  # Default value, can be updated later
+    }
 
 
 def create_post_response(post, current_user, db):
     """
     Helper function to create PostResponse with all required fields.
-    NEW: Enhanced to include bookmark status and follow status.
+    FIXED: Proper field handling for UserBasicInfo
     """
-    is_liked = check_user_liked_post(current_user.id, post.id, db)
+    # Check if user liked this post
+    is_liked = False
+    try:
+        from ..services.post_service import check_user_liked_post
+        is_liked = check_user_liked_post(current_user.id, post.id, db)
+    except (ImportError, AttributeError):
+        # Fallback: check directly in database
+        try:
+            from ..models.like import Like
+            like_check = db.query(Like).filter(
+                Like.user_id == current_user.id,
+                Like.post_id == post.id
+            ).first()
+            is_liked = like_check is not None
+        except Exception:
+            is_liked = False
     
-    # NEW: Check if post is bookmarked (if bookmark functionality exists)
+    # Check if post is bookmarked
     is_bookmarked = False
     try:
         from ..services.bookmark_service import check_user_bookmarked_post
         is_bookmarked = check_user_bookmarked_post(current_user.id, post.id, db)
     except (ImportError, AttributeError):
-        pass
+        # Bookmark functionality not available
+        is_bookmarked = False
     
-    # NEW: Check if user is following the post author
-    is_following = False
-    try:
-        from ..services.user_service import check_user_following
-        is_following = check_user_following(current_user.id, post.author.id, db)
-    except (ImportError, AttributeError):
-        pass
+    # Create author info with proper fields
+    author_info = create_user_basic_info(post.author, current_user, db)
+    author_info["is_bookmarked"] = is_bookmarked  # Add bookmark status
     
-    # Create enhanced user info for author
-    author_info = create_user_basic_info(post.author)
-    # Add follow status to author info
-    author_info.is_following = is_following
-    
-    return PostResponse(
-        id=post.id,
-        content=post.content,
-        media_urls=post.media_urls or [],
-        hashtags=post.hashtags or [],
-        likes_count=post.likes_count,
-        comments_count=post.comments_count,
-        shares_count=post.shares_count,
-        is_trending=post.is_trending,
-        created_at=post.created_at,
-        updated_at=post.updated_at,
-        is_liked=is_liked,
-        is_bookmarked=is_bookmarked,  # NEW: Add bookmark status
-        author=author_info
-    )
+    return {
+        "id": post.id,
+        "content": post.content,
+        "media_urls": post.media_urls or [],
+        "hashtags": post.hashtags or [],
+        "likes_count": post.likes_count,
+        "comments_count": post.comments_count,
+        "shares_count": post.shares_count,
+        "is_trending": post.is_trending,
+        "created_at": post.created_at,
+        "updated_at": post.updated_at,
+        "is_liked": is_liked,
+        "is_bookmarked": is_bookmarked,
+        "author": author_info
+    }
 
 
 @router.get("/feed", response_model=PostListResponse)

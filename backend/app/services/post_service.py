@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, or_, func, cast, String
 from fastapi import HTTPException, status
 from typing import List, Optional, Tuple
+from datetime import datetime, timedelta
 from ..models.user import User
 from ..models.post import Post
 from ..models.like import Like
@@ -115,7 +116,37 @@ def delete_post(post: Post, user: User, db: Session) -> bool:
 
 def get_user_feed(user: User, db: Session, page: int = 1, size: int = 20) -> Tuple[List[Post], int]:
     """
-    Get personalized feed for user (posts from followed users + own posts).
+    Get PUBLIC feed for user - ALL posts from ALL users (like Instagram/Twitter).
+    
+    UPDATED: Changed from personalized feed to public feed showing all posts.
+    This creates a more engaging experience where users can discover content 
+    from all medical professionals, not just people they follow.
+    
+    Args:
+        user: Current user (for personalization in future)
+        db: Database session
+        page: Page number (1-indexed)
+        size: Page size
+        
+    Returns:
+        Tuple[List[Post], int]: List of posts and total count
+    """
+    # CHANGED: Get ALL posts instead of just followed users + own posts
+    # This creates a public feed like Instagram/Twitter where all content is discoverable
+    posts_query = db.query(Post).options(joinedload(Post.author)).order_by(desc(Post.created_at))
+    
+    total = posts_query.count()
+    posts = posts_query.offset((page - 1) * size).limit(size).all()
+    
+    return posts, total
+
+
+def get_following_feed(user: User, db: Session, page: int = 1, size: int = 20) -> Tuple[List[Post], int]:
+    """
+    Get personalized feed for user (posts from followed users + own posts only).
+    
+    This is the original feed logic - kept as separate function in case needed later.
+    Can be used for a "Following" tab vs "For You" tab experience.
     
     Args:
         user: Current user
@@ -143,26 +174,36 @@ def get_user_feed(user: User, db: Session, page: int = 1, size: int = 20) -> Tup
     return posts, total
 
 
-def get_trending_posts(db: Session, page: int = 1, size: int = 20) -> Tuple[List[Post], int]:
+def get_trending_posts(db: Session, page: int = 1, size: int = 20, hours_window: int = 72) -> Tuple[List[Post], int]:
     """
-    Get trending posts (posts with high engagement).
+    Get trending posts (posts with high engagement within time window).
     
     Args:
         db: Database session
         page: Page number (1-indexed)
         size: Page size
+        hours_window: Hours to look back for trending calculation (default: 72)
         
     Returns:
         Tuple[List[Post], int]: List of posts and total count
     """
-    # Calculate engagement score and order by it
-    posts_query = db.query(Post).options(joinedload(Post.author)).order_by(
+    # Calculate time threshold
+    time_threshold = datetime.utcnow() - timedelta(hours=hours_window)
+    
+    # Get posts within time window with engagement
+    posts_query = db.query(Post).options(joinedload(Post.author)).filter(
+        Post.created_at >= time_threshold
+    ).order_by(
         desc(Post.likes_count + Post.comments_count + Post.shares_count),
         desc(Post.created_at)
     )
     
     total = posts_query.count()
     posts = posts_query.offset((page - 1) * size).limit(size).all()
+    
+    # Mark posts as trending for the response
+    for post in posts:
+        post.is_trending = True
     
     return posts, total
 

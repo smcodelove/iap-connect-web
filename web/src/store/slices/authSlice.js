@@ -1,187 +1,201 @@
-// src/store/slices/authSlice.js - UPDATED WITH YOUR EXISTING CODE
+// web/src/store/slices/authSlice.js
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { authService } from '../../services/api';
+// FIXED: Remove destructuring since authService is default export
+import authService from '../../services/authService';
 
-// FIXED: Import constants properly
-const STORAGE_KEYS = {
-  ACCESS_TOKEN: 'access_token',
-  USER_DATA: 'user_data'
-};
+// ====================
+// ASYNC THUNKS
+// ====================
 
-const ENDPOINTS = {
-  LOGIN: '/auth/login',
-  REGISTER: '/auth/register',
-  LOGOUT: '/auth/logout',
-  ME: '/auth/me'
-};
-
-// Async thunks - UPDATED: Use proper API service
+// Login user
 export const loginUser = createAsyncThunk(
   'auth/loginUser',
   async (credentials, { rejectWithValue }) => {
     try {
-      console.log('Attempting login with:', credentials);
-      const response = await authService.login(credentials);
+      console.log('🔐 Redux: Attempting login...', credentials.email);
       
-      if (response.success) {
-        // Get user data
-        const userResponse = await authService.getCurrentUser();
+      const result = await authService.login(credentials);
+      
+      if (result.success) {
+        console.log('✅ Redux: Login successful');
         
-        if (userResponse.success) {
-          const userData = userResponse.data;
-          localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
-          
-          return { 
-            access_token: response.data.access_token, 
-            user: userData 
+        // Immediately fetch user data after successful login
+        const userResult = await authService.getCurrentUser();
+        
+        if (userResult.success) {
+          console.log('✅ Redux: User data fetched successfully');
+          return {
+            token: result.data.access_token,
+            user: userResult.data
           };
         } else {
-          throw new Error('Failed to get user data');
+          console.warn('⚠️ Redux: Login successful but failed to fetch user data');
+          return {
+            token: result.data.access_token,
+            user: null
+          };
         }
       } else {
-        throw new Error(response.error);
+        console.error('❌ Redux: Login failed:', result.error);
+        return rejectWithValue(result.error);
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ Redux: Login exception:', error);
       return rejectWithValue(error.message || 'Login failed');
     }
   }
 );
 
+// Register user
 export const registerUser = createAsyncThunk(
   'auth/registerUser',
   async (userData, { rejectWithValue }) => {
     try {
-      console.log('Attempting registration with:', userData);
-      const response = await authService.register(userData);
+      console.log('🔐 Redux: Attempting registration...', userData.email);
       
-      if (response.success) {
-        return response.data;
+      const result = await authService.register(userData);
+      
+      if (result.success) {
+        console.log('✅ Redux: Registration successful');
+        return result.data;
       } else {
-        throw new Error(response.error);
+        console.error('❌ Redux: Registration failed:', result.error);
+        return rejectWithValue(result.error);
       }
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error('❌ Redux: Registration exception:', error);
       return rejectWithValue(error.message || 'Registration failed');
     }
   }
 );
 
+// Get current user
 export const getCurrentUser = createAsyncThunk(
   'auth/getCurrentUser',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await authService.getCurrentUser();
+      console.log('🔐 Redux: Fetching current user...');
       
-      if (response.success) {
-        return response.data;
+      const result = await authService.getCurrentUser();
+      
+      if (result.success) {
+        console.log('✅ Redux: Current user fetched successfully');
+        return result.data;
       } else {
-        throw new Error(response.error);
+        console.error('❌ Redux: Failed to fetch current user:', result.error);
+        return rejectWithValue(result.error);
       }
     } catch (error) {
-      console.error('Get current user error:', error);
-      return rejectWithValue(error.message || 'Failed to get user data');
+      console.error('❌ Redux: Get current user exception:', error);
+      return rejectWithValue(error.message || 'Failed to fetch user');
     }
   }
 );
 
+// Logout user
 export const logoutUser = createAsyncThunk(
   'auth/logoutUser',
   async (_, { rejectWithValue }) => {
     try {
-      authService.logout(); // This clears localStorage and redirects
-      return true;
+      console.log('🔐 Redux: Attempting logout...');
+      
+      const result = await authService.logout();
+      
+      if (result.success) {
+        console.log('✅ Redux: Logout successful');
+        return true;
+      } else {
+        console.warn('⚠️ Redux: Logout had issues but proceeding');
+        return true; // Still proceed with logout
+      }
     } catch (error) {
-      // Even if logout fails, clear local storage
-      authService.logout();
-      return rejectWithValue(error.message || 'Logout failed');
+      console.error('❌ Redux: Logout exception:', error);
+      // Still proceed with logout even if there's an error
+      authService.clearStoredData();
+      return true;
     }
   }
 );
 
-// Initial state - UPDATED: Better initialization
-const getInitialUser = () => {
-  try {
-    const userData = localStorage.getItem(STORAGE_KEYS.USER_DATA);
-    return userData ? JSON.parse(userData) : null;
-  } catch (error) {
-    console.error('Error parsing user data from localStorage:', error);
-    return null;
-  }
-};
+// ====================
+// INITIAL STATE
+// ====================
 
 const initialState = {
-  user: getInitialUser(),
-  token: localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN),
-  isAuthenticated: !!localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN),
+  user: null,
+  token: authService.getToken(),
+  isAuthenticated: !!authService.getToken(),
   loading: false,
   error: null,
   registrationSuccess: false
 };
 
-// Auth slice
+// ====================
+// AUTH SLICE
+// ====================
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
+    // Clear auth error
     clearError: (state) => {
       state.error = null;
     },
     
+    // Clear registration success
     clearRegistrationSuccess: (state) => {
       state.registrationSuccess = false;
     },
     
-    setUser: (state, action) => {
-      state.user = action.payload;
-      localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(action.payload));
+    // Set loading state
+    setLoading: (state, action) => {
+      state.loading = action.payload;
     },
     
-    clearAuth: (state) => {
+    // Reset auth state
+    resetAuth: (state) => {
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
+      state.loading = false;
       state.error = null;
       state.registrationSuccess = false;
-      localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.USER_DATA);
-      localStorage.removeItem('token'); // Remove backup token
     },
     
-    // FIXED: Add this action for compatibility
-    resetAuth: (state) => {
-      authSlice.caseReducers.clearAuth(state);
+    // Update user data
+    updateUser: (state, action) => {
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload };
+      }
     }
   },
-  
   extraReducers: (builder) => {
+    // Login cases
     builder
-      // Login cases
       .addCase(loginUser.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
-        state.isAuthenticated = true;
-        state.token = action.payload.access_token;
-        state.user = action.payload.user;
         state.error = null;
-        console.log('Login successful, user set:', action.payload.user);
+        state.token = action.payload.token;
+        state.user = action.payload.user;
+        state.isAuthenticated = true;
+        console.log('🔐 Redux: Auth state updated after login');
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
-        state.isAuthenticated = false;
+        state.error = action.payload || 'Login failed';
         state.token = null;
         state.user = null;
-        state.error = action.payload;
-        // Clear any stored data on login failure
-        localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-        localStorage.removeItem(STORAGE_KEYS.USER_DATA);
-        localStorage.removeItem('token');
-      })
-      
-      // Register cases
+        state.isAuthenticated = false;
+        console.error('🔐 Redux: Auth state updated after login failure');
+      });
+
+    // Registration cases
+    builder
       .addCase(registerUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -191,67 +205,81 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = null;
         state.registrationSuccess = true;
-        // Don't automatically log in after registration
-        console.log('Registration successful:', action.payload);
+        console.log('🔐 Redux: Registration successful');
       })
       .addCase(registerUser.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.payload || 'Registration failed';
         state.registrationSuccess = false;
-      })
-      
-      // Get current user cases
+        console.error('🔐 Redux: Registration failed');
+      });
+
+    // Get current user cases
+    builder
       .addCase(getCurrentUser.pending, (state) => {
-        state.loading = true;
+        // Don't set loading for getCurrentUser to avoid UI flicker
+        state.error = null;
       })
       .addCase(getCurrentUser.fulfilled, (state, action) => {
-        state.loading = false;
         state.user = action.payload;
-        state.error = null;
-        localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(action.payload));
+        state.isAuthenticated = true;
+        console.log('🔐 Redux: Current user updated');
       })
       .addCase(getCurrentUser.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-        // If getting user fails, likely token is invalid
-        state.isAuthenticated = false;
+        state.error = action.payload || 'Failed to fetch user';
         state.token = null;
         state.user = null;
-        localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-        localStorage.removeItem(STORAGE_KEYS.USER_DATA);
-        localStorage.removeItem('token');
-      })
-      
-      // Logout cases
+        state.isAuthenticated = false;
+        console.error('🔐 Redux: Current user fetch failed');
+      });
+
+    // Logout cases
+    builder
       .addCase(logoutUser.pending, (state) => {
         state.loading = true;
       })
       .addCase(logoutUser.fulfilled, (state) => {
-        state.loading = false;
-        state.isAuthenticated = false;
-        state.token = null;
         state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.loading = false;
         state.error = null;
         state.registrationSuccess = false;
+        console.log('🔐 Redux: Logout completed');
       })
-      .addCase(logoutUser.rejected, (state, action) => {
-        state.loading = false;
-        // Even if logout fails, clear the auth state
-        state.isAuthenticated = false;
-        state.token = null;
+      .addCase(logoutUser.rejected, (state) => {
+        // Even if logout fails, clear the state
         state.user = null;
-        state.error = action.payload;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.loading = false;
+        state.error = null;
         state.registrationSuccess = false;
+        console.log('🔐 Redux: Logout completed (with errors)');
       });
   }
 });
 
-export const { 
-  clearError, 
-  clearRegistrationSuccess, 
-  setUser, 
-  clearAuth, 
-  resetAuth 
+// ====================
+// EXPORT ACTIONS & REDUCER
+// ====================
+
+export const {
+  clearError,
+  clearRegistrationSuccess,
+  setLoading,
+  resetAuth,
+  updateUser
 } = authSlice.actions;
 
 export default authSlice.reducer;
+
+// ====================
+// SELECTORS
+// ====================
+
+export const selectAuth = (state) => state.auth;
+export const selectUser = (state) => state.auth.user;
+export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
+export const selectAuthLoading = (state) => state.auth.loading;
+export const selectAuthError = (state) => state.auth.error;
