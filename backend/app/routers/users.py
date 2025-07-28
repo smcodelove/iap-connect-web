@@ -1,7 +1,8 @@
-# routers/users.py - FIXED: Real followers/following counts
+# routers/users.py - FIXED: Real followers/following counts + ADDED MISSING ROUTE
 """
 User management routes for IAP Connect application.
 FIXED: Real-time calculation of followers/following counts from database.
+ADDED: Missing /{user_id} route for frontend compatibility.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
@@ -76,6 +77,93 @@ def sync_user_stats(user: User, db: Session) -> User:
     
     return user
 
+
+# ==============================================
+# NEW: MISSING ROUTE ADDED FOR FRONTEND
+# ==============================================
+
+@router.get("/{user_id}", response_model=CompleteProfile)
+async def get_user_by_id(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get user profile by user ID (simplified route for frontend compatibility).
+    
+    This is the route that the frontend expects: GET /api/v1/users/{user_id}
+    Maps to the same functionality as /users/profile/{user_id} but with simpler path.
+    """
+    print(f"🎯 Frontend requested user profile for ID: {user_id}")
+    
+    # Get user profile
+    user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+    if not user:
+        print(f"❌ User {user_id} not found in database")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    print(f"✅ Found user: {user.full_name} (@{user.username})")
+    
+    # FIXED: Sync user stats with real database counts
+    user = sync_user_stats(user, db)
+    
+    # Check follow relationships
+    is_following = False
+    is_follower = False
+    
+    if current_user.id != user_id:
+        # Check if current user follows this user
+        follow_check = db.query(Follow).filter(
+            Follow.follower_id == current_user.id,
+            Follow.following_id == user_id
+        ).first()
+        is_following = follow_check is not None
+        
+        # Check if this user follows current user
+        follower_check = db.query(Follow).filter(
+            Follow.follower_id == user_id,
+            Follow.following_id == current_user.id
+        ).first()
+        is_follower = follower_check is not None
+    
+    # Get recent posts (last 5)
+    recent_posts = db.query(Post).filter(
+        Post.user_id == user_id
+    ).order_by(Post.created_at.desc()).limit(5).all()
+    
+    # Convert to response format with REAL stats
+    profile_data = user.to_dict()
+    profile_data['is_following'] = is_following
+    profile_data['is_follower'] = is_follower
+    
+    # FIXED: Convert posts manually instead of using to_dict()
+    profile_data['recent_posts'] = []
+    for post in recent_posts:
+        post_data = {
+            "id": post.id,
+            "content": post.content,
+            "media_urls": post.media_urls or [],
+            "hashtags": post.hashtags or [],
+            "likes_count": post.likes_count,
+            "comments_count": post.comments_count,
+            "shares_count": post.shares_count,
+            "is_trending": post.is_trending,
+            "created_at": post.created_at.isoformat() if post.created_at else None,
+            "updated_at": post.updated_at.isoformat() if post.updated_at else None
+        }
+        profile_data['recent_posts'].append(post_data)
+    
+    print(f"📊 User {user_id} profile served: {user.followers_count} followers, {user.following_count} following, {user.posts_count} posts")
+    
+    return profile_data
+
+
+# ==============================================
+# EXISTING ROUTES (UNCHANGED)
+# ==============================================
 
 @router.get("/profile/{user_id}", response_model=CompleteProfile)
 async def get_user_profile(

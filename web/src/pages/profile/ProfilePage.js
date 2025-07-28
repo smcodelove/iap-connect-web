@@ -1,8 +1,8 @@
-// web/src/pages/profile/ProfilePage.js - FIXED NAVIGATION LOGIC
+// web/src/pages/profile/ProfilePage.js - FIXED NAVIGATION ISSUE
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useSelector, useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Edit, 
   Users, 
@@ -459,7 +459,7 @@ const ProfilePage = () => {
   const [editProfileLoading, setEditProfileLoading] = useState(false);
   const [refreshingStats, setRefreshingStats] = useState(false);
   
-  // NEW: Real-time stats state
+  // FIXED: Real-time stats state with proper validation
   const [realTimeStats, setRealTimeStats] = useState({
     posts_count: user?.posts_count || 0,
     followers_count: user?.followers_count || 0,
@@ -650,27 +650,29 @@ const ProfilePage = () => {
     }
   };
 
-  // FIXED: Handle stats click (navigate to specific lists) - Use current user ID
+  // FIXED: Handle stats click (navigate to specific lists) - Current User Navigation
   const handleStatsClick = (type) => {
+    // FIXED: Always use current user's ID for navigation
     if (!user || !user.id) {
-      console.error('❌ User ID not available');
+      console.error('❌ User not found or user ID missing');
       return;
     }
 
-    console.log(`📊 Navigating to ${type} for user ${user.id}`);
-    
+    const userId = user.id;
+    console.log(`📊 Navigating to ${type} for current user ${userId}`);
+
     switch (type) {
       case 'posts':
-        navigate(`/user/${user.id}/posts`);
+        navigate(`/user/${userId}/posts`);
         break;
       case 'followers':
-        navigate(`/user/${user.id}/followers`);
+        navigate(`/user/${userId}/followers`);
         break;
       case 'following':
-        navigate(`/user/${user.id}/following`);
+        navigate(`/user/${userId}/following`);
         break;
       default:
-        console.log(`📊 Unknown stats type: ${type}`);
+        console.log(`📊 Viewing ${type}`);
     }
   };
 
@@ -727,15 +729,6 @@ const ProfilePage = () => {
       day: 'numeric'
     });
   };
-
-  // Debug: Log user information
-  useEffect(() => {
-    console.log('🔍 ProfilePage Debug:', {
-      user: user,
-      userId: user?.id,
-      username: user?.username
-    });
-  }, [user]);
 
   // Render post card component
   const renderPostCard = (post) => (

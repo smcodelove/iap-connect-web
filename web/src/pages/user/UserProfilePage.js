@@ -1,7 +1,8 @@
-// web/src/pages/user/UserProfilePage.js - FIXED SYNTAX ERROR
+// web/src/pages/user/UserProfilePage.js - FIXED ERROR HANDLING & REDIRECT ISSUE
 /**
  * UserProfilePage - View other user's profile
- * Similar to ProfilePage but for viewing other users with follow functionality
+ * FIXED: Removed automatic redirect to feed on error
+ * IMPROVED: Better error handling and debugging
  */
 
 import React, { useState, useEffect } from 'react';
@@ -22,7 +23,8 @@ import {
   UserPlus,
   UserCheck,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 
 import userService from '../../services/userService';
@@ -335,6 +337,51 @@ const LoadingContainer = styled.div`
   padding: 60px;
 `;
 
+const ErrorContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px;
+  text-align: center;
+  
+  .error-icon {
+    color: ${props => props.theme.colors.danger};
+    margin-bottom: 20px;
+  }
+  
+  .error-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: ${props => props.theme.colors.gray800};
+    margin-bottom: 10px;
+  }
+  
+  .error-message {
+    color: ${props => props.theme.colors.gray600};
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  
+  .retry-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: ${props => props.theme.colors.primary};
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      background: ${props => props.theme.colors.primaryDark};
+      transform: translateY(-1px);
+    }
+  }
+`;
+
 const UserProfilePage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -344,6 +391,7 @@ const UserProfilePage = () => {
   const [posts, setPosts] = useState([]);
   const [activeTab, setActiveTab] = useState('posts');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
 
@@ -351,28 +399,77 @@ const UserProfilePage = () => {
   const loadUserData = async () => {
     try {
       setLoading(true);
+      setError(null);
       console.log(`👤 Loading profile for user ${id}`);
       
-      // Load user profile
-      const profileResponse = await userService.getUserProfile(id);
-      
-      if (profileResponse.success) {
-        setUser(profileResponse.user);
-        setFollowing(profileResponse.user.is_following || false);
-        
-        // Load user posts
-        const postsResponse = await postService.getFeed(1, 20);
-        const userPosts = postsResponse.posts.filter(post => post.author.id === parseInt(id));
-        setPosts(userPosts);
-        
-        console.log(`✅ Loaded profile for ${profileResponse.user.full_name}`);
-      } else {
-        console.error('❌ Failed to load user profile:', profileResponse.error);
-        navigate('/feed');
+      // Validate user ID
+      if (!id || isNaN(parseInt(id))) {
+        throw new Error('Invalid user ID');
       }
+      
+      // Load user profile
+      let profileResponse;
+      try {
+        profileResponse = await userService.getUserProfile(id);
+        console.log('📋 Profile response:', profileResponse);
+      } catch (profileError) {
+        console.error('❌ Profile API call failed:', profileError);
+        throw new Error('Failed to fetch user profile. Please check if the user exists.');
+      }
+      
+      // Handle different response formats
+      let userData = null;
+      let isFollowingUser = false;
+      
+      if (profileResponse) {
+        // Check if it's the new format with success property
+        if (profileResponse.success !== undefined) {
+          if (profileResponse.success) {
+            userData = profileResponse.user;
+            isFollowingUser = userData?.is_following || false;
+          } else {
+            throw new Error(profileResponse.error || 'Failed to load user profile');
+          }
+        } else {
+          // Old format - direct user data
+          userData = profileResponse;
+          isFollowingUser = userData?.is_following || false;
+        }
+      }
+      
+      if (!userData) {
+        throw new Error('User not found or invalid response from server');
+      }
+      
+      setUser(userData);
+      setFollowing(isFollowingUser);
+      
+      // Load user posts
+      try {
+        const postsResponse = await postService.getFeed(1, 20);
+        if (postsResponse && postsResponse.posts) {
+          const userPosts = postsResponse.posts.filter(
+            post => post.author && post.author.id === parseInt(id)
+          );
+          setPosts(userPosts);
+          console.log(`✅ Loaded ${userPosts.length} posts for user`);
+        } else {
+          console.log('📝 No posts data received');
+          setPosts([]);
+        }
+      } catch (postsError) {
+        console.error('❌ Error loading posts:', postsError);
+        // Don't fail completely if posts can't be loaded
+        setPosts([]);
+      }
+      
+      console.log(`✅ Successfully loaded profile for ${userData.full_name || userData.username}`);
+      
     } catch (error) {
       console.error('❌ Error loading user data:', error);
-      navigate('/feed');
+      setError(error.message || 'Failed to load user profile');
+      setUser(null);
+      setPosts([]);
     } finally {
       setLoading(false);
     }
@@ -393,18 +490,24 @@ const UserProfilePage = () => {
         response = await userService.followUser(id);
       }
       
-      if (response.success) {
+      // Handle different response formats
+      const isSuccess = response?.success !== undefined ? response.success : !!response;
+      
+      if (isSuccess) {
         setFollowing(!following);
         // Update follower count
         setUser(prev => ({
           ...prev,
-          followers_count: following ? prev.followers_count - 1 : prev.followers_count + 1
+          followers_count: following ? 
+            Math.max(0, (prev.followers_count || 0) - 1) : 
+            (prev.followers_count || 0) + 1
         }));
         
         console.log(`✅ ${following ? 'Unfollowed' : 'Followed'} user successfully`);
       } else {
-        console.error('❌ Follow action failed:', response.error);
-        alert('Failed to update follow status. Please try again.');
+        const errorMsg = response?.error || 'Failed to update follow status';
+        console.error('❌ Follow action failed:', errorMsg);
+        alert(errorMsg);
       }
     } catch (error) {
       console.error('❌ Error toggling follow:', error);
@@ -441,13 +544,14 @@ const UserProfilePage = () => {
     });
   };
 
-  // Load data on mount
+  // Load data on mount and when ID changes
   useEffect(() => {
     if (id) {
       loadUserData();
     }
   }, [id]);
 
+  // Loading state
   if (loading) {
     return (
       <ProfileContainer>
@@ -458,13 +562,59 @@ const UserProfilePage = () => {
     );
   }
 
+  // Error state
+  if (error) {
+    return (
+      <ProfileContainer>
+        <ErrorContainer>
+          <AlertCircle size={64} className="error-icon" />
+          <div className="error-title">Unable to Load Profile</div>
+          <div className="error-message">
+            {error}
+            <br />
+            <small>User ID: {id}</small>
+          </div>
+          <button className="retry-button" onClick={loadUserData}>
+            <RefreshCw size={16} />
+            Try Again
+          </button>
+          <ActionButton 
+            style={{ 
+              marginTop: '10px', 
+              background: 'transparent', 
+              color: '#6c757d',
+              border: '1px solid #6c757d'
+            }}
+            onClick={() => navigate('/feed')}
+          >
+            <ArrowLeft size={16} />
+            Back to Feed
+          </ActionButton>
+        </ErrorContainer>
+      </ProfileContainer>
+    );
+  }
+
+  // User not found state
   if (!user) {
     return (
       <ProfileContainer>
         <EmptyContent>
           <div className="icon">👤</div>
           <h3>User not found</h3>
-          <p>The user you're looking for doesn't exist.</p>
+          <p>The user you're looking for doesn't exist or has been removed.</p>
+          <ActionButton 
+            style={{ 
+              marginTop: '20px', 
+              background: 'transparent', 
+              color: '#6c757d',
+              border: '1px solid #6c757d'
+            }}
+            onClick={() => navigate('/feed')}
+          >
+            <ArrowLeft size={16} />
+            Back to Feed
+          </ActionButton>
         </EmptyContent>
       </ProfileContainer>
     );

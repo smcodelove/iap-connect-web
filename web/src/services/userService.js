@@ -1,8 +1,8 @@
-// web/src/services/userService.js
+// web/src/services/userService.js - FIXED API ENDPOINTS
 /**
  * User Service for IAP Connect
  * Handles all user-related API calls including profiles, follow/unfollow, search
- * COMPLETE: All user operations with real API integration
+ * FIXED: Corrected API endpoint paths to match backend routes
  */
 
 import api from './api';
@@ -13,12 +13,14 @@ class UserService {
   
   /**
    * Get user profile by ID with real-time stats
+   * FIXED: Corrected API endpoint path
    */
   async getUserProfile(userId) {
     try {
       console.log(`👤 Fetching profile for user ${userId}`);
       
-      const response = await api.get(`/users/profile/${userId}`);
+      // FIXED: Correct endpoint path - /users/{user_id} not /users/profile/{user_id}
+      const response = await api.get(`/users/${userId}`);
       
       console.log(`✅ Profile fetched for ${response.data.full_name}:`, {
         followers: response.data.followers_count,
@@ -32,9 +34,20 @@ class UserService {
       };
     } catch (error) {
       console.error(`❌ Error fetching profile for user ${userId}:`, error);
+      
+      // Log detailed error info for debugging
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', error.response.data);
+      } else if (error.request) {
+        console.error('Request made but no response received');
+      } else {
+        console.error('Error setting up request:', error.message);
+      }
+      
       return {
         success: false,
-        error: error.response?.data?.detail || 'Failed to fetch user profile'
+        error: error.response?.data?.detail || error.message || 'Failed to fetch user profile'
       };
     }
   }
@@ -287,14 +300,25 @@ class UserService {
     try {
       console.log(`📊 Fetching stats for user ${userId}`);
       
-      const response = await api.get(`/users/stats/${userId}`);
+      // Use the profile endpoint which includes stats
+      const profileResponse = await this.getUserProfile(userId);
       
-      console.log(`✅ Stats fetched:`, response.data);
-      
-      return {
-        success: true,
-        stats: response.data
-      };
+      if (profileResponse.success) {
+        const stats = {
+          posts_count: profileResponse.user.posts_count || 0,
+          followers_count: profileResponse.user.followers_count || 0,
+          following_count: profileResponse.user.following_count || 0
+        };
+        
+        console.log(`✅ Stats fetched:`, stats);
+        
+        return {
+          success: true,
+          stats
+        };
+      } else {
+        return profileResponse;
+      }
     } catch (error) {
       console.error(`❌ Error fetching stats for user ${userId}:`, error);
       return {
@@ -617,6 +641,41 @@ class UserService {
         error: error.response?.data?.detail || 'Failed to unblock user'
       };
     }
+  }
+
+  // ==================== DEBUGGING METHODS ====================
+  
+  /**
+   * Test API connectivity
+   */
+  async testConnection() {
+    try {
+      console.log('🔧 Testing userService API connectivity...');
+      
+      const response = await api.get('/health');
+      console.log('✅ UserService API connection successful');
+      
+      return {
+        success: true,
+        message: 'API connection successful'
+      };
+    } catch (error) {
+      console.error('❌ UserService API connection failed:', error);
+      return {
+        success: false,
+        error: 'API connection failed'
+      };
+    }
+  }
+
+  /**
+   * Log current API configuration
+   */
+  logApiConfig() {
+    console.log('🔧 UserService API Configuration:');
+    console.log('Base URL:', api.defaults.baseURL);
+    console.log('Timeout:', api.defaults.timeout);
+    console.log('Headers:', api.defaults.headers);
   }
 }
 
