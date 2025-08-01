@@ -606,3 +606,37 @@ async def get_user_stats_endpoint(
         **stats,
         "last_updated": datetime.utcnow().isoformat()
     }
+
+# backend/app/routers/users.py में add करें:
+
+@router.get("/trending")
+async def get_trending_users(
+    limit: int = 15,
+    db: Session = Depends(get_db)
+):
+    # Get users sorted by followers + posts
+    users = db.query(User).order_by(
+        (User.followers_count + User.posts_count).desc()
+    ).limit(limit).all()
+    
+    return {
+        "success": True,
+        "users": [user.to_dict() for user in users]
+    }
+
+@router.get("/search")
+async def search_users(
+    q: str = "",
+    page: int = 1,
+    per_page: int = 20,
+    db: Session = Depends(get_db)
+):
+    users = db.query(User).filter(
+        User.full_name.ilike(f"%{q}%")
+    ).offset((page-1)*per_page).limit(per_page).all()
+    
+    return {
+        "success": True,
+        "users": [user.to_dict() for user in users],
+        "total": len(users)
+    }

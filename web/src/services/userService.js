@@ -1,8 +1,8 @@
-// web/src/services/userService.js - FIXED API ENDPOINTS
+// web/src/services/userService.js - UPDATED WITH TRENDING FUNCTIONALITY
 /**
  * User Service for IAP Connect
  * Handles all user-related API calls including profiles, follow/unfollow, search
- * FIXED: Corrected API endpoint paths to match backend routes
+ * UPDATED: Added trending users and enhanced functionality while keeping existing code
  */
 
 import api from './api';
@@ -254,7 +254,8 @@ class UserService {
       const {
         userType,
         page = 1,
-        perPage = 20
+        perPage = 20,
+        per_page = 20  // Support both naming conventions
       } = options;
 
       console.log(`🔍 Searching users: "${query}"`);
@@ -262,7 +263,7 @@ class UserService {
       const params = {
         q: query,
         page,
-        per_page: perPage
+        per_page: per_page || perPage
       };
       
       if (userType) {
@@ -287,6 +288,122 @@ class UserService {
       return {
         success: false,
         error: error.response?.data?.detail || 'Failed to search users'
+      };
+    }
+  }
+
+  // ==================== TRENDING & POPULAR USERS (NEW) ====================
+  
+  /**
+   * Get trending/popular users based on activity and followers
+   * NEW: Enhanced method for trending users functionality
+   */
+  async getTrendingUsers(limit = 15, user_type = null) {
+    try {
+      console.log('🔥 Fetching trending users...');
+      
+      const params = {
+        limit,
+        ...(user_type && { user_type })
+      };
+      
+      // Try to use dedicated trending endpoint if available
+      try {
+        const response = await api.get('/users/trending', { params });
+        
+        console.log(`✅ Fetched ${response.data.users.length} trending users via dedicated endpoint`);
+        
+        return {
+          success: true,
+          users: response.data.users,
+          total: response.data.total
+        };
+      } catch (trendingError) {
+        // Fallback: Use search endpoint with empty query to get popular users
+        console.log('📋 Trending endpoint not available, falling back to search method...');
+        
+        const searchResponse = await this.searchUsers('', { per_page: limit * 2 }); // Get more to filter
+        
+        if (searchResponse.success) {
+          // Sort users by a combination of followers and recent activity
+          const sortedUsers = searchResponse.users
+            .filter(user => user.followers_count > 0) // Only users with followers
+            .sort((a, b) => {
+              // Simple trending score: followers + posts activity
+              const scoreA = (a.followers_count || 0) + (a.posts_count || 0) * 5;
+              const scoreB = (b.followers_count || 0) + (b.posts_count || 0) * 5;
+              return scoreB - scoreA;
+            })
+            .slice(0, limit);
+          
+          console.log(`✅ Processed ${sortedUsers.length} trending users via search fallback`);
+          
+          return {
+            success: true,
+            users: sortedUsers,
+            total: sortedUsers.length
+          };
+        } else {
+          throw new Error(searchResponse.error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error fetching trending users:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch trending users'
+      };
+    }
+  }
+
+  /**
+   * Get most followed users (simple popularity ranking)
+   * NEW: Popular users method
+   */
+  async getPopularUsers(limit = 10, user_type = null) {
+    try {
+      console.log('⭐ Fetching popular users...');
+      
+      const params = {
+        limit,
+        sort_by: 'followers',
+        ...(user_type && { user_type })
+      };
+      
+      // Try dedicated popular users endpoint
+      try {
+        const response = await api.get('/users/popular', { params });
+        
+        console.log(`✅ Fetched ${response.data.users.length} popular users`);
+        
+        return {
+          success: true,
+          users: response.data.users
+        };
+      } catch (popularError) {
+        // Fallback: Use search and sort by followers
+        console.log('📋 Popular endpoint not available, using search fallback...');
+        
+        const searchResponse = await this.searchUsers('', { per_page: limit * 2 });
+        
+        if (searchResponse.success) {
+          const popularUsers = searchResponse.users
+            .sort((a, b) => (b.followers_count || 0) - (a.followers_count || 0))
+            .slice(0, limit);
+          
+          return {
+            success: true,
+            users: popularUsers
+          };
+        } else {
+          throw new Error(searchResponse.error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error fetching popular users:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch popular users'
       };
     }
   }
@@ -356,28 +473,62 @@ class UserService {
   }
 
   /**
-   * Get user suggestions (simplified version)
+   * Get user suggestions (enhanced version)
+   * UPDATED: Enhanced with trending functionality
    */
   async getSuggestedUsers(limit = 10) {
     try {
       console.log('💡 Fetching suggested users');
       
-      // Use search with empty query to get popular users
-      const response = await this.searchUsers('', { 
-        perPage: limit 
-      });
+      // Try dedicated suggestions endpoint first
+      try {
+        const response = await api.get(`/users/suggestions?limit=${limit}`);
+        
+        console.log(`✅ Fetched ${response.data.users.length} suggested users via dedicated endpoint`);
+        
+        return {
+          success: true,
+          users: response.data.users
+        };
+      } catch (suggestionsError) {
+        // Fallback: Get a mix of popular and recent users
+        console.log('📋 Suggestions endpoint not available, using mixed approach...');
+        
+        const [popularResponse, searchResponse] = await Promise.all([
+          this.getPopularUsers(Math.ceil(limit / 2)),
+          this.searchUsers('', { per_page: Math.ceil(limit / 2) })
+        ]);
+        
+        const suggestedUsers = [
+          ...(popularResponse.success ? popularResponse.users : []),
+          ...(searchResponse.success ? searchResponse.users : [])
+        ]
+          .filter((user, index, array) => 
+            array.findIndex(u => u.id === user.id) === index // Remove duplicates
+          )
+          .slice(0, limit);
+        
+        console.log(`✅ Found ${suggestedUsers.length} suggested users via fallback`);
+        
+        return {
+          success: true,
+          users: suggestedUsers
+        };
+      }
+    } catch (error) {
+      console.error('❌ Error fetching suggested users:', error);
+      
+      // Final fallback to search with empty query
+      const response = await this.searchUsers('', { perPage: limit });
       
       if (response.success) {
-        console.log(`✅ Found ${response.users.length} suggested users`);
+        console.log(`✅ Found ${response.users.length} suggested users via search fallback`);
         return {
           success: true,
           users: response.users
         };
       }
       
-      return response;
-    } catch (error) {
-      console.error('❌ Error fetching suggested users:', error);
       return {
         success: false,
         error: 'Failed to fetch suggested users'
@@ -416,6 +567,55 @@ class UserService {
         success: false,
         error: 'Failed to fetch user profiles'
       };
+    }
+  }
+
+  /**
+   * Bulk check follow status for multiple users
+   * NEW: Bulk operations support
+   */
+  async checkBulkFollowStatus(userIds) {
+    try {
+      console.log(`🔍 Checking follow status for ${userIds.length} users`);
+      
+      const response = await api.post('/users/follow/check-bulk', {
+        user_ids: userIds
+      });
+      
+      console.log('✅ Bulk follow status checked');
+      
+      return {
+        success: true,
+        follow_status: response.data.follow_status
+      };
+    } catch (error) {
+      console.error('❌ Error in bulk follow status check:', error);
+      
+      // Fallback: Check individually (slower but works)
+      try {
+        const statusPromises = userIds.map(userId => 
+          this.checkFollowStatus(userId).then(result => ({
+            user_id: userId,
+            is_following: result.success ? result.is_following : false
+          }))
+        );
+        
+        const results = await Promise.all(statusPromises);
+        const followStatus = results.reduce((acc, result) => {
+          acc[result.user_id] = result.is_following;
+          return acc;
+        }, {});
+        
+        return {
+          success: true,
+          follow_status: followStatus
+        };
+      } catch (fallbackError) {
+        return {
+          success: false,
+          error: 'Failed to check follow status'
+        };
+      }
     }
   }
 
@@ -639,6 +839,31 @@ class UserService {
       return {
         success: false,
         error: error.response?.data?.detail || 'Failed to unblock user'
+      };
+    }
+  }
+
+  /**
+   * Get user activity metrics (for admin/analytics)
+   * NEW: Analytics support
+   */
+  async getUserActivityMetrics(userId, days = 30) {
+    try {
+      console.log(`📈 Fetching activity metrics for user ${userId} (${days} days)`);
+      
+      const response = await api.get(`/users/${userId}/activity?days=${days}`);
+      
+      console.log('✅ Activity metrics fetched');
+      
+      return {
+        success: true,
+        metrics: response.data
+      };
+    } catch (error) {
+      console.error(`❌ Error fetching activity metrics for user ${userId}:`, error);
+      return {
+        success: false,
+        error: error.response?.data?.detail || 'Failed to fetch activity metrics'
       };
     }
   }
