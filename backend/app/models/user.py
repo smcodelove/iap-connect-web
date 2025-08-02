@@ -64,6 +64,7 @@ class User(Base):
     following_count = Column(Integer, default=0, nullable=False)
     posts_count = Column(Integer, default=0, nullable=False)
     
+    
     # Account status and timestamps
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -89,6 +90,14 @@ class User(Base):
         "Follow", 
         foreign_keys="Follow.following_id",
         back_populates="following",
+        cascade="all, delete-orphan"
+    )
+
+    # Notification relationships
+    received_notifications = relationship(
+        "Notification", 
+        foreign_keys="Notification.recipient_id", 
+        back_populates="recipient",
         cascade="all, delete-orphan"
     )
 

@@ -1,5 +1,5 @@
-// web/src/pages/profile/EditProfilePage.js - NEW FILE
-import React, { useState, useEffect } from 'react';
+// web/src/pages/profile/EditProfilePage.js - UPDATED WITH REAL AVATAR UPLOAD
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -12,11 +12,15 @@ import {
   FileText,
   Stethoscope,
   GraduationCap,
-  AlertCircle
+  AlertCircle,
+  Upload,
+  Loader,
+  CheckCircle
 } from 'lucide-react';
 
 import { updateUser } from '../../store/slices/authSlice';
 import authService from '../../services/authService';
+import mediaService from '../../services/mediaService';
 
 const Container = styled.div`
   max-width: 800px;
@@ -89,37 +93,108 @@ const AvatarSection = styled.div`
   margin-bottom: 20px;
 `;
 
+const AvatarContainer = styled.div`
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+`;
+
 const Avatar = styled.div`
-  width: 80px;
-  height: 80px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
   background: ${props => props.theme.colors.primary};
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   font-weight: bold;
   position: relative;
   overflow: hidden;
+  border: 3px solid ${props => props.theme.colors.gray200};
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+
+const UploadOverlay = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: white;
+  font-size: 12px;
+  opacity: ${props => props.show ? 1 : 0};
+  transition: opacity 0.2s ease;
 `;
 
 const AvatarUpload = styled.button`
   display: flex;
   align-items: center;
   gap: 8px;
-  background: ${props => props.theme.colors.gray100};
-  border: 2px dashed ${props => props.theme.colors.gray300};
-  color: ${props => props.theme.colors.gray600};
+  background: ${props => props.uploading ? props.theme.colors.gray400 : props.theme.colors.primary};
+  border: none;
+  color: white;
   padding: 12px 20px;
   border-radius: 8px;
-  cursor: pointer;
+  cursor: ${props => props.uploading ? 'not-allowed' : 'pointer'};
   transition: all 0.2s ease;
+  font-weight: 500;
   
-  &:hover {
-    background: ${props => props.theme.colors.gray50};
-    border-color: ${props => props.theme.colors.primary};
-    color: ${props => props.theme.colors.primary};
+  &:hover:not(:disabled) {
+    background: ${props => props.theme.colors.primaryDark};
+    transform: translateY(-1px);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    transform: none;
+  }
+`;
+
+const HiddenFileInput = styled.input`
+  display: none;
+`;
+
+const UploadProgress = styled.div`
+  background: ${props => props.theme.colors.gray100};
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+  min-width: 200px;
+  
+  .progress-bar {
+    background: ${props => props.theme.colors.gray200};
+    height: 4px;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+    
+    .progress-fill {
+      background: ${props => props.theme.colors.primary};
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+  }
+  
+  .progress-text {
+    font-size: 12px;
+    color: ${props => props.theme.colors.gray600};
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 `;
 
@@ -274,6 +349,7 @@ const EditProfilePage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
+  const fileInputRef = useRef(null);
   
   const [formData, setFormData] = useState({
     full_name: '',
@@ -284,7 +360,10 @@ const EditProfilePage = () => {
   
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [successMessage, setSuccessMessage] = useState('');
+  const [avatarPreview, setAvatarPreview] = useState(null);
 
   // Initialize form data
   useEffect(() => {
@@ -346,6 +425,79 @@ const EditProfilePage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Handle avatar upload
+  const handleAvatarUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Handle file selection
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file
+    const validation = mediaService.validateFile(file, 'avatar');
+    if (!validation.isValid) {
+      setErrors({ ...errors, avatar: validation.errors[0] });
+      return;
+    }
+
+    try {
+      setUploadingAvatar(true);
+      setUploadProgress(0);
+      setErrors({ ...errors, avatar: '' });
+
+      // Create preview
+      const previewUrl = mediaService.createPreviewUrl(file);
+      setAvatarPreview(previewUrl);
+
+      console.log('📤 Uploading avatar...', validation.fileInfo);
+
+      // Upload avatar
+      const result = await mediaService.uploadAvatar(file, (progress) => {
+        setUploadProgress(progress);
+      });
+
+      console.log('✅ Avatar uploaded successfully:', result);
+
+      // Update user in Redux store
+      const updatedUser = { 
+        ...user, 
+        profile_picture_url: result.url,
+        avatar_url: result.url // For compatibility
+      };
+      
+      dispatch(updateUser(updatedUser));
+      
+      // Update authService user data
+      authService.setUserData(updatedUser);
+      
+      setSuccessMessage('Avatar updated successfully!');
+      
+      // Clean up preview URL
+      if (previewUrl) {
+        mediaService.revokePreviewUrl(previewUrl);
+      }
+      
+      setTimeout(() => setSuccessMessage(''), 3000);
+      
+    } catch (error) {
+      console.error('❌ Avatar upload failed:', error);
+      setErrors({ ...errors, avatar: error.message || 'Failed to upload avatar' });
+      
+      // Clean up preview on error
+      if (avatarPreview) {
+        mediaService.revokePreviewUrl(avatarPreview);
+        setAvatarPreview(null);
+      }
+    } finally {
+      setUploadingAvatar(false);
+      setUploadProgress(0);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -358,21 +510,31 @@ const EditProfilePage = () => {
       setLoading(true);
       console.log('💾 Updating profile...', formData);
       
-      // TODO: Implement profile update API call
+      // Prepare update data
+      const updateData = {
+        full_name: formData.full_name.trim(),
+        bio: formData.bio.trim()
+      };
+      
+      // Add user-type specific fields
+      if (user?.user_type === 'doctor' && formData.specialty) {
+        updateData.specialty = formData.specialty.trim();
+      } else if (user?.user_type === 'student' && formData.college) {
+        updateData.college = formData.college.trim();
+      }
+      
+      // TODO: Replace with actual API call
+      // const response = await authService.updateProfile(updateData);
+      
       // For now, simulate API call
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Update Redux state (this would normally come from API response)
-      dispatch(updateUser({
-        ...user,
-        ...formData
-      }));
+      // Update Redux state
+      const updatedUser = { ...user, ...updateData };
+      dispatch(updateUser(updatedUser));
       
       // Update authService user data
-      authService.setUserData({
-        ...user,
-        ...formData
-      });
+      authService.setUserData(updatedUser);
       
       setSuccessMessage('Profile updated successfully!');
       
@@ -383,16 +545,10 @@ const EditProfilePage = () => {
       
     } catch (error) {
       console.error('❌ Error updating profile:', error);
-      setErrors({ submit: 'Failed to update profile. Please try again.' });
+      setErrors({ submit: error.message || 'Failed to update profile. Please try again.' });
     } finally {
       setLoading(false);
     }
-  };
-
-  // Handle avatar upload
-  const handleAvatarUpload = () => {
-    // TODO: Implement avatar upload
-    alert('Avatar upload coming soon!');
   };
 
   // Get user initials
@@ -421,7 +577,7 @@ const EditProfilePage = () => {
       <Form onSubmit={handleSubmit}>
         {successMessage && (
           <SuccessMessage>
-            <AlertCircle size={16} />
+            <CheckCircle size={16} />
             {successMessage}
           </SuccessMessage>
         )}
@@ -432,23 +588,71 @@ const EditProfilePage = () => {
             <Camera size={20} />
             Profile Picture
           </SectionTitle>
-          <AvatarSection>
+          <AvatarContainer>
             <Avatar>
-              {user.profile_picture_url ? (
+              {avatarPreview ? (
+                <img src={avatarPreview} alt="Preview" />
+              ) : user.profile_picture_url || user.avatar_url ? (
                 <img 
-                  src={user.profile_picture_url} 
+                  src={user.profile_picture_url || user.avatar_url} 
                   alt={user.full_name}
-                  style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
                 />
               ) : (
                 getInitials(user.full_name || user.username)
               )}
+              <UploadOverlay show={uploadingAvatar}>
+                <Loader size={20} />
+              </UploadOverlay>
             </Avatar>
-            <AvatarUpload type="button" onClick={handleAvatarUpload}>
-              <Camera size={16} />
-              Change Photo
+            
+            <AvatarUpload 
+              type="button" 
+              onClick={handleAvatarUpload}
+              disabled={uploadingAvatar}
+              uploading={uploadingAvatar}
+            >
+              {uploadingAvatar ? (
+                <>
+                  <Loader size={16} />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Camera size={16} />
+                  Change Photo
+                </>
+              )}
             </AvatarUpload>
-          </AvatarSection>
+            
+            {uploadingAvatar && (
+              <UploadProgress>
+                <div className="progress-text">
+                  <Upload size={12} />
+                  Uploading avatar... {uploadProgress}%
+                </div>
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </UploadProgress>
+            )}
+            
+            {errors.avatar && (
+              <ErrorMessage>
+                <AlertCircle size={14} />
+                {errors.avatar}
+              </ErrorMessage>
+            )}
+          </AvatarContainer>
+          
+          <HiddenFileInput
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handleFileChange}
+          />
         </Section>
 
         {/* Basic Information */}
@@ -564,17 +768,26 @@ const EditProfilePage = () => {
             type="button" 
             variant="secondary" 
             onClick={() => navigate('/profile')}
-            disabled={loading}
+            disabled={loading || uploadingAvatar}
           >
             Cancel
           </Button>
           <Button 
             type="submit" 
             variant="primary" 
-            disabled={loading}
+            disabled={loading || uploadingAvatar}
           >
-            <Save size={16} />
-            {loading ? 'Saving...' : 'Save Changes'}
+            {loading ? (
+              <>
+                <Loader size={16} />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={16} />
+                Save Changes
+              </>
+            )}
           </Button>
         </ButtonGroup>
       </Form>

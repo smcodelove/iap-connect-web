@@ -22,11 +22,12 @@ from ..models.user import User
 
 # NEW: Import notification service for social interactions
 try:
-    from ..services.notification_service import NotificationService
+    from ..models.notification import NotificationService
     NOTIFICATIONS_ENABLED = True
+    print("✅ Notification service loaded for posts")
 except ImportError:
     NOTIFICATIONS_ENABLED = False
-    print("⚠️ Notification service not available - social features will work without notifications")
+    print("⚠️ Notification service not available - posts will work without notifications")
 
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
