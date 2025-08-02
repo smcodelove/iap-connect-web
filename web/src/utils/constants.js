@@ -376,7 +376,7 @@ export const APP_CONFIG = {
   DEBOUNCE_DELAY: 300,
   
   // Production URLs will be set via environment variables
-  API_URL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1',
+  API_URL: process.env.REACT_APP_API_URL || 'https://iap-connect.onrender.com/api/v1',
   
   // Feature flags
   FEATURES: {

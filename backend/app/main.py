@@ -218,3 +218,33 @@ async def global_exception_handler(request, exc):
             }
         }
     )
+
+# Add at the end of main.py
+@app.on_event("startup")
+async def create_admin_user():
+    try:
+        from .config.database import SessionLocal
+        from .models.user import User, UserType
+        from .utils.security import get_password_hash
+        
+        db = SessionLocal()
+        existing_admin = db.query(User).filter(User.user_type == UserType.ADMIN).first()
+        
+        if not existing_admin:
+            admin = User(
+                username="iapadmin",
+                email="iapadmin@iapconnect.com",
+                password_hash=get_password_hash("iapadmin123"),
+                user_type=UserType.ADMIN,
+                full_name="Admin User",
+                is_active=True,
+                followers_count=0,
+                following_count=0,
+                posts_count=0
+            )
+            db.add(admin)
+            db.commit()
+            print("✅ Admin user created!")
+        db.close()
+    except Exception as e:
+        print(f"Admin creation error: {e}")
