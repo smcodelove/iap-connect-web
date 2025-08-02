@@ -1,300 +1,280 @@
-// web/src/pages/auth/LoginPage.js - UPDATED VERSION
+// web/src/pages/auth/LoginPage.js - DOCTORS ONLY VERSION
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { useDispatch, useSelector } from 'react-redux';
-import { Heart, Users, CheckCircle, AlertCircle } from 'lucide-react';
-import { loginUser, clearError } from '../../store/slices/authSlice';
+import { Heart, Users, CheckCircle, Shield, Stethoscope, GraduationCap, AlertCircle } from 'lucide-react';
 import LoginForm from '../../components/auth/LoginForm';
+import { clearError } from '../../store/slices/authSlice';
 
+// Styled Components (keeping all existing styles)
 const LoginContainer = styled.div`
   min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
-  position: relative;
-  overflow: hidden;
-  
-  /* Animated background elements */
-  &::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 2px, transparent 2px);
-    background-size: 50px 50px;
-    animation: float 20s linear infinite;
-    opacity: 0.3;
-  }
-  
-  @keyframes float {
-    0% { transform: translate(0, 0) rotate(0deg); }
-    100% { transform: translate(-50px, -50px) rotate(360deg); }
-  }
+  padding: 2rem 1rem;
 `;
 
 const LoginCard = styled.div`
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border-radius: 24px;
-  padding: 48px;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  padding: 2rem;
   width: 100%;
-  max-width: 480px;
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  position: relative;
-  z-index: 1;
-  
-  @media (max-width: 640px) {
-    padding: 32px 24px;
-    margin: 16px;
-    max-width: none;
-  }
+  max-width: 500px;
+  margin: 0 auto;
 `;
 
 const Logo = styled.div`
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 2rem;
   
   .logo-icon {
-    width: 64px;
-    height: 64px;
-    background: linear-gradient(135deg, ${props => props.theme.colors.primary} 0%, ${props => props.theme.colors.primaryDark} 100%);
-    border-radius: 16px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto 16px;
+    width: 3rem;
+    height: 3rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 0.75rem;
+    margin-bottom: 1rem;
     color: white;
-    font-size: 24px;
-    box-shadow: 0 8px 24px rgba(0, 102, 204, 0.3);
   }
   
   h1 {
-    color: ${props => props.theme.colors.primary};
-    font-size: 2.5rem;
-    font-weight: 800;
-    margin-bottom: 8px;
-    background: linear-gradient(135deg, ${props => props.theme.colors.primary} 0%, ${props => props.theme.colors.primaryDark} 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-size: 2rem;
+    font-weight: 700;
+    color: ${props => props.theme.colors.gray900};
+    margin: 0 0 0.5rem 0;
   }
   
   p {
     color: ${props => props.theme.colors.gray600};
+    margin: 0 0 0.75rem 0;
     font-size: 1.1rem;
-    font-weight: 500;
   }
   
   .subtitle {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    margin-top: 8px;
-    color: ${props => props.theme.colors.gray500};
-    font-size: 0.9rem;
-  }
-`;
-
-const WelcomeMessage = styled.div`
-  background: linear-gradient(135deg, ${props => props.theme.colors.primary}10 0%, ${props => props.theme.colors.accent}10 100%);
-  border: 1px solid ${props => props.theme.colors.primary}20;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 32px;
-  text-align: center;
-  
-  .welcome-icon {
-    color: ${props => props.theme.colors.success};
-    margin-bottom: 8px;
-  }
-  
-  .welcome-text {
-    color: ${props => props.theme.colors.gray700};
-    font-size: 0.9rem;
-    line-height: 1.5;
+    gap: 0.5rem;
+    color: ${props => props.theme.colors.blue600};
+    font-weight: 500;
+    font-size: 0.875rem;
   }
 `;
 
 const SuccessMessage = styled.div`
-  background: linear-gradient(135deg, ${props => props.theme.colors.success}10 0%, ${props => props.theme.colors.success}05 100%);
-  border: 1px solid ${props => props.theme.colors.success}30;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 24px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  color: ${props => props.theme.colors.success};
-  font-weight: 500;
-  
-  .success-icon {
-    flex-shrink: 0;
-  }
+  gap: 0.75rem;
+  background-color: ${props => props.theme.colors.green50};
+  border: 1px solid ${props => props.theme.colors.green200};
+  color: ${props => props.theme.colors.green700};
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
 `;
 
 const ErrorMessage = styled.div`
-  background: linear-gradient(135deg, ${props => props.theme.colors.danger}10 0%, ${props => props.theme.colors.danger}05 100%);
-  border: 1px solid ${props => props.theme.colors.danger}30;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 24px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  color: ${props => props.theme.colors.danger};
-  font-weight: 500;
+  gap: 0.75rem;
+  background-color: ${props => props.theme.colors.red50};
+  border: 1px solid ${props => props.theme.colors.red200};
+  color: ${props => props.theme.colors.red700};
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
   
   .error-icon {
     flex-shrink: 0;
   }
 `;
 
+const WelcomeMessage = styled.div`
+  text-align: center;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: ${props => props.theme.colors.blue50};
+  border-radius: 0.75rem;
+  border: 1px solid ${props => props.theme.colors.blue200};
+  
+  .welcome-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: ${props => props.theme.colors.blue500};
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    color: white;
+  }
+  
+  .welcome-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: ${props => props.theme.colors.gray900};
+    margin-bottom: 0.75rem;
+  }
+  
+  .welcome-text {
+    color: ${props => props.theme.colors.gray700};
+    line-height: 1.6;
+    font-size: 0.95rem;
+  }
+`;
+
+// COMMENTED OUT - User Type Info (keeping for future use)
+/*
+const UserTypeInfo = styled.div`
+  background: ${props => props.theme.colors.gray50};
+  border: 1px solid ${props => props.theme.colors.gray200};
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: ${props => props.theme.colors.gray600};
+  text-align: center;
+`;
+*/
+
+// NEW - Medical Professional Info
+const ProfessionalInfo = styled.div`
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  border: 1px solid ${props => props.theme.colors.blue200};
+  border-radius: 0.75rem;
+  text-align: center;
+  background: ${props => props.theme.colors.blue50};
+  
+  .professional-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: ${props => props.theme.colors.blue500};
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    color: white;
+  }
+  
+  .professional-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: ${props => props.theme.colors.gray900};
+    margin-bottom: 0.5rem;
+  }
+  
+  .professional-description {
+    font-size: 0.875rem;
+    color: ${props => props.theme.colors.gray700};
+    line-height: 1.6;
+  }
+`;
+
+const FeaturesGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+  
+  .feature-item {
+    text-align: center;
+    padding: 1rem 0.5rem;
+    background: ${props => props.theme.colors.gray50};
+    border-radius: 0.5rem;
+    border: 1px solid ${props => props.theme.colors.gray200};
+  }
+  
+  .feature-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    background: ${props => props.theme.colors.blue100};
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    color: ${props => props.theme.colors.blue600};
+  }
+  
+  .feature-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: ${props => props.theme.colors.gray800};
+    margin-bottom: 0.25rem;
+  }
+  
+  .feature-description {
+    font-size: 0.7rem;
+    color: ${props => props.theme.colors.gray600};
+    line-height: 1.4;
+  }
+`;
+
 const LoginFooter = styled.div`
   text-align: center;
-  margin-top: 32px;
+  padding-top: 1.5rem;
+  border-top: 1px solid ${props => props.theme.colors.gray200};
   
-  .login-prompt {
+  .register-prompt {
     color: ${props => props.theme.colors.gray600};
-    margin-bottom: 12px;
-    font-size: 0.95rem;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
   }
   
   .register-link {
-    color: ${props => props.theme.colors.primary};
-    font-weight: 600;
+    color: ${props => props.theme.colors.blue600};
     text-decoration: none;
-    padding: 8px 16px;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-    display: inline-block;
+    font-weight: 600;
+    font-size: 0.875rem;
     
     &:hover {
-      background: ${props => props.theme.colors.primary}10;
-      text-decoration: none;
-      transform: translateY(-1px);
-    }
-  }
-  
-  .forgot-password {
-    margin-top: 16px;
-    
-    a {
-      color: ${props => props.theme.colors.gray500};
-      text-decoration: none;
-      font-size: 0.9rem;
-      
-      &:hover {
-        color: ${props => props.theme.colors.primary};
-        text-decoration: underline;
-      }
+      color: ${props => props.theme.colors.blue700};
+      text-decoration: underline;
     }
   }
 `;
 
-const FeatureHighlight = styled.div`
-  margin-top: 24px;
-  padding: 20px;
-  background: linear-gradient(135deg, ${props => props.theme.colors.gray50} 0%, ${props => props.theme.colors.white} 100%);
-  border-radius: 12px;
-  border: 1px solid ${props => props.theme.colors.gray200};
-  
-  .feature-title {
-    font-weight: 600;
-    color: ${props => props.theme.colors.gray800};
-    margin-bottom: 12px;
-    font-size: 0.95rem;
-  }
-  
-  .feature-list {
-    display: grid;
-    gap: 8px;
-    
-    .feature-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: ${props => props.theme.colors.gray600};
-      font-size: 0.85rem;
-      
-      .feature-icon {
-        color: ${props => props.theme.colors.success};
-        flex-shrink: 0;
-      }
-    }
-  }
-`;
-
-const QuickStats = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-top: 24px;
-  
-  .stat-card {
-    text-align: center;
-    padding: 16px;
-    background: linear-gradient(135deg, ${props => props.theme.colors.primary}05 0%, ${props => props.theme.colors.accent}05 100%);
-    border-radius: 12px;
-    border: 1px solid ${props => props.theme.colors.gray200};
-    
-    .stat-number {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: ${props => props.theme.colors.primary};
-      margin-bottom: 4px;
-    }
-    
-    .stat-label {
-      font-size: 0.8rem;
-      color: ${props => props.theme.colors.gray600};
-      font-weight: 500;
-    }
-  }
+const SecurityBadge = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem;
+  background: ${props => props.theme.colors.purple50};
+  border: 1px solid ${props => props.theme.colors.purple200};
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  color: ${props => props.theme.colors.purple700};
 `;
 
 const LoginPage = () => {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useDispatch();
-  const { loading, error, isAuthenticated } = useSelector(state => state.auth);
+  const { error } = useSelector(state => state.auth);
   
-  const [successMessage, setSuccessMessage] = useState('');
+  // Get success message from navigation state
+  const successMessage = location.state?.message;
 
-  // Check for success message from registration
-  useEffect(() => {
-    if (location.state?.message) {
-      setSuccessMessage(location.state.message);
-      // Clear the message from location state
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state]);
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/feed');
-    }
-  }, [isAuthenticated, navigate]);
-
-  // Clear error on component mount
+  // Clear any existing errors when component mounts
   useEffect(() => {
     dispatch(clearError());
   }, [dispatch]);
 
-  const handleLoginSuccess = (result) => {
-    console.log('Login successful:', result);
-    navigate('/feed', { replace: true });
-  };
-
-  const clearSuccessMessage = () => {
-    setSuccessMessage('');
+  // Handle successful login
+  const handleLoginSuccess = () => {
+    navigate('/feed');
   };
 
   return (
@@ -305,33 +285,18 @@ const LoginPage = () => {
             <Heart size={28} />
           </div>
           <h1>IAP Connect</h1>
-          <p>Connecting Medical Professionals</p>
+          <p>Medical Professional Platform</p>
           <div className="subtitle">
-            <Users size={16} />
-            <span>Join the medical community</span>
+            <Stethoscope size={16} />
+            <span>For Healthcare Professionals</span>
           </div>
         </Logo>
 
         {/* Success Message */}
         {successMessage && (
           <SuccessMessage>
-            <CheckCircle size={20} className="success-icon" />
-            <div>
-              {successMessage}
-              <button 
-                onClick={clearSuccessMessage}
-                style={{ 
-                  background: 'none', 
-                  border: 'none', 
-                  color: 'inherit', 
-                  marginLeft: '8px',
-                  cursor: 'pointer',
-                  textDecoration: 'underline'
-                }}
-              >
-                ×
-              </button>
-            </div>
+            <CheckCircle size={20} />
+            <div>{successMessage}</div>
           </SuccessMessage>
         )}
 
@@ -346,62 +311,84 @@ const LoginPage = () => {
         {/* Welcome Message */}
         <WelcomeMessage>
           <div className="welcome-icon">
-            <Heart size={20} />
+            <Stethoscope size={20} />
           </div>
+          <div className="welcome-title">Welcome Back, Doctor</div>
           <div className="welcome-text">
-            Welcome back! Sign in to connect with medical professionals, 
-            share knowledge, and advance healthcare together.
+            Sign in to connect with your medical community and access 
+            professional resources.
           </div>
         </WelcomeMessage>
+
+        {/* COMMENTED OUT - User Type Information (for future use) */}
+        {/*
+        <UserTypeInfo>
+          <div>
+            🩺 For Medical Professionals & Students | 
+            🔒 Secure & Private | 
+            🌐 Global Community
+          </div>
+        </UserTypeInfo>
+        */}
+
+        {/* NEW - Medical Professional Focus */}
+        <ProfessionalInfo>
+          <div className="professional-icon">
+            <Stethoscope size={20} />
+          </div>
+          <div className="professional-title">Professional Medical Network</div>
+          <div className="professional-description">
+            Connect with colleagues, share expertise, and advance healthcare together.
+          </div>
+        </ProfessionalInfo>
+
+        {/* Security Badge */}
+        <SecurityBadge>
+          <Shield size={16} />
+          <span>Enterprise-grade security for medical professionals</span>
+        </SecurityBadge>
 
         {/* Login Form */}
         <LoginForm onSuccess={handleLoginSuccess} />
 
-        {/* Feature Highlights */}
-        <FeatureHighlight>
-          <div className="feature-title">Why Join IAP Connect?</div>
-          <div className="feature-list">
-            <div className="feature-item">
-              <CheckCircle size={14} className="feature-icon" />
-              <span>Connect with medical professionals</span>
+        {/* Features Grid - UPDATED for medical professionals */}
+        <FeaturesGrid>
+          <div className="feature-item">
+            <div className="feature-icon">
+              <Users size={16} />
             </div>
-            <div className="feature-item">
-              <CheckCircle size={14} className="feature-icon" />
-              <span>Share clinical experiences & knowledge</span>
-            </div>
-            <div className="feature-item">
-              <CheckCircle size={14} className="feature-icon" />
-              <span>Access exclusive medical discussions</span>
-            </div>
-            <div className="feature-item">
-              <CheckCircle size={14} className="feature-icon" />
-              <span>Build your professional network</span>
-            </div>
+            <div className="feature-title">Network</div>
+            <div className="feature-description">Connect with peers</div>
           </div>
-        </FeatureHighlight>
-
-        {/* Quick Stats */}
-        <QuickStats>
-          <div className="stat-card">
-            <div className="stat-number">1K+</div>
-            <div className="stat-label">Medical Professionals</div>
+          <div className="feature-item">
+            <div className="feature-icon">
+              <Heart size={16} />
+            </div>
+            <div className="feature-title">Cases</div>
+            <div className="feature-description">Discuss clinical cases</div>
           </div>
-          <div className="stat-card">
-            <div className="stat-number">500+</div>
-            <div className="stat-label">Daily Discussions</div>
+          <div className="feature-item">
+            <div className="feature-icon">
+              <CheckCircle size={16} />
+            </div>
+            <div className="feature-title">Knowledge</div>
+            <div className="feature-description">Share expertise</div>
           </div>
-        </QuickStats>
+          <div className="feature-item">
+            <div className="feature-icon">
+              <Shield size={16} />
+            </div>
+            <div className="feature-title">Secure</div>
+            <div className="feature-description">HIPAA compliant</div>
+          </div>
+        </FeaturesGrid>
 
         {/* Footer */}
         <LoginFooter>
-          <div className="login-prompt">Don't have an account?</div>
+          <div className="register-prompt">New to the medical community?</div>
           <Link to="/register" className="register-link">
-            Create Account
+            Create Professional Account
           </Link>
-          
-          <div className="forgot-password">
-            <Link to="/forgot-password">Forgot your password?</Link>
-          </div>
         </LoginFooter>
       </LoginCard>
     </LoginContainer>

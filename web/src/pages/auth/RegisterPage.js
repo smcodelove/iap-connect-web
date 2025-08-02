@@ -1,438 +1,394 @@
-// web/src/pages/auth/RegisterPage.js - UPDATED VERSION
+// web/src/pages/auth/RegisterPage.js - DOCTORS ONLY VERSION
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useDispatch, useSelector } from 'react-redux';
-import { 
-  Heart, 
-  Users, 
-  CheckCircle, 
-  AlertCircle,
-  Stethoscope,
-  GraduationCap,
-  Shield,
-  Clock
-} from 'lucide-react';
-import { registerUser, clearError, clearRegistrationSuccess } from '../../store/slices/authSlice';
+import { Heart, Users, CheckCircle, Shield, Stethoscope, GraduationCap, AlertCircle } from 'lucide-react';
 import SignupForm from '../../components/auth/SignupForm';
+import { clearError } from '../../store/slices/authSlice';
 
+// Styled Components (keeping all existing styles)
 const RegisterContainer = styled.div`
   min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
-  position: relative;
-  overflow: hidden;
-  
-  /* Animated background elements */
-  &::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 2px, transparent 2px);
-    background-size: 50px 50px;
-    animation: float 20s linear infinite;
-    opacity: 0.3;
-  }
-  
-  @keyframes float {
-    0% { transform: translate(0, 0) rotate(0deg); }
-    100% { transform: translate(-50px, -50px) rotate(360deg); }
-  }
+  padding: 2rem 1rem;
 `;
 
 const RegisterCard = styled.div`
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border-radius: 24px;
-  padding: 48px;
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  padding: 2rem;
   width: 100%;
-  max-width: 540px;
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  position: relative;
-  z-index: 1;
-  max-height: 90vh;
-  overflow-y: auto;
-  
-  /* Custom scrollbar */
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background: ${props => props.theme.colors.gray100};
-    border-radius: 3px;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.colors.primary};
-    border-radius: 3px;
-  }
-  
-  @media (max-width: 640px) {
-    padding: 32px 24px;
-    margin: 16px;
-    max-width: none;
-  }
+  max-width: 600px;
+  margin: 0 auto;
 `;
 
 const Logo = styled.div`
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 2rem;
   
   .logo-icon {
-    width: 64px;
-    height: 64px;
-    background: linear-gradient(135deg, ${props => props.theme.colors.primary} 0%, ${props => props.theme.colors.primaryDark} 100%);
-    border-radius: 16px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto 16px;
+    width: 3rem;
+    height: 3rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 0.75rem;
+    margin-bottom: 1rem;
     color: white;
-    font-size: 24px;
-    box-shadow: 0 8px 24px rgba(0, 102, 204, 0.3);
   }
   
   h1 {
-    color: ${props => props.theme.colors.primary};
-    font-size: 2.5rem;
-    font-weight: 800;
-    margin-bottom: 8px;
-    background: linear-gradient(135deg, ${props => props.theme.colors.primary} 0%, ${props => props.theme.colors.primaryDark} 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-size: 2rem;
+    font-weight: 700;
+    color: ${props => props.theme.colors.gray900};
+    margin: 0 0 0.5rem 0;
   }
   
   p {
     color: ${props => props.theme.colors.gray600};
+    margin: 0 0 0.75rem 0;
     font-size: 1.1rem;
-    font-weight: 500;
   }
   
   .subtitle {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    margin-top: 8px;
-    color: ${props => props.theme.colors.gray500};
-    font-size: 0.9rem;
-  }
-`;
-
-const WelcomeMessage = styled.div`
-  background: linear-gradient(135deg, ${props => props.theme.colors.primary}10 0%, ${props => props.theme.colors.accent}10 100%);
-  border: 1px solid ${props => props.theme.colors.primary}20;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 32px;
-  text-align: center;
-  
-  .welcome-icon {
-    color: ${props => props.theme.colors.success};
-    margin-bottom: 12px;
-  }
-  
-  .welcome-title {
-    font-weight: 600;
-    color: ${props => props.theme.colors.gray800};
-    margin-bottom: 8px;
-    font-size: 1.1rem;
-  }
-  
-  .welcome-text {
-    color: ${props => props.theme.colors.gray600};
-    font-size: 0.9rem;
-    line-height: 1.5;
-  }
-`;
-
-const SuccessMessage = styled.div`
-  background: linear-gradient(135deg, ${props => props.theme.colors.success}10 0%, ${props => props.theme.colors.success}05 100%);
-  border: 1px solid ${props => props.theme.colors.success}30;
-  border-radius: 16px;
-  padding: 24px;
-  margin-bottom: 24px;
-  text-align: center;
-  
-  .success-icon {
-    color: ${props => props.theme.colors.success};
-    margin-bottom: 16px;
-  }
-  
-  .success-title {
-    font-weight: 700;
-    color: ${props => props.theme.colors.success};
-    margin-bottom: 8px;
-    font-size: 1.2rem;
-  }
-  
-  .success-text {
-    color: ${props => props.theme.colors.gray600};
-    line-height: 1.5;
-    margin-bottom: 16px;
-  }
-  
-  .success-button {
-    background: ${props => props.theme.colors.success};
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    
-    &:hover {
-      background: ${props => props.theme.colors.successDark || '#1e7e34'};
-      transform: translateY(-1px);
-    }
+    gap: 0.5rem;
+    color: ${props => props.theme.colors.blue600};
+    font-weight: 500;
+    font-size: 0.875rem;
   }
 `;
 
 const ErrorMessage = styled.div`
-  background: linear-gradient(135deg, ${props => props.theme.colors.danger}10 0%, ${props => props.theme.colors.danger}05 100%);
-  border: 1px solid ${props => props.theme.colors.danger}30;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 24px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  color: ${props => props.theme.colors.danger};
-  font-weight: 500;
+  gap: 0.75rem;
+  background-color: ${props => props.theme.colors.red50};
+  border: 1px solid ${props => props.theme.colors.red200};
+  color: ${props => props.theme.colors.red700};
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
   
   .error-icon {
     flex-shrink: 0;
   }
 `;
 
-const BenefitsSection = styled.div`
-  margin-top: 24px;
-  padding: 20px;
-  background: linear-gradient(135deg, ${props => props.theme.colors.gray50} 0%, ${props => props.theme.colors.white} 100%);
-  border-radius: 12px;
-  border: 1px solid ${props => props.theme.colors.gray200};
+const WelcomeMessage = styled.div`
+  text-align: center;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: ${props => props.theme.colors.blue50};
+  border-radius: 0.75rem;
+  border: 1px solid ${props => props.theme.colors.blue200};
   
-  .benefits-title {
+  .welcome-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: ${props => props.theme.colors.blue500};
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    color: white;
+  }
+  
+  .welcome-title {
+    font-size: 1.25rem;
     font-weight: 600;
-    color: ${props => props.theme.colors.gray800};
-    margin-bottom: 16px;
-    font-size: 1rem;
+    color: ${props => props.theme.colors.gray900};
+    margin-bottom: 0.75rem;
+  }
+  
+  .welcome-text {
+    color: ${props => props.theme.colors.gray700};
+    line-height: 1.6;
+    font-size: 0.95rem;
+  }
+`;
+
+const ProcessSteps = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: ${props => props.theme.colors.gray50};
+  border-radius: 0.75rem;
+  
+  @media (max-width: 640px) {
+    gap: 1rem;
+  }
+  
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    text-align: center;
+  }
+  
+  .step-icon {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    background: ${props => props.theme.colors.blue500};
+    color: white;
+    border-radius: 50%;
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+  
+  .step-text {
+    font-size: 0.75rem;
+    color: ${props => props.theme.colors.gray600};
+    font-weight: 500;
+  }
+`;
+
+// COMMENTED OUT - User Type Info (keeping for future use)
+/*
+const UserTypeInfo = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+  
+  .user-type-card {
+    padding: 1.5rem;
+    border: 1px solid ${props => props.theme.colors.gray200};
+    border-radius: 0.75rem;
+    text-align: center;
+    background: white;
+    transition: all 0.2s;
+    
+    &:hover {
+      border-color: ${props => props.theme.colors.blue300};
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+  }
+  
+  .type-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    background: ${props => props.theme.colors.blue100};
+    border-radius: 0.75rem;
+    margin-bottom: 1rem;
+    color: ${props => props.theme.colors.blue600};
+  }
+  
+  .type-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: ${props => props.theme.colors.gray900};
+    margin-bottom: 0.5rem;
+  }
+  
+  .type-description {
+    font-size: 0.875rem;
+    color: ${props => props.theme.colors.gray600};
+    line-height: 1.5;
+  }
+`;
+*/
+
+// UPDATED - Medical Professional Focus
+const ProfessionalInfo = styled.div`
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  border: 1px solid ${props => props.theme.colors.blue200};
+  border-radius: 0.75rem;
+  text-align: center;
+  background: ${props => props.theme.colors.blue50};
+  
+  .professional-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    background: ${props => props.theme.colors.blue500};
+    border-radius: 0.75rem;
+    margin-bottom: 1rem;
+    color: white;
+  }
+  
+  .professional-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: ${props => props.theme.colors.gray900};
+    margin-bottom: 0.5rem;
+  }
+  
+  .professional-description {
+    font-size: 0.95rem;
+    color: ${props => props.theme.colors.gray700};
+    line-height: 1.6;
+  }
+`;
+
+const BenefitsSection = styled.div`
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: ${props => props.theme.colors.green50};
+  border: 1px solid ${props => props.theme.colors.green200};
+  border-radius: 0.75rem;
+  
+  .benefits-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: ${props => props.theme.colors.green800};
+    margin-bottom: 1rem;
+    font-size: 1rem;
   }
   
   .benefits-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    
-    @media (max-width: 480px) {
-      grid-template-columns: 1fr;
-    }
-    
-    .benefit-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: ${props => props.theme.colors.gray600};
-      font-size: 0.85rem;
-      
-      .benefit-icon {
-        color: ${props => props.theme.colors.success};
-        flex-shrink: 0;
-      }
-    }
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
   }
-`;
-
-const UserTypeInfo = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin: 24px 0;
   
-  .user-type-card {
-    padding: 16px;
-    background: linear-gradient(135deg, ${props => props.theme.colors.primary}05 0%, ${props => props.theme.colors.accent}05 100%);
-    border-radius: 12px;
-    border: 1px solid ${props => props.theme.colors.gray200};
-    text-align: center;
-    
-    .type-icon {
-      color: ${props => props.theme.colors.primary};
-      margin-bottom: 8px;
-    }
-    
-    .type-title {
-      font-weight: 600;
-      color: ${props => props.theme.colors.gray800};
-      margin-bottom: 4px;
-      font-size: 0.9rem;
-    }
-    
-    .type-description {
-      color: ${props => props.theme.colors.gray600};
-      font-size: 0.8rem;
-      line-height: 1.4;
-    }
+  .benefit-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: ${props => props.theme.colors.green700};
+  }
+  
+  .benefit-icon {
+    color: ${props => props.theme.colors.green600};
+    flex-shrink: 0;
   }
 `;
 
 const SecurityInfo = styled.div`
-  background: linear-gradient(135deg, ${props => props.theme.colors.primary}05 0%, ${props => props.theme.colors.success}05 100%);
-  border: 1px solid ${props => props.theme.colors.primary}20;
-  border-radius: 12px;
-  padding: 16px;
-  margin-top: 24px;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: ${props => props.theme.colors.purple50};
+  border: 1px solid ${props => props.theme.colors.purple200};
+  border-radius: 0.5rem;
   
   .security-title {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.5rem;
     font-weight: 600;
-    color: ${props => props.theme.colors.gray800};
-    margin-bottom: 8px;
-    font-size: 0.9rem;
+    color: ${props => props.theme.colors.purple800};
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
   }
   
   .security-text {
-    color: ${props => props.theme.colors.gray600};
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    color: ${props => props.theme.colors.purple700};
     line-height: 1.5;
   }
 `;
 
 const RegisterFooter = styled.div`
   text-align: center;
-  margin-top: 32px;
+  padding-top: 1.5rem;
+  border-top: 1px solid ${props => props.theme.colors.gray200};
   
   .login-prompt {
     color: ${props => props.theme.colors.gray600};
-    margin-bottom: 12px;
-    font-size: 0.95rem;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
   }
   
   .login-link {
-    color: ${props => props.theme.colors.primary};
-    font-weight: 600;
+    color: ${props => props.theme.colors.blue600};
     text-decoration: none;
-    padding: 8px 16px;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-    display: inline-block;
+    font-weight: 600;
+    font-size: 0.875rem;
     
     &:hover {
-      background: ${props => props.theme.colors.primary}10;
-      text-decoration: none;
-      transform: translateY(-1px);
+      color: ${props => props.theme.colors.blue700};
+      text-decoration: underline;
     }
   }
 `;
 
-const ProcessSteps = styled.div`
+const SuccessMessage = styled.div`
   display: flex;
-  justify-content: space-between;
-  margin: 24px 0;
+  align-items: center;
+  gap: 0.75rem;
+  background-color: ${props => props.theme.colors.green50};
+  border: 1px solid ${props => props.theme.colors.green200};
+  color: ${props => props.theme.colors.green700};
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  flex-direction: column;
   
-  .step {
-    flex: 1;
-    text-align: center;
-    position: relative;
+  .success-button {
+    margin-top: 1rem;
+    background: ${props => props.theme.colors.green600};
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    cursor: pointer;
     
-    &:not(:last-child)::after {
-      content: '';
-      position: absolute;
-      top: 12px;
-      right: -50%;
-      width: 100%;
-      height: 2px;
-      background: ${props => props.theme.colors.gray200};
-      z-index: 0;
-    }
-    
-    .step-icon {
-      width: 24px;
-      height: 24px;
-      background: ${props => props.theme.colors.primary};
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 8px;
-      color: white;
-      font-size: 12px;
-      font-weight: 600;
-      position: relative;
-      z-index: 1;
-    }
-    
-    .step-text {
-      font-size: 0.75rem;
-      color: ${props => props.theme.colors.gray600};
-      font-weight: 500;
+    &:hover {
+      background: ${props => props.theme.colors.green700};
     }
   }
 `;
 
 const RegisterPage = () => {
-  const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { loading, error, isAuthenticated, registrationSuccess } = useSelector(state => state.auth);
+  const navigate = useNavigate();
+  const { error, registrationSuccess } = useSelector(state => state.auth);
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/feed');
-    }
-  }, [isAuthenticated, navigate]);
-
-  // Clear error on component mount
+  // Clear any existing errors when component mounts
   useEffect(() => {
     dispatch(clearError());
   }, [dispatch]);
 
+  // Handle successful registration
   const handleRegistrationSuccess = () => {
-    // Show success message briefly, then redirect
-    setTimeout(() => {
-      dispatch(clearRegistrationSuccess());
-      navigate('/login', { 
-        state: { 
-          message: 'Registration successful! Please log in with your credentials.' 
-        }
-      });
-    }, 3000);
+    setShowSuccess(true);
   };
 
-  // Show success state
-  if (registrationSuccess) {
+  // If registration was successful, show success message
+  if (registrationSuccess || showSuccess) {
     return (
       <RegisterContainer>
         <RegisterCard>
-          <Logo>
-            <div className="logo-icon">
-              <Heart size={28} />
-            </div>
-            <h1>IAP Connect</h1>
-            <p>Welcome to the Community!</p>
-          </Logo>
-
           <SuccessMessage>
-            <CheckCircle size={48} className="success-icon" />
-            <div className="success-title">Registration Successful!</div>
-            <div className="success-text">
-              Your account has been created successfully. You can now log in and 
-              start connecting with the medical community.
+            <CheckCircle size={48} />
+            <div>
+              <strong>Welcome to the Medical Community!</strong>
+              <br />
+              Your account has been created successfully. 
+              You can now log in and start connecting with the medical community.
             </div>
             <button 
               className="success-button"
@@ -454,10 +410,10 @@ const RegisterPage = () => {
             <Heart size={28} />
           </div>
           <h1>IAP Connect</h1>
-          <p>Join the Medical Community</p>
+          <p>Join the Medical Professional Community</p>
           <div className="subtitle">
-            <Users size={16} />
-            <span>Connect, Learn, Grow</span>
+            <Stethoscope size={16} />
+            <span>For Healthcare Professionals</span>
           </div>
         </Logo>
 
@@ -481,15 +437,15 @@ const RegisterPage = () => {
           </div>
         </WelcomeMessage>
 
-        {/* Process Steps */}
+        {/* Process Steps - UPDATED for doctors only */}
         <ProcessSteps>
           <div className="step">
             <div className="step-icon">1</div>
-            <div className="step-text">Choose Role</div>
+            <div className="step-text">Enter Details</div>
           </div>
           <div className="step">
             <div className="step-icon">2</div>
-            <div className="step-text">Enter Details</div>
+            <div className="step-text">Verify Email</div>
           </div>
           <div className="step">
             <div className="step-icon">3</div>
@@ -497,7 +453,8 @@ const RegisterPage = () => {
           </div>
         </ProcessSteps>
 
-        {/* User Type Information */}
+        {/* COMMENTED OUT - User Type Information (for future use) */}
+        {/*
         <UserTypeInfo>
           <div className="user-type-card">
             <div className="type-icon">
@@ -518,6 +475,19 @@ const RegisterPage = () => {
             </div>
           </div>
         </UserTypeInfo>
+        */}
+
+        {/* NEW - Medical Professional Focus */}
+        <ProfessionalInfo>
+          <div className="professional-icon">
+            <Stethoscope size={24} />
+          </div>
+          <div className="professional-title">For Medical Professionals</div>
+          <div className="professional-description">
+            Connect with peers, share clinical experiences, discuss complex cases, 
+            and advance medical knowledge through collaborative learning.
+          </div>
+        </ProfessionalInfo>
 
         {/* Registration Form */}
         <SignupForm onSuccess={handleRegistrationSuccess} />
@@ -535,23 +505,23 @@ const RegisterPage = () => {
             </div>
             <div className="benefit-item">
               <CheckCircle size={14} className="benefit-icon" />
-              <span>Knowledge sharing</span>
+              <span>Clinical case discussions</span>
             </div>
             <div className="benefit-item">
               <CheckCircle size={14} className="benefit-icon" />
-              <span>Case discussions</span>
+              <span>Medical knowledge sharing</span>
+            </div>
+            <div className="benefit-item">
+              <CheckCircle size={14} className="benefit-icon" />
+              <span>Research collaboration</span>
+            </div>
+            <div className="benefit-item">
+              <CheckCircle size={14} className="benefit-icon" />
+              <span>Latest medical updates</span>
             </div>
             <div className="benefit-item">
               <CheckCircle size={14} className="benefit-icon" />
               <span>Career opportunities</span>
-            </div>
-            <div className="benefit-item">
-              <CheckCircle size={14} className="benefit-icon" />
-              <span>Medical updates</span>
-            </div>
-            <div className="benefit-item">
-              <CheckCircle size={14} className="benefit-icon" />
-              <span>Community support</span>
             </div>
           </div>
         </BenefitsSection>

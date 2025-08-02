@@ -1,4 +1,4 @@
-// src/components/auth/SignupForm.js
+// src/components/auth/SignupForm.js - DOCTORS ONLY VERSION
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useDispatch, useSelector } from 'react-redux';
@@ -13,12 +13,12 @@ import {
   AlertCircle, 
   CheckCircle,
   Stethoscope,
-  GraduationCap,
+  // GraduationCap,  // Commented for doctors-only
   Building2
 } from 'lucide-react';
 import { registerUser, clearError } from '../../store/slices/authSlice';
 import Button from '../common/Button';
-import { USER_TYPES } from '../../utils/constants';
+// import { USER_TYPES } from '../../utils/constants';  // Commented for doctors-only
 
 const FormContainer = styled.form`
   width: 100%;
@@ -154,43 +154,44 @@ const SuccessMessage = styled.div`
   font-size: 0.875rem;
 `;
 
-const UserTypeSelector = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-`;
+// COMMENTED OUT - USER TYPE SELECTOR (FOR FUTURE USE)
+// const UserTypeSelector = styled.div`
+//   display: grid;
+//   grid-template-columns: 1fr 1fr;
+//   gap: 1rem;
+//   margin-bottom: 1.5rem;
+// `;
 
-const UserTypeCard = styled.div`
-  padding: 1rem;
-  border: 2px solid ${props => props.selected ? props.theme.colors.primary : props.theme.colors.gray300};
-  border-radius: 0.75rem;
-  background: ${props => props.selected ? props.theme.colors.primary + '10' : 'white'};
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: center;
-  
-  &:hover {
-    border-color: ${props => props.theme.colors.primary};
-    background: ${props => props.theme.colors.primary + '05'};
-  }
-  
-  .icon {
-    margin-bottom: 0.5rem;
-    color: ${props => props.selected ? props.theme.colors.primary : props.theme.colors.gray600};
-  }
-  
-  .title {
-    font-weight: 600;
-    color: ${props => props.selected ? props.theme.colors.primary : props.theme.colors.gray800};
-    margin-bottom: 0.25rem;
-  }
-  
-  .description {
-    font-size: 0.875rem;
-    color: ${props => props.theme.colors.gray600};
-  }
-`;
+// const UserTypeCard = styled.div`
+//   padding: 1rem;
+//   border: 2px solid ${props => props.selected ? props.theme.colors.primary : props.theme.colors.gray300};
+//   border-radius: 0.75rem;
+//   background: ${props => props.selected ? props.theme.colors.primary + '10' : 'white'};
+//   cursor: pointer;
+//   transition: all 0.2s ease;
+//   text-align: center;
+//   
+//   &:hover {
+//     border-color: ${props => props.theme.colors.primary};
+//     background: ${props => props.theme.colors.primary + '05'};
+//   }
+//   
+//   .icon {
+//     margin-bottom: 0.5rem;
+//     color: ${props => props.selected ? props.theme.colors.primary : props.theme.colors.gray600};
+//   }
+//   
+//   .title {
+//     font-weight: 600;
+//     color: ${props => props.selected ? props.theme.colors.primary : props.theme.colors.gray800};
+//     margin-bottom: 0.25rem;
+//   }
+//   
+//   .description {
+//     font-size: 0.875rem;
+//     color: ${props => props.theme.colors.gray600};
+//   }
+// `;
 
 const PasswordStrength = styled.div`
   margin-top: 0.5rem;
@@ -301,9 +302,9 @@ const SignupForm = ({ onSuccess }) => {
     confirmPassword: '',
     full_name: '',
     username: '',
-    user_type: '',
+    user_type: 'doctor',  // FIXED TO DOCTOR - always doctor for this platform
     specialty: '',
-    college: '',
+    // college: '',  // Not needed for doctors
     bio: '',
     agreedToTerms: false
   });
@@ -313,20 +314,21 @@ const SignupForm = ({ onSuccess }) => {
   const [fieldErrors, setFieldErrors] = useState({});
   const [passwordStrength, setPasswordStrength] = useState(0);
 
-  const userTypes = [
-    {
-      value: USER_TYPES.DOCTOR,
-      title: 'Doctor',
-      description: 'Medical professional',
-      icon: <Stethoscope size={24} />
-    },
-    {
-      value: USER_TYPES.STUDENT,
-      title: 'Student',
-      description: 'Medical student',
-      icon: <GraduationCap size={24} />
-    }
-  ];
+  // COMMENTED OUT - USER TYPES (FOR FUTURE USE)
+  // const userTypes = [
+  //   {
+  //     value: USER_TYPES.DOCTOR,
+  //     title: 'Doctor',
+  //     description: 'Medical professional',
+  //     icon: <Stethoscope size={24} />
+  //   },
+  //   {
+  //     value: USER_TYPES.STUDENT,
+  //     title: 'Student',
+  //     description: 'Medical student',
+  //     icon: <GraduationCap size={24} />
+  //   }
+  // ];
 
   // Calculate password strength
   const calculatePasswordStrength = (password) => {
@@ -390,18 +392,20 @@ const SignupForm = ({ onSuccess }) => {
       errors.confirmPassword = 'Passwords do not match';
     }
     
-    if (!formData.user_type) {
-      errors.user_type = 'Please select your role';
+    // REMOVED - user_type validation (always doctor)
+    // if (!formData.user_type) {
+    //   errors.user_type = 'Please select your role';
+    // }
+    
+    // Medical specialty required for doctors (which is everyone now)
+    if (!formData.specialty.trim()) {
+      errors.specialty = 'Medical specialty is required';
     }
     
-    // Conditional required fields
-    if (formData.user_type === USER_TYPES.DOCTOR && !formData.specialty.trim()) {
-      errors.specialty = 'Specialty is required for doctors';
-    }
-    
-    if (formData.user_type === USER_TYPES.STUDENT && !formData.college.trim()) {
-      errors.college = 'College/University is required for students';
-    }
+    // REMOVED - college validation (not needed for doctors)
+    // if (formData.user_type === USER_TYPES.STUDENT && !formData.college.trim()) {
+    //   errors.college = 'College/University is required for students';
+    // }
     
     if (!formData.agreedToTerms) {
       errors.agreedToTerms = 'You must agree to the terms and conditions';
@@ -425,18 +429,19 @@ const SignupForm = ({ onSuccess }) => {
         password: formData.password,
         full_name: formData.full_name.trim(),
         username: formData.username.trim(),
-        user_type: formData.user_type,
+        user_type: 'doctor',  // ALWAYS DOCTOR
+        specialty: formData.specialty.trim(),
         bio: formData.bio.trim() || null
       };
       
-      // Add conditional fields
-      if (formData.user_type === USER_TYPES.DOCTOR) {
-        userData.specialty = formData.specialty.trim();
-      }
-      
-      if (formData.user_type === USER_TYPES.STUDENT) {
-        userData.college = formData.college.trim();
-      }
+      // REMOVED - conditional fields logic (always doctor now)
+      // if (formData.user_type === USER_TYPES.DOCTOR) {
+      //   userData.specialty = formData.specialty.trim();
+      // }
+      // 
+      // if (formData.user_type === USER_TYPES.STUDENT) {
+      //   userData.college = formData.college.trim();
+      // }
       
       await dispatch(registerUser(userData)).unwrap();
       
@@ -474,7 +479,7 @@ const SignupForm = ({ onSuccess }) => {
           <div>
             <strong>Registration Successful!</strong>
             <br />
-            You can now log in with your credentials.
+            Welcome to the medical professional community!
           </div>
           <Button
             variant="primary"
@@ -489,8 +494,8 @@ const SignupForm = ({ onSuccess }) => {
 
   return (
     <FormContainer onSubmit={handleSubmit}>
-      {/* User Type Selection */}
-      <FormGroup>
+      {/* COMMENTED OUT - User Type Selection (FOR FUTURE USE) */}
+      {/* <FormGroup>
         <Label>Select Your Role <span className="required">*</span></Label>
         <UserTypeSelector>
           {userTypes.map(type => (
@@ -511,7 +516,10 @@ const SignupForm = ({ onSuccess }) => {
             {fieldErrors.user_type}
           </ErrorMessage>
         )}
-      </FormGroup>
+      </FormGroup> */}
+
+      {/* HIDDEN INPUT - Always Doctor */}
+      <input type="hidden" value="doctor" name="user_type" />
 
       {/* Name and Username */}
       <FormRow columns="1fr 1fr">
@@ -680,35 +688,34 @@ const SignupForm = ({ onSuccess }) => {
         </FormGroup>
       </FormRow>
 
-      {/* Conditional Fields */}
-      {formData.user_type === USER_TYPES.DOCTOR && (
-        <FormGroup>
-          <Label htmlFor="specialty">Medical Specialty <span className="required">*</span></Label>
-          <InputContainer>
-            <InputIcon>
-              <Stethoscope size={18} />
-            </InputIcon>
-            <Input
-              id="specialty"
-              type="text"
-              placeholder="e.g., Cardiology, Neurology, General Medicine"
-              value={formData.specialty}
-              onChange={(e) => handleInputChange('specialty', e.target.value)}
-              hasIcon
-              error={fieldErrors.specialty}
-              disabled={loading}
-            />
-          </InputContainer>
-          {fieldErrors.specialty && (
-            <ErrorMessage>
-              <AlertCircle size={16} />
-              {fieldErrors.specialty}
-            </ErrorMessage>
-          )}
-        </FormGroup>
-      )}
+      {/* Medical Specialty - ALWAYS SHOWN (since everyone is a doctor) */}
+      <FormGroup>
+        <Label htmlFor="specialty">Medical Specialty <span className="required">*</span></Label>
+        <InputContainer>
+          <InputIcon>
+            <Stethoscope size={18} />
+          </InputIcon>
+          <Input
+            id="specialty"
+            type="text"
+            placeholder="e.g., Cardiology, Neurology, General Medicine"
+            value={formData.specialty}
+            onChange={(e) => handleInputChange('specialty', e.target.value)}
+            hasIcon
+            error={fieldErrors.specialty}
+            disabled={loading}
+          />
+        </InputContainer>
+        {fieldErrors.specialty && (
+          <ErrorMessage>
+            <AlertCircle size={16} />
+            {fieldErrors.specialty}
+          </ErrorMessage>
+        )}
+      </FormGroup>
 
-      {formData.user_type === USER_TYPES.STUDENT && (
+      {/* COMMENTED OUT - College Field (not needed for doctors) */}
+      {/* {formData.user_type === USER_TYPES.STUDENT && (
         <FormGroup>
           <Label htmlFor="college">College/University <span className="required">*</span></Label>
           <InputContainer>
@@ -733,16 +740,16 @@ const SignupForm = ({ onSuccess }) => {
             </ErrorMessage>
           )}
         </FormGroup>
-      )}
+      )} */}
 
       {/* Bio */}
       <FormGroup>
-        <Label htmlFor="bio">Bio (Optional)</Label>
+        <Label htmlFor="bio">Professional Bio (Optional)</Label>
         <Input
           id="bio"
           as="textarea"
           rows="3"
-          placeholder="Tell us a bit about yourself..."
+          placeholder="Tell us about your medical background and interests..."
           value={formData.bio}
           onChange={(e) => handleInputChange('bio', e.target.value)}
           disabled={loading}
@@ -798,7 +805,7 @@ const SignupForm = ({ onSuccess }) => {
         ) : (
           <>
             <UserPlus size={18} />
-            Create Account
+            Join Medical Community
           </>
         )}
       </SubmitButton>
