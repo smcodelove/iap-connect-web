@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "name": "iap-connect-web",
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
+  "installCommand": "npm install",
+  "framework": "create-react-app",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "REACT_APP_API_URL": "@react_app_api_url",
+    "REACT_APP_APP_NAME": "@react_app_app_name",
+    "REACT_APP_VERSION": "@react_app_version",
+    "REACT_APP_ENVIRONMENT": "@react_app_environment"
+  }
+}

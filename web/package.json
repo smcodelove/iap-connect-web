@@ -2,6 +2,7 @@
   "name": "iap-connect-web",
   "version": "1.0.0",
   "private": true,
+  "homepage": ".",
   "dependencies": {
     "@reduxjs/toolkit": "^1.9.7",
     "axios": "^1.11.0",
@@ -18,7 +19,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "build:vercel": "npm run build",
+    "preview": "npm run build && npx serve -s build"
   },
   "eslintConfig": {
     "extends": [

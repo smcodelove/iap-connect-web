@@ -1,9 +1,9 @@
-// web/src/utils/constants.js - UPDATED VERSION
+// web/src/utils/constants.js - PRODUCTION READY VERSION
 
 // API Configuration
 export const API_CONFIG = {
   BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1',
-  TIMEOUT: 10000,
+  TIMEOUT: 30000, // 30 seconds for production
   HEADERS: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
@@ -30,6 +30,7 @@ export const ENDPOINTS = {
   POSTS_TRENDING: '/posts/trending',
   POSTS_SEARCH: '/posts/search',
   POSTS_LIKE: '/posts/{id}/like',
+  POSTS_BOOKMARK: '/posts/{id}/bookmark',
   
   // Comments endpoints
   COMMENTS: '/comments',
@@ -38,8 +39,6 @@ export const ENDPOINTS = {
   // Admin endpoints
   ADMIN_USERS: '/admin/users',
   ADMIN_DASHBOARD: '/admin/dashboard',
-  ADMIN_DELETE_USER: '/admin/users',
-  ADMIN_DELETE_POST: '/admin/posts',
   
   // Notifications endpoints
   NOTIFICATIONS: '/notifications',
@@ -50,6 +49,7 @@ export const ENDPOINTS = {
 // Storage Keys
 export const STORAGE_KEYS = {
   ACCESS_TOKEN: 'access_token',
+  TOKEN: 'token', // Backup key
   USER_DATA: 'user_data',
   REMEMBER_ME: 'remember_me',
   THEME: 'theme_preference'
@@ -69,7 +69,6 @@ export const ROUTES = {
   EDIT_PROFILE: '/edit-profile',
   USER_PROFILE: '/user/:id',
   ADMIN_DASHBOARD: '/admin',
-  USER_MANAGEMENT: '/admin/users',
   TRENDING: '/trending',
   BOOKMARKS: '/bookmarks',
   NOTIFICATIONS: '/notifications'
@@ -366,12 +365,62 @@ export const VALIDATION_MESSAGES = {
 
 // App Configuration
 export const APP_CONFIG = {
-  APP_NAME: 'IAP Connect',
+  APP_NAME: process.env.REACT_APP_APP_NAME || 'IAP Connect',
   APP_DESCRIPTION: 'Medical Community Platform',
-  VERSION: '1.0.0',
+  VERSION: process.env.REACT_APP_VERSION || '1.0.0',
+  ENVIRONMENT: process.env.REACT_APP_ENVIRONMENT || 'development',
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
   ALLOWED_FILE_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
   POSTS_PER_PAGE: 10,
   COMMENTS_PER_PAGE: 20,
-  DEBOUNCE_DELAY: 300
+  DEBOUNCE_DELAY: 300,
+  
+  // Production URLs will be set via environment variables
+  API_URL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1',
+  
+  // Feature flags
+  FEATURES: {
+    NOTIFICATIONS: true,
+    BOOKMARKS: true,
+    DARK_MODE: false, // Will be implemented later
+    REAL_TIME_CHAT: false // Future feature
+  }
 };
+
+// Error Messages
+export const ERROR_MESSAGES = {
+  NETWORK_ERROR: 'Network error. Please check your connection.',
+  SERVER_ERROR: 'Server error. Please try again later.',
+  UNAUTHORIZED: 'You are not authorized to perform this action.',
+  NOT_FOUND: 'The requested resource was not found.',
+  VALIDATION_ERROR: 'Please check your input and try again.',
+  UNKNOWN_ERROR: 'An unknown error occurred. Please try again.'
+};
+
+// Success Messages
+export const SUCCESS_MESSAGES = {
+  LOGIN_SUCCESS: 'Login successful!',
+  REGISTER_SUCCESS: 'Registration successful!',
+  POST_CREATED: 'Post created successfully!',
+  POST_UPDATED: 'Post updated successfully!',
+  POST_DELETED: 'Post deleted successfully!',
+  PROFILE_UPDATED: 'Profile updated successfully!',
+  FOLLOW_SUCCESS: 'User followed successfully!',
+  UNFOLLOW_SUCCESS: 'User unfollowed successfully!',
+  BOOKMARK_ADDED: 'Post bookmarked!',
+  BOOKMARK_REMOVED: 'Bookmark removed!'
+};
+
+// Theme Configuration for styled-components
+export const theme = {
+  colors,
+  typography,
+  breakpoints,
+  spacing,
+  shadows,
+  borderRadius,
+  durations,
+  zIndex
+};
+
+export default theme;

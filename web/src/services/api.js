@@ -1,15 +1,25 @@
-// src/services/api.js - UPDATED WITH BOOKMARK FUNCTIONS
+// web/src/services/api.js - COMPLETE UPDATED WITH PRODUCTION IMPROVEMENTS
+// ✅ All existing functionality preserved + Production enhancements added
+
 import axios from 'axios';
 
-// Create axios instance
+// Get API URL from environment variables with fallback - PRODUCTION READY
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+
+// Production logging
+console.log('🌐 API Base URL:', API_BASE_URL);
+console.log('🔧 Environment:', process.env.REACT_APP_ENVIRONMENT || 'development');
+
+// Create axios instance with enhanced config for production
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1',
+  baseURL: API_BASE_URL,
+  timeout: 30000, // Increased timeout for production
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add auth token to requests - FIXED: Use correct token key
+// Enhanced request interceptor with better error handling
 api.interceptors.request.use((config) => {
   // FIXED: Try both possible token keys for compatibility
   const token = localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -26,7 +36,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle auth errors - FIXED: Better error handling
+// Enhanced response interceptor with better error handling
 api.interceptors.response.use(
   (response) => {
     console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
@@ -35,24 +45,50 @@ api.interceptors.response.use(
   (error) => {
     const originalRequest = error.config;
     
-    // Log error with more details
+    // Enhanced error logging
     console.error(`❌ ${originalRequest?.method?.toUpperCase()} ${originalRequest?.url} - ${error.response?.status} ${error.message}`);
     
+    // Better auth error handling
     if (error.response?.status === 401) {
       // Clear both possible token keys
       localStorage.removeItem('token');
       localStorage.removeItem('access_token');
+      localStorage.removeItem('user_data');
       console.log('🚪 Token cleared, redirecting to login...');
-      window.location.href = '/login';
+      
+      // Only redirect if not already on login page
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
+    
+    // Handle network errors for production
+    if (!error.response) {
+      console.error('🌐 Network Error - Backend might be down');
+    }
+    
     return Promise.reject(error);
   }
 );
 
-// Auth Service - FIXED: Proper backend format
+// NEW: Health check function for production monitoring
+export const checkAPIHealth = async () => {
+  try {
+    const response = await api.get('/');
+    console.log('✅ API Health Check Passed');
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('❌ API Health Check Failed:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Auth Service - ENHANCED but all existing functionality preserved
 export const authService = {
   async login(credentials) {
     try {
+      console.log('🔐 Attempting login for:', credentials.email);
+      
       // FIXED: Backend expects form data for login
       const formData = new FormData();
       formData.append('username', credentials.email); // Backend expects 'username' field
@@ -70,6 +106,7 @@ export const authService = {
         localStorage.setItem('token', response.data.access_token); // Backup key
         console.log('✅ Token stored successfully');
       }
+      
       return { success: true, data: response.data };
     } catch (error) {
       console.error('❌ Login failed:', error.response?.data);
@@ -82,9 +119,12 @@ export const authService = {
 
   async register(userData) {
     try {
+      console.log('📝 Attempting registration for:', userData.email);
       const response = await api.post('/auth/register', userData);
+      console.log('✅ Registration successful');
       return { success: true, data: response.data };
     } catch (error) {
+      console.error('❌ Registration failed:', error.response?.data);
       return {
         success: false,
         error: error.response?.data?.detail || 'Registration failed'
@@ -115,7 +155,7 @@ export const authService = {
   }
 };
 
-// Post Service - UPDATED WITH BOOKMARK FUNCTIONS
+// Post Service - COMPLETE WITH ALL BOOKMARK FUNCTIONS + PRODUCTION ENHANCEMENTS
 export const postService = {
   async getFeed(page = 1, size = 20) {
     try {
@@ -134,7 +174,7 @@ export const postService = {
         pagination: data.pagination || { page, has_more: false }
       };
     } catch (error) {
-      console.error('Feed error:', error.response?.data);
+      console.error('❌ Feed error:', error.response?.data);
       throw new Error(error.response?.data?.detail || 'Failed to fetch feed');
     }
   },
@@ -177,7 +217,7 @@ export const postService = {
       const response = await api.post('/posts', postData, config);
       return { success: true, post: response.data };
     } catch (error) {
-      console.error('Create post error:', error.response?.data);
+      console.error('❌ Create post error:', error.response?.data);
       throw new Error(error.response?.data?.detail || 'Failed to create post');
     }
   },
@@ -217,7 +257,7 @@ export const postService = {
     }
   },
 
-  // NEW: BOOKMARK FUNCTIONS - Added to existing postService
+  // BOOKMARK FUNCTIONS - ALL PRESERVED FROM ORIGINAL
   async bookmarkPost(postId) {
     try {
       console.log('🔖 Bookmarking post:', postId);
@@ -405,7 +445,7 @@ export const postService = {
   }
 };
 
-// Comment Service
+// Comment Service - ALL ORIGINAL FUNCTIONS PRESERVED
 export const commentService = {
   async getPostComments(postId, page = 1, size = 50) {
     try {
@@ -476,7 +516,7 @@ export const commentService = {
   }
 };
 
-// User Service
+// User Service - ALL ORIGINAL FUNCTIONS PRESERVED
 export const userService = {
   async getProfile(userId) {
     try {
@@ -557,7 +597,7 @@ export const userService = {
   }
 };
 
-// Notification Service - WITH FALLBACKS
+// Notification Service - ALL ORIGINAL FUNCTIONS WITH ENHANCED FALLBACKS
 export const notificationService = {
   async getNotifications(page = 1, size = 20) {
     try {
@@ -572,9 +612,9 @@ export const notificationService = {
         unread_count: response.data.unread_count || 0
       };
     } catch (error) {
-      // FALLBACK: Return empty notifications when endpoint doesn't exist
+      // ENHANCED FALLBACK: Return empty notifications when endpoint doesn't exist
       if (error.response?.status === 404 || error.response?.status === 403) {
-        console.log('ℹ️ Using fallback notifications');
+        console.log('ℹ️ Using fallback notifications - endpoint not implemented yet');
         return {
           success: true,
           notifications: [],
@@ -594,9 +634,9 @@ export const notificationService = {
         count: response.data.unread_count || response.data.count || 0
       };
     } catch (error) {
-      // FALLBACK: Return 0 when endpoint doesn't exist
+      // ENHANCED FALLBACK: Return 0 when endpoint doesn't exist
       if (error.response?.status === 404 || error.response?.status === 403) {
-        console.log('ℹ️ Using fallback unread count');
+        console.log('ℹ️ Using fallback unread count - endpoint not implemented yet');
         return {
           success: true,
           count: 0
@@ -614,9 +654,9 @@ export const notificationService = {
         success: true
       };
     } catch (error) {
-      // FALLBACK: Return success when endpoint doesn't exist
+      // ENHANCED FALLBACK: Return success when endpoint doesn't exist
       if (error.response?.status === 404 || error.response?.status === 403) {
-        console.log('ℹ️ Using fallback mark as read');
+        console.log('ℹ️ Using fallback mark as read - endpoint not implemented yet');
         return {
           success: true
         };
@@ -633,9 +673,9 @@ export const notificationService = {
         success: true
       };
     } catch (error) {
-      // FALLBACK: Return success when endpoint doesn't exist
+      // ENHANCED FALLBACK: Return success when endpoint doesn't exist
       if (error.response?.status === 404 || error.response?.status === 403) {
-        console.log('ℹ️ Using fallback mark all as read');
+        console.log('ℹ️ Using fallback mark all as read - endpoint not implemented yet');
         return {
           success: true
         };
