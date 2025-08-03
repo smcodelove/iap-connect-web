@@ -1,13 +1,11 @@
-// web/src/components/auth/SignupForm.js - DOCTORS ONLY VERSION
+// web/src/components/auth/SignupForm.js - IMMEDIATE FIX
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, User, UserPlus, AlertCircle, CheckCircle, Stethoscope, GraduationCap, Building2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, UserPlus, AlertCircle, CheckCircle, Stethoscope } from 'lucide-react';
 import { registerUser, clearError } from '../../store/slices/authSlice';
-import { USER_TYPES } from '../../utils/constants';
 
-// Styled Components (keeping all existing styles)
 const FormContainer = styled.div`
   width: 100%;
   max-width: 500px;
@@ -153,55 +151,6 @@ const StrengthText = styled.div`
   margin-top: 0.25rem;
 `;
 
-// COMMENTED OUT - User Type Selection (for future use)
-/*
-const UserTypeSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-`;
-
-const UserTypeGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-  
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const UserTypeCard = styled.div`
-  border: 2px solid ${props => props.selected ? props.theme.colors.blue500 : props.theme.colors.gray200};
-  border-radius: 0.75rem;
-  padding: 1rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  background: ${props => props.selected ? props.theme.colors.blue50 : 'white'};
-  
-  &:hover {
-    border-color: ${props => props.theme.colors.blue400};
-    background-color: ${props => props.theme.colors.blue25};
-  }
-  
-  .icon {
-    color: ${props => props.selected ? props.theme.colors.blue600 : props.theme.colors.gray500};
-    margin-bottom: 0.5rem;
-  }
-  
-  .title {
-    font-weight: 600;
-    color: ${props => props.selected ? props.theme.colors.blue800 : props.theme.colors.gray800};
-    margin-bottom: 0.25rem;
-  }
-  
-  .description {
-    font-size: 0.75rem;
-    color: ${props => props.selected ? props.theme.colors.blue600 : props.theme.colors.gray500};
-  }
-`;
-*/
-
 const CheckboxContainer = styled.div`
   display: flex;
   align-items: flex-start;
@@ -230,12 +179,12 @@ const CheckboxLabel = styled.label`
 
 const SubmitButton = styled.button`
   width: 100%;
-  background: ${props => props.theme.colors.blue600};
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   border-radius: 0.5rem;
-  padding: 0.875rem 1rem;
-  font-size: 0.875rem;
+  padding: 1rem 1rem;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -243,10 +192,12 @@ const SubmitButton = styled.button`
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   
   &:hover:not(:disabled) {
-    background: ${props => props.theme.colors.blue700};
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
   }
   
   &:disabled {
@@ -281,9 +232,8 @@ const SignupForm = ({ onSuccess }) => {
     confirmPassword: '',
     full_name: '',
     username: '',
-    user_type: 'doctor', // FIXED: Always doctor
+    user_type: 'doctor', // ALWAYS DOCTOR
     specialty: '',
-    // college: '', // COMMENTED OUT - Only for students
     bio: '',
     agreedToTerms: false
   });
@@ -292,24 +242,6 @@ const SignupForm = ({ onSuccess }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [passwordStrength, setPasswordStrength] = useState(0);
-
-  // COMMENTED OUT - User Type Options (for future use)
-  /*
-  const userTypes = [
-    {
-      value: USER_TYPES.DOCTOR,
-      title: 'Doctor',
-      description: 'Medical professional',
-      icon: <Stethoscope size={24} />
-    },
-    {
-      value: USER_TYPES.STUDENT,
-      title: 'Student',
-      description: 'Medical student',
-      icon: <GraduationCap size={24} />
-    }
-  ];
-  */
 
   // Calculate password strength
   const calculatePasswordStrength = (password) => {
@@ -324,40 +256,23 @@ const SignupForm = ({ onSuccess }) => {
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
-    // Clear field error
     if (fieldErrors[field]) {
       setFieldErrors(prev => ({ ...prev, [field]: null }));
     }
     
-    // Clear global error
     if (error) {
       dispatch(clearError());
     }
     
-    // Calculate password strength
     if (field === 'password') {
       setPasswordStrength(calculatePasswordStrength(value));
     }
   };
 
-  // COMMENTED OUT - User Type Handler (for future use)
-  /*
-  const handleUserTypeChange = (userType) => {
-    handleInputChange('user_type', userType);
-    // Clear conditional field errors
-    setFieldErrors(prev => ({
-      ...prev,
-      specialty: null,
-      college: null
-    }));
-  };
-  */
-
-  // Form validation - UPDATED for doctors only
+  // Form validation - DOCTORS ONLY
   const validateForm = () => {
     const errors = {};
     
-    // Required fields
     if (!formData.full_name.trim()) {
       errors.full_name = 'Full name is required';
     }
@@ -386,20 +301,10 @@ const SignupForm = ({ onSuccess }) => {
       errors.confirmPassword = 'Passwords do not match';
     }
     
-    // REMOVED - User type validation (always doctor now)
-    // if (!formData.user_type) {
-    //   errors.user_type = 'Please select your role';
-    // }
-    
-    // Doctor specialty is required (since all users are doctors)
+    // Medical specialty is required (all users are doctors)
     if (!formData.specialty.trim()) {
       errors.specialty = 'Medical specialty is required';
     }
-    
-    // COMMENTED OUT - Student college validation
-    // if (formData.user_type === USER_TYPES.STUDENT && !formData.college.trim()) {
-    //   errors.college = 'College/University is required for students';
-    // }
     
     if (!formData.agreedToTerms) {
       errors.agreedToTerms = 'You must agree to the terms and conditions';
@@ -409,7 +314,7 @@ const SignupForm = ({ onSuccess }) => {
     return Object.keys(errors).length === 0;
   };
 
-  // Handle form submission - UPDATED for doctors only
+  // Handle form submission - ALWAYS DOCTOR
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -423,30 +328,16 @@ const SignupForm = ({ onSuccess }) => {
         password: formData.password,
         full_name: formData.full_name.trim(),
         username: formData.username.trim(),
-        user_type: 'doctor', // ALWAYS DOCTOR
-        specialty: formData.specialty.trim(), // Always required
+        user_type: 'doctor', // HARDCODED TO DOCTOR
+        specialty: formData.specialty.trim(),
         bio: formData.bio.trim() || null
       };
       
-      // COMMENTED OUT - Conditional fields logic
-      /*
-      // Add conditional fields
-      if (formData.user_type === USER_TYPES.DOCTOR) {
-        userData.specialty = formData.specialty.trim();
-      }
-      
-      if (formData.user_type === USER_TYPES.STUDENT) {
-        userData.college = formData.college.trim();
-      }
-      */
-      
       await dispatch(registerUser(userData)).unwrap();
       
-      // Call success callback if provided
       if (onSuccess) {
         onSuccess();
       } else {
-        // Show success message and redirect to login
         setTimeout(() => {
           navigate('/login', { 
             state: { 
@@ -457,7 +348,6 @@ const SignupForm = ({ onSuccess }) => {
       }
     } catch (error) {
       console.error('Registration failed:', error);
-      // Error is already handled by Redux
     }
   };
 
@@ -494,33 +384,7 @@ const SignupForm = ({ onSuccess }) => {
           </ErrorMessage>
         )}
 
-        {/* COMMENTED OUT - User Type Selection */}
-        {/*
-        <UserTypeSection>
-          <Label>I am a <span className="required">*</span></Label>
-          <UserTypeGrid>
-            {userTypes.map((type) => (
-              <UserTypeCard
-                key={type.value}
-                selected={formData.user_type === type.value}
-                onClick={() => handleUserTypeChange(type.value)}
-              >
-                <div className="icon">{type.icon}</div>
-                <div className="title">{type.title}</div>
-                <div className="description">{type.description}</div>
-              </UserTypeCard>
-            ))}
-          </UserTypeGrid>
-          {fieldErrors.user_type && (
-            <ErrorMessage>
-              <AlertCircle size={16} />
-              {fieldErrors.user_type}
-            </ErrorMessage>
-          )}
-        </UserTypeSection>
-        */}
-
-        {/* Hidden input for user type - always doctor */}
+        {/* Hidden input - ALWAYS DOCTOR */}
         <input type="hidden" name="user_type" value="doctor" />
 
         {/* Personal Information */}
@@ -682,7 +546,7 @@ const SignupForm = ({ onSuccess }) => {
           </FormGroup>
         </FormRow>
 
-        {/* Medical Specialty - ALWAYS VISIBLE (since all users are doctors) */}
+        {/* Medical Specialty - ALWAYS SHOWN */}
         <FormGroup>
           <Label htmlFor="specialty">Medical Specialty <span className="required">*</span></Label>
           <InputContainer>
@@ -707,36 +571,6 @@ const SignupForm = ({ onSuccess }) => {
             </ErrorMessage>
           )}
         </FormGroup>
-
-        {/* COMMENTED OUT - College Field (for students only) */}
-        {/*
-        {formData.user_type === USER_TYPES.STUDENT && (
-          <FormGroup>
-            <Label htmlFor="college">College/University <span className="required">*</span></Label>
-            <InputContainer>
-              <InputIcon>
-                <Building2 size={18} />
-              </InputIcon>
-              <Input
-                id="college"
-                type="text"
-                placeholder="Enter your college or university name"
-                value={formData.college}
-                onChange={(e) => handleInputChange('college', e.target.value)}
-                hasIcon
-                error={fieldErrors.college}
-                disabled={loading}
-              />
-            </InputContainer>
-            {fieldErrors.college && (
-              <ErrorMessage>
-                <AlertCircle size={16} />
-                {fieldErrors.college}
-              </ErrorMessage>
-            )}
-          </FormGroup>
-        )}
-        */}
 
         {/* Professional Bio */}
         <FormGroup>
@@ -780,7 +614,7 @@ const SignupForm = ({ onSuccess }) => {
           </ErrorMessage>
         )}
 
-        {/* Submit Button */}
+        {/* Submit Button - BEAUTIFUL */}
         <SubmitButton type="submit" disabled={loading}>
           {loading ? (
             <>
@@ -789,8 +623,8 @@ const SignupForm = ({ onSuccess }) => {
             </>
           ) : (
             <>
-              <UserPlus size={18} />
-              Join Medical Community
+              <UserPlus size={20} />
+              Join IAP Connect
             </>
           )}
         </SubmitButton>
