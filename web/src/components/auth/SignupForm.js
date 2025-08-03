@@ -351,7 +351,7 @@ const SignupForm = ({ onSuccess }) => {
         password: formData.password,
         full_name: formData.full_name.trim(),
         username: formData.username.trim(),
-        user_type: 'doctor', // HARDCODED TO DOCTOR
+        user_type: 'doctor', // ALWAYS DOCTOR - Admin only via developer script
         specialty: formData.specialty.trim(),
         bio: formData.bio.trim() || null
       };

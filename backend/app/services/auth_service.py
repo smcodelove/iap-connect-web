@@ -43,18 +43,9 @@ def register_user(user_data: UserRegister, db: Session) -> User:
                 detail="Username already taken"
             )
     
-    # SECURITY: Only allow doctor/student registration through public endpoint
-    # Admin users can ONLY be created by developers using admin script
-    
-    # Force user type to doctor (default for all public registrations)
-    final_user_type = UserType.DOCTOR
-    
-    # STRICT: Block any admin registration attempts through public endpoint
-    if user_data.user_type == UserType.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin accounts can only be created by system administrators"
-        )
+    # SECURITY: Use validated user_type from schema (defaults to doctor)
+    # Admin registration is blocked in schema validation
+    final_user_type = user_data.user_type  # Already validated in schema
     
     # REMOVED: Strict validation for specialty/college
     # Now optional - users can add later in profile
