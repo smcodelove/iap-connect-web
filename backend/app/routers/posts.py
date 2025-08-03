@@ -1,7 +1,7 @@
 """
 Post routes for IAP Connect application.
 Handles post creation, management, and social interactions.
-UPDATED: Added PostDetailPage support and complete API integration.
+UPDATED: Added notification integration and enhanced features while maintaining existing structure.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -18,7 +18,7 @@ from ..services.post_service import (
     like_post, unlike_post, check_user_liked_post
 )
 from ..utils.dependencies import get_current_active_user
-from ..models.user import User
+from ..models.user import User, Follow
 
 # NEW: Import notification service for social interactions
 try:
@@ -32,6 +32,9 @@ except ImportError:
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
 
+# backend/app/routers/posts.py - HELPER FUNCTION FIX
+# इस code को आपकी existing posts.py file में replace करना है
+
 def create_user_basic_info(user, current_user=None, db=None):
     """
     Helper function to create UserBasicInfo from user object
@@ -42,7 +45,7 @@ def create_user_basic_info(user, current_user=None, db=None):
     # Check if current user is following this user
     if current_user and db and current_user.id != user.id:
         try:
-            from ..models.user import Follow
+            from ..models.follow import Follow
             follow_check = db.query(Follow).filter(
                 Follow.follower_id == current_user.id,
                 Follow.following_id == user.id
@@ -57,9 +60,9 @@ def create_user_basic_info(user, current_user=None, db=None):
         "username": user.username,
         "full_name": user.full_name,
         "user_type": user.user_type.value if hasattr(user.user_type, 'value') else str(user.user_type),
-        "profile_picture_url": getattr(user, 'profile_picture_url', None) or getattr(user, 'avatar_url', None),
-        "specialty": getattr(user, 'specialty', None),
-        "college": getattr(user, 'college', None),
+        "profile_picture_url": user.profile_picture_url,
+        "specialty": user.specialty,
+        "college": user.college,
         "is_following": is_following,
         "is_bookmarked": False  # Default value, can be updated later
     }
@@ -68,7 +71,7 @@ def create_user_basic_info(user, current_user=None, db=None):
 def create_post_response(post, current_user, db):
     """
     Helper function to create PostResponse with all required fields.
-    FIXED: Proper field handling for PostDetailPage compatibility
+    FIXED: Proper field handling for UserBasicInfo
     """
     # Check if user liked this post
     is_liked = False
@@ -112,63 +115,10 @@ def create_post_response(post, current_user, db):
         "created_at": post.created_at,
         "updated_at": post.updated_at,
         "is_liked": is_liked,
-        "is_liked_by_user": is_liked,  # ADDED: Frontend compatibility
         "is_bookmarked": is_bookmarked,
         "author": author_info
     }
 
-
-# =========================================
-# NEW: POST DETAIL ENDPOINT FOR FRONTEND
-# =========================================
-
-@router.get("/{post_id}", response_model=PostResponse)
-def get_post(
-    post_id: int,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get a specific post by ID with complete author and interaction data.
-    
-    - **post_id**: Post ID to retrieve
-    
-    Returns complete post details with author information and user interactions.
-    ADDED: For PostDetailPage frontend integration.
-    """
-    try:
-        print(f"🔍 Fetching post {post_id} for user {current_user.id}")
-        
-        post = get_post_by_id(post_id, db)
-        if not post:
-            print(f"❌ Post {post_id} not found")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Post not found"
-            )
-        
-        print(f"✅ Found post {post_id}: '{post.content[:50]}...' by {post.author.full_name}")
-        
-        # Create complete response with all interactions
-        response = create_post_response(post, current_user, db)
-        
-        print(f"📊 Post {post_id} stats: {response['likes_count']} likes, {response['comments_count']} comments")
-        
-        return response
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Error fetching post {post_id}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve post: {str(e)}"
-        )
-
-
-# =========================================
-# EXISTING ENDPOINTS (MAINTAINED)
-# =========================================
 
 @router.get("/feed", response_model=PostListResponse)
 def get_feed(
@@ -216,42 +166,25 @@ def get_trending_hashtags(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Get trending hashtags with real engagement data.
-    UPDATED: Enhanced for TrendingPage frontend integration.
-    """
-    try:
-        print(f"🏷️ Fetching trending hashtags (limit: {limit})")
-        
-        # Real trending hashtags with medical focus
-        trending_hashtags = [
-            HashtagResponse(hashtag="#MedicalEducation", posts_count=245, total_engagement=1200, growth="+12%"),
-            HashtagResponse(hashtag="#Surgery", posts_count=189, total_engagement=950, growth="+8%"),
-            HashtagResponse(hashtag="#Cardiology", posts_count=167, total_engagement=890, growth="+15%"),
-            HashtagResponse(hashtag="#Neurology", posts_count=143, total_engagement=720, growth="+6%"),
-            HashtagResponse(hashtag="#Pediatrics", posts_count=134, total_engagement=680, growth="+10%"),
-            HashtagResponse(hashtag="#Radiology", posts_count=128, total_engagement=650, growth="+9%"),
-            HashtagResponse(hashtag="#Pathology", posts_count=121, total_engagement=620, growth="+7%"),
-            HashtagResponse(hashtag="#Pharmacy", posts_count=115, total_engagement=580, growth="+11%"),
-            HashtagResponse(hashtag="#Nursing", posts_count=108, total_engagement=540, growth="+13%"),
-            HashtagResponse(hashtag="#Research", posts_count=98, total_engagement=490, growth="+5%"),
-        ]
-        
-        print(f"✅ Returning {min(limit, len(trending_hashtags))} trending hashtags")
-        
-        return TrendingHashtagsResponse(
-            success=True,
-            hashtags=trending_hashtags[:limit],  # FIXED: Correct field name
-            trending_hashtags=trending_hashtags[:limit],  # Keep backward compatibility
-            total=len(trending_hashtags)
-        )
-        
-    except Exception as e:
-        print(f"❌ Error fetching trending hashtags: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch trending hashtags: {str(e)}"
-        )
+    """Get trending hashtags."""
+    trending_hashtags = [
+        HashtagResponse(hashtag="#MedicalEducation", posts_count=245, total_engagement=1200, growth="+12%"),
+        HashtagResponse(hashtag="#Surgery", posts_count=189, total_engagement=950, growth="+8%"),
+        HashtagResponse(hashtag="#Cardiology", posts_count=167, total_engagement=890, growth="+15%"),
+        HashtagResponse(hashtag="#Neurology", posts_count=143, total_engagement=720, growth="+6%"),
+        HashtagResponse(hashtag="#Pediatrics", posts_count=134, total_engagement=680, growth="+10%"),
+        HashtagResponse(hashtag="#Radiology", posts_count=128, total_engagement=650, growth="+9%"),
+        HashtagResponse(hashtag="#Pathology", posts_count=121, total_engagement=620, growth="+7%"),
+        HashtagResponse(hashtag="#Pharmacy", posts_count=115, total_engagement=580, growth="+11%"),
+        HashtagResponse(hashtag="#Nursing", posts_count=108, total_engagement=540, growth="+13%"),
+        HashtagResponse(hashtag="#Research", posts_count=98, total_engagement=490, growth="+5%"),
+    ]
+    
+    return TrendingHashtagsResponse(
+        success=True,
+        trending_hashtags=trending_hashtags[:limit],
+        total=len(trending_hashtags)
+    )
 
 
 @router.get("/trending", response_model=PostListResponse)
@@ -370,6 +303,30 @@ def create_new_post(
         )
 
 
+@router.get("/{post_id}", response_model=PostResponse)
+def get_post(
+    post_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get a specific post by ID.
+    
+    - **post_id**: Post ID to retrieve
+    
+    Returns post details with author information.
+    """
+    post = get_post_by_id(post_id, db)
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found"
+        )
+    
+    return create_post_response(post, current_user, db)
+
+
+
 @router.put("/{post_id}", response_model=PostResponse)
 def update_existing_post(
     post_id: int,
@@ -402,6 +359,7 @@ def update_existing_post(
     return create_post_response(updated_post_with_author, current_user, db)
 
 
+
 @router.delete("/{post_id}")
 def delete_existing_post(
     post_id: int,
@@ -426,10 +384,6 @@ def delete_existing_post(
     return {"message": "Post deleted successfully"}
 
 
-# =========================================
-# LIKE/UNLIKE ENDPOINTS (ENHANCED)
-# =========================================
-
 @router.post("/{post_id}/like")
 def like_post_endpoint(
     post_id: int,
@@ -438,7 +392,6 @@ def like_post_endpoint(
 ):
     """
     Like a post with notification integration.
-    UPDATED: Enhanced response format for frontend compatibility.
     
     - **post_id**: Post ID to like
     
@@ -494,7 +447,6 @@ def unlike_post_endpoint(
 ):
     """
     Unlike a post.
-    UPDATED: Enhanced response format for frontend compatibility.
     
     - **post_id**: Post ID to unlike
     
@@ -533,10 +485,7 @@ def unlike_post_endpoint(
         )
 
 
-# =========================================
-# BOOKMARK ENDPOINTS (OPTIONAL)
-# =========================================
-
+# NEW: Bookmark/Unbookmark endpoints
 @router.post("/{post_id}/bookmark")
 def bookmark_post_endpoint(
     post_id: int,
@@ -641,10 +590,7 @@ def unbookmark_post_endpoint(
         )
 
 
-# =========================================
-# SHARE ENDPOINT (ANALYTICS)
-# =========================================
-
+# NEW: Share endpoint
 @router.post("/{post_id}/share")
 def share_post_endpoint(
     post_id: int,
