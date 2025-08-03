@@ -1,4 +1,4 @@
-// web/src/services/postService.js - UPDATED VERSION
+// web/src/services/postService.js - COMPLETE ERROR-FREE VERSION
 import api from './api';
 
 class PostService {
@@ -36,7 +36,7 @@ class PostService {
     }
   }
 
-  // Get trending hashtags - NEW METHOD
+  // Get trending hashtags
   async getTrendingHashtags(limit = 10) {
     try {
       console.log('🏷️ Fetching trending hashtags...');
@@ -72,17 +72,24 @@ class PostService {
     }
   }
 
-  // Get post by ID
+  // Get post by ID - FIXED METHOD
   async getPostById(postId) {
     try {
       console.log('🔍 Fetching post by ID:', postId);
       const response = await api.get(`/posts/${postId}`);
+      console.log('✅ Post fetched successfully:', response.data);
+      
       return {
         post: response.data,
         success: true
       };
     } catch (error) {
       console.error('❌ Error fetching post by ID:', error);
+      
+      if (error.response?.status === 404) {
+        throw new Error('Post not found');
+      }
+      
       throw new Error(error.response?.data?.detail || 'Failed to fetch post');
     }
   }
@@ -187,7 +194,9 @@ class PostService {
   }
 }
 
-// Export singleton instance
+// Create instance and export properly
 const postService = new PostService();
+
+// Export both ways for compatibility
 export { postService };
 export default postService;

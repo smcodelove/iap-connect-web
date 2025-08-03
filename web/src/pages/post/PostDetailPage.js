@@ -1,4 +1,4 @@
-// web/src/pages/post/PostDetailPage.js - REAL API INTEGRATION
+// web/src/pages/post/PostDetailPage.js - COMPLETE ERROR-FREE VERSION
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -10,12 +10,13 @@ import {
   Share2, 
   MoreHorizontal,
   Send,
-  User,
   Clock,
   Loader
 } from 'lucide-react';
 
-import { postService, commentService } from '../../services/api';
+// Fixed imports
+import postService from '../../services/postService';
+import { commentService } from '../../services/api';
 
 const PostDetailContainer = styled.div`
   max-width: 800px;
@@ -384,7 +385,7 @@ const PostDetailPage = () => {
       }
     } catch (error) {
       console.error('❌ Error loading post:', error);
-      setError('Failed to load post details. Please try again.');
+      setError(error.message || 'Failed to load post details. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -419,7 +420,7 @@ const PostDetailPage = () => {
       console.log('❤️ Toggling like for post:', post.id);
       
       let response;
-      if (post.is_liked_by_user) {
+      if (post.is_liked_by_user || post.is_liked) {
         response = await postService.unlikePost(post.id);
       } else {
         response = await postService.likePost(post.id);
@@ -429,12 +430,14 @@ const PostDetailPage = () => {
         setPost(prev => ({
           ...prev,
           is_liked_by_user: response.liked,
-          likes_count: response.likes_count
+          is_liked: response.liked,
+          likes_count: response.likes_count || prev.likes_count
         }));
         console.log('✅ Like toggled successfully');
       }
     } catch (error) {
       console.error('❌ Error toggling like:', error);
+      alert('Failed to update like. Please try again.');
     } finally {
       setActionLoading(false);
     }
@@ -465,7 +468,7 @@ const PostDetailPage = () => {
       }
     } catch (error) {
       console.error('❌ Error submitting comment:', error);
-      alert('Failed to add comment. Please try again.');
+      alert(error.message || 'Failed to add comment. Please try again.');
     } finally {
       setSubmittingComment(false);
     }
@@ -547,9 +550,9 @@ const PostDetailPage = () => {
         <PostHeader>
           <AuthorInfo>
             <Avatar>
-              {post.author?.avatar_url ? (
+              {post.author?.profile_picture_url || post.author?.avatar_url ? (
                 <img 
-                  src={post.author.avatar_url} 
+                  src={post.author.profile_picture_url || post.author.avatar_url} 
                   alt={post.author.full_name || post.author.username}
                 />
               ) : (
@@ -589,16 +592,16 @@ const PostDetailPage = () => {
         <PostActions>
           <ActionGroup>
             <ActionButton 
-              active={post.is_liked_by_user} 
+              active={post.is_liked_by_user || post.is_liked} 
               onClick={handleLike}
               disabled={actionLoading}
             >
               <Heart size={18} />
-              {post.likes_count}
+              {post.likes_count || 0}
             </ActionButton>
             <ActionButton>
               <MessageCircle size={18} />
-              {post.comments_count}
+              {post.comments_count || 0}
             </ActionButton>
             <ActionButton>
               <Share2 size={18} />
@@ -610,7 +613,7 @@ const PostDetailPage = () => {
 
       <CommentsSection>
         <CommentsHeader>
-          <h3>Comments ({post.comments_count})</h3>
+          <h3>Comments ({post.comments_count || 0})</h3>
         </CommentsHeader>
 
         <CommentForm onSubmit={handleCommentSubmit}>
