@@ -1,4 +1,4 @@
-// web/src/pages/trending/TrendingPage.js - FIXED VERSION - No More Errors!
+// web/src/pages/trending/TrendingPage.js - USERS SECTION COMMENTED OUT
 import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useSelector, useDispatch } from 'react-redux';
@@ -150,40 +150,36 @@ const TabButton = styled.button`
   color: ${props => props.active ? 'white' : props.theme.colors.gray600};
   border: none;
   border-radius: 8px;
-  font-weight: ${props => props.active ? '600' : '400'};
   cursor: pointer;
-  transition: all 0.3s ease;
+  font-weight: 600;
+  transition: all 0.2s ease;
   
-  &:hover {
+  &:hover:not([disabled]) {
     background: ${props => props.active ? props.theme.colors.primaryDark : props.theme.colors.gray100};
-    color: ${props => props.active ? 'white' : props.theme.colors.primary};
+    color: ${props => props.active ? 'white' : props.theme.colors.gray800};
   }
 `;
 
 const RefreshButton = styled.button`
   position: absolute;
+  right: 8px;
   top: 50%;
-  right: 16px;
   transform: translateY(-50%);
   background: ${props => props.theme.colors.gray100};
-  border: 1px solid ${props => props.theme.colors.gray300};
-  color: ${props => props.theme.colors.gray600};
-  padding: 8px;
+  border: none;
   border-radius: 8px;
+  padding: 8px;
   cursor: pointer;
+  color: ${props => props.theme.colors.gray600};
   transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   
   &:hover:not(:disabled) {
-    background: ${props => props.theme.colors.primary};
-    color: white;
-    border-color: ${props => props.theme.colors.primary};
+    background: ${props => props.theme.colors.gray200};
+    color: ${props => props.theme.colors.gray800};
   }
   
   &:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
   }
   
@@ -200,246 +196,17 @@ const RefreshButton = styled.button`
 const ContentArea = styled.div`
   background: white;
   border-radius: 12px;
-  min-height: 400px;
-  overflow: hidden;
-`;
-
-const PostsList = styled.div`
-  display: grid;
-  gap: 20px;
-  padding: 20px;
-`;
-
-const TrendingPostCard = styled.div`
-  position: relative;
-  background: white;
-  border-radius: 12px;
-  overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border: 1px solid ${props => props.theme.colors.gray200};
-  transition: all 0.3s ease;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  }
-`;
-
-const TrendingRank = styled.div`
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  background: ${props => {
-    if (props.rank <= 3) return 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)';
-    if (props.rank <= 5) return 'linear-gradient(135deg, #C0C0C0 0%, #A9A9A9 100%)';
-    return 'linear-gradient(135deg, #CD7F32 0%, #8B4513 100%)';
-  }};
-  color: white;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 14px;
-  z-index: 2;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-`;
-
-const TrendingIndicator = styled.div`
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  background: ${props => props.theme.colors.success};
-  color: white;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  z-index: 2;
-`;
-
-const HashtagsList = styled.div`
-  display: grid;
-  gap: 12px;
-  padding: 20px;
-`;
-
-const HashtagCard = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 16px 20px;
-  background: ${props => props.theme.colors.gray50};
-  border-radius: 12px;
-  border: 1px solid ${props => props.theme.colors.gray200};
-  transition: all 0.3s ease;
-  cursor: pointer;
-  
-  &:hover {
-    background: ${props => props.theme.colors.primary}10;
-    border-color: ${props => props.theme.colors.primary};
-    transform: translateY(-1px);
-  }
-`;
-
-const HashtagRank = styled.div`
-  background: ${props => props.theme.colors.primary};
-  color: white;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  margin-right: 16px;
-`;
-
-const HashtagContent = styled.div`
-  flex: 1;
-  
-  .hashtag-name {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: ${props => props.theme.colors.gray800};
-    margin-bottom: 4px;
-  }
-  
-  .hashtag-stats {
-    font-size: 0.9rem;
-    color: ${props => props.theme.colors.gray600};
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-`;
-
-const HashtagGrowth = styled.span`
-  background: ${props => props.positive ? props.theme.colors.success : props.theme.colors.danger};
-  color: white;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin-left: auto;
-`;
-
-const UsersList = styled.div`
-  display: grid;
-  gap: 16px;
-  padding: 20px;
-`;
-
-const UserCard = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 20px;
-  background: ${props => props.theme.colors.gray50};
-  border-radius: 12px;
-  border: 1px solid ${props => props.theme.colors.gray200};
-  transition: all 0.3s ease;
-  cursor: pointer;
-  
-  &:hover {
-    background: ${props => props.theme.colors.primary}10;
-    border-color: ${props => props.theme.colors.primary};
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  }
-`;
-
-const UserRank = styled.div`
-  background: ${props => {
-    if (props.rank <= 3) return 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)';
-    if (props.rank <= 5) return 'linear-gradient(135deg, #C0C0C0 0%, #A9A9A9 100%)';
-    return 'linear-gradient(135deg, #CD7F32 0%, #8B4513 100%)';
-  }};
-  color: white;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  margin-right: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-`;
-
-const UserAvatar = styled.div`
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: ${props => props.theme.colors.primary}20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
   overflow: hidden;
-  
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 50%;
-  }
-  
-  .initials {
-    font-weight: 700;
-    color: ${props => props.theme.colors.primary};
-    font-size: 1.2rem;
-  }
 `;
 
-const UserContent = styled.div`
-  flex: 1;
-  
-  .user-name {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: ${props => props.theme.colors.gray800};
-    margin-bottom: 4px;
-  }
-  
-  .user-type {
-    font-size: 0.9rem;
-    color: ${props => props.theme.colors.gray600};
-    margin-bottom: 8px;
-  }
-  
-  .user-stats {
-    font-size: 0.85rem;
-    color: ${props => props.theme.colors.gray600};
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-`;
-
-const UserGrowth = styled.span`
-  background: ${props => props.positive ? props.theme.colors.success : props.theme.colors.danger};
-  color: white;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`;
-
+// Additional styled components for posts, hashtags, and users
 const LoadingSpinner = styled.div`
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   padding: 60px 20px;
   
   .spinner {
@@ -449,17 +216,57 @@ const LoadingSpinner = styled.div`
     border-top: 3px solid ${props => props.theme.colors.primary};
     border-radius: 50%;
     animation: spin 1s linear infinite;
-    margin-bottom: 16px;
   }
   
   .loading-text {
+    margin-top: 16px;
+    font-size: 16px;
     color: ${props => props.theme.colors.gray600};
-    font-weight: 500;
   }
   
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+`;
+
+const ErrorState = styled.div`
+  text-align: center;
+  padding: 60px 20px;
+  color: ${props => props.theme.colors.gray600};
+  
+  .icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 16px;
+    opacity: 0.5;
+  }
+  
+  h3 {
+    margin: 0 0 8px 0;
+    color: ${props => props.theme.colors.gray800};
+  }
+  
+  .error-message {
+    margin: 8px 0 16px 0;
+    font-size: 14px;
+    color: ${props => props.theme.colors.danger};
+  }
+  
+  button {
+    background: ${props => props.theme.colors.primary};
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 15px;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      background: ${props => props.theme.colors.primaryDark};
+      transform: translateY(-1px);
+    }
   }
 `;
 
@@ -469,95 +276,224 @@ const EmptyState = styled.div`
   color: ${props => props.theme.colors.gray600};
   
   .icon {
-    width: 64px;
-    height: 64px;
-    margin: 0 auto 20px;
-    opacity: 0.3;
-  }
-  
-  h3 {
-    margin-bottom: 10px;
-    color: ${props => props.theme.colors.gray700};
-    font-size: 1.5rem;
-  }
-  
-  p {
-    font-size: 1rem;
-    line-height: 1.5;
-  }
-`;
-
-const ErrorState = styled.div`
-  text-align: center;
-  padding: 60px 20px;
-  color: ${props => props.theme.colors.danger};
-  
-  .icon {
-    width: 64px;
-    height: 64px;
-    margin: 0 auto 20px;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 16px;
     opacity: 0.5;
   }
   
   h3 {
-    margin-bottom: 10px;
-    color: ${props => props.theme.colors.danger};
+    margin: 0 0 8px 0;
+    color: ${props => props.theme.colors.gray800};
   }
   
-  .error-message {
-    background: ${props => props.theme.colors.danger}10;
-    border: 1px solid ${props => props.theme.colors.danger}30;
-    border-radius: 8px;
-    padding: 12px;
-    margin: 16px auto;
-    font-family: monospace;
-    font-size: 0.9rem;
-    color: ${props => props.theme.colors.danger};
-    max-width: 400px;
-    word-wrap: break-word;
+  p {
+    margin: 0;
+    font-size: 14px;
   }
-  
-  button {
-    margin-top: 20px;
-    background: ${props => props.theme.colors.danger};
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.2s ease;
+`;
+
+const PostsList = styled.div`
+  & > * {
+    border-bottom: 1px solid ${props => props.theme.colors.gray200};
     
-    &:hover {
-      background: ${props => props.theme.colors.danger}dd;
-      transform: translateY(-1px);
+    &:last-child {
+      border-bottom: none;
     }
   }
 `;
 
+const HashtagsList = styled.div`
+  padding: 20px;
+`;
+
+const HashtagCard = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid ${props => props.theme.colors.gray200};
+  cursor: pointer;
+  transition: background 0.2s ease;
+  
+  &:hover {
+    background: ${props => props.theme.colors.gray50};
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const HashtagRank = styled.div`
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: ${props => props.theme.colors.primary}15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: ${props => props.theme.colors.primary};
+  margin-right: 16px;
+  font-size: 14px;
+`;
+
+const HashtagContent = styled.div`
+  flex: 1;
+  
+  .hashtag-name {
+    font-weight: 600;
+    color: ${props => props.theme.colors.gray800};
+    margin-bottom: 4px;
+  }
+  
+  .hashtag-stats {
+    font-size: 14px;
+    color: ${props => props.theme.colors.gray600};
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+`;
+
+const HashtagGrowth = styled.div`
+  font-weight: 600;
+  color: ${props => props.positive ? props.theme.colors.success : props.theme.colors.danger};
+  font-size: 14px;
+`;
+
+// Users section styled components (COMMENTED OUT)
+/*
+const UsersList = styled.div`
+  padding: 20px;
+`;
+
+const UserCard = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid ${props => props.theme.colors.gray200};
+  cursor: pointer;
+  transition: background 0.2s ease;
+  
+  &:hover {
+    background: ${props => props.theme.colors.gray50};
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const UserRank = styled.div`
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: ${props => props.theme.colors.secondary}15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: ${props => props.theme.colors.secondary};
+  margin-right: 12px;
+  font-size: 12px;
+`;
+
+const UserAvatar = styled.div`
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-right: 16px;
+  background: ${props => props.theme.colors.gray200};
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .initials {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: ${props => props.theme.colors.primary};
+    color: white;
+    font-weight: 600;
+    font-size: 16px;
+  }
+`;
+
+const UserContent = styled.div`
+  flex: 1;
+  
+  .user-name {
+    font-weight: 600;
+    color: ${props => props.theme.colors.gray800};
+    margin-bottom: 4px;
+  }
+  
+  .user-type {
+    font-size: 13px;
+    color: ${props => props.theme.colors.gray600};
+    margin-bottom: 8px;
+  }
+  
+  .user-stats {
+    font-size: 12px;
+    color: ${props => props.theme.colors.gray500};
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+`;
+
+const UserGrowth = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: ${props => props.positive ? props.theme.colors.success : props.theme.colors.danger};
+  font-size: 12px;
+`;
+*/
+
 const TrendingPage = () => {
   const { user } = useSelector(state => state.auth);
-  
   const [activeTab, setActiveTab] = useState('posts');
-  const [trendingPosts, setTrendingPosts] = useState([]);
-  const [trendingUsers, setTrendingUsers] = useState([]);
-  const [hashtags, setHashtags] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Posts state
+  const [trendingPosts, setTrendingPosts] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [trendingError, setTrendingError] = useState(null);
+  
+  // Hashtags state
+  const [hashtags, setHashtags] = useState([]);
   const [hashtagsLoading, setHashtagsLoading] = useState(false);
   const [hashtagsError, setHashtagsError] = useState(null);
+  
+  // Users state (COMMENTED OUT - NOT USED)
+  /*
+  const [trendingUsers, setTrendingUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState(null);
+  */
 
-  // FIXED: Fetch trending posts properly
+  // Initial data loading
   useEffect(() => {
     if (activeTab === 'posts') {
       fetchTrendingPostsDirectly();
+    } else if (activeTab === 'hashtags') {
+      fetchHashtags();
     }
+    // Users tab removed - no data loading for users
   }, [activeTab]);
 
-  const fetchTrendingPostsDirectly = useCallback(async (isRefresh = false) => {
+  // Fetch trending posts
+  const fetchTrendingPostsDirectly = async (isRefresh = false) => {
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -566,112 +502,144 @@ const TrendingPage = () => {
       }
       setTrendingError(null);
       
-      console.log('🔥 Fetching trending posts...');
+      console.log('🔥 Fetching trending posts directly...');
+      
       const response = await postService.getTrendingPosts(1, 20, 72);
       
-      console.log('✅ Trending posts fetched successfully:', response);
-      setTrendingPosts(response.posts || []);
+      console.log('✅ Trending posts response:', response);
       
+      if (response && response.posts) {
+        setTrendingPosts(response.posts);
+        console.log(`✅ Loaded ${response.posts.length} trending posts`);
+      } else {
+        setTrendingPosts([]);
+        setTrendingError('No trending posts available');
+      }
     } catch (error) {
       console.error('❌ Error fetching trending posts:', error);
       const errorMessage = getErrorMessage(error);
-      setTrendingError(errorMessage);
+      setTrendingError(`Unable to load trending posts: ${errorMessage}`);
       setTrendingPosts([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  };
 
-  // FIXED: Hashtags fetch with proper error handling
-  useEffect(() => {
-    if (activeTab === 'hashtags') {
-      fetchHashtags();
-    }
-  }, [activeTab]);
+  // Fetch hashtags
+  // REAL API FIX: TrendingPage.js - fetchHashtags function
+// Backend API endpoint: /posts/trending/hashtags exists, just need to fix response handling
 
   const fetchHashtags = async () => {
     try {
       setHashtagsLoading(true);
       setHashtagsError(null);
       
-      console.log('🏷️ Fetching trending hashtags...');
+      console.log('🏷️ Fetching trending hashtags from real API...');
       
-      // FIXED: Use proper API service instead of direct fetch
-      const response = await postService.getTrendingPosts(1, 50, 24); // Get recent posts to extract hashtags
+      // FIXED: Direct API call since backend endpoint exists
+      const response = await postService.getTrendingHashtags(10);
       
-      if (response.success && response.posts) {
-        // Extract hashtags from posts content
-        const hashtagMap = new Map();
+      console.log('📊 Raw API Response:', response);
+      
+      // FIXED: Handle the correct response structure from backend
+      if (response && response.success && response.hashtags) {
+        const formattedHashtags = response.hashtags.map((tag, index) => ({
+          id: index + 1,
+          rank: index + 1,
+          hashtag: tag.hashtag,
+          posts: tag.posts_count,
+          engagement: tag.total_engagement,
+          growth: tag.growth,
+          positive: !tag.growth.includes('-')
+        }));
         
-        response.posts.forEach(post => {
-          if (post.content) {
-            const hashtagMatches = post.content.match(/#[\w]+/g);
-            if (hashtagMatches) {
-              hashtagMatches.forEach(tag => {
-                const cleanTag = tag.toLowerCase();
-                if (hashtagMap.has(cleanTag)) {
-                  hashtagMap.set(cleanTag, hashtagMap.get(cleanTag) + 1);
-                } else {
-                  hashtagMap.set(cleanTag, 1);
-                }
-              });
-            }
-          }
-        });
-        
-        // Convert to array and sort by frequency
-        const sortedHashtags = Array.from(hashtagMap.entries())
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 10)
-          .map(([hashtag, count], index) => ({
-            rank: index + 1,
-            hashtag: hashtag,
-            posts: count,
-            engagement: count * Math.floor(Math.random() * 50 + 10),
-            growth: `+${Math.floor(Math.random() * 20 + 1)}%`,
-            positive: true
-          }));
-        
-        console.log('✅ Trending hashtags processed:', sortedHashtags);
-        setHashtags(sortedHashtags);
+        setHashtags(formattedHashtags);
+        console.log(`✅ Loaded ${formattedHashtags.length} real trending hashtags:`, formattedHashtags);
       } else {
-        // Fallback with dummy data
-        const fallbackHashtags = [
-          { rank: 1, hashtag: '#medical', posts: 45, engagement: 892, growth: '+12%', positive: true },
-          { rank: 2, hashtag: '#healthcare', posts: 38, engagement: 743, growth: '+8%', positive: true },
-          { rank: 3, hashtag: '#doctor', posts: 32, engagement: 654, growth: '+15%', positive: true },
-          { rank: 4, hashtag: '#student', posts: 28, engagement: 521, growth: '+5%', positive: true },
-          { rank: 5, hashtag: '#research', posts: 24, engagement: 456, growth: '+18%', positive: true }
-        ];
-        
-        console.log('ℹ️ Using fallback hashtags data');
-        setHashtags(fallbackHashtags);
+        throw new Error('Invalid response structure from API');
       }
     } catch (error) {
-      console.error('❌ Error fetching hashtags:', error);
+      console.error('❌ Error fetching real hashtags:', error);
       
-      // Fallback with sample data on error
-      const fallbackHashtags = [
-        { rank: 1, hashtag: '#medical', posts: 45, engagement: 892, growth: '+12%', positive: true },
-        { rank: 2, hashtag: '#healthcare', posts: 38, engagement: 743, growth: '+8%', positive: true },
-        { rank: 3, hashtag: '#doctor', posts: 32, engagement: 654, growth: '+15%', positive: true }
-      ];
-      
-      setHashtags(fallbackHashtags);
-      setHashtagsError('Could not fetch live hashtags, showing sample data');
+      // FALLBACK: Extract hashtags from existing posts if API fails
+      try {
+        console.log('🔄 Trying fallback method - extracting from posts...');
+        
+        const postsResponse = await postService.getTrendingPosts(1, 50, 168); // 7 days
+        
+        if (postsResponse.success && postsResponse.posts && postsResponse.posts.length > 0) {
+          // Extract hashtags from posts content
+          const hashtagMap = new Map();
+          
+          postsResponse.posts.forEach(post => {
+            if (post.content) {
+              // Extract hashtags using regex
+              const hashtagMatches = post.content.match(/#[\w]+/g);
+              if (hashtagMatches) {
+                hashtagMatches.forEach(tag => {
+                  const cleanTag = tag.toLowerCase();
+                  const engagement = (post.likes_count || 0) + (post.comments_count || 0) + (post.shares_count || 0);
+                  
+                  if (hashtagMap.has(cleanTag)) {
+                    const existing = hashtagMap.get(cleanTag);
+                    hashtagMap.set(cleanTag, {
+                      count: existing.count + 1,
+                      engagement: existing.engagement + engagement
+                    });
+                  } else {
+                    hashtagMap.set(cleanTag, {
+                      count: 1,
+                      engagement: engagement
+                    });
+                  }
+                });
+              }
+            }
+          });
+          
+          // Convert to array and sort by frequency + engagement
+          const sortedHashtags = Array.from(hashtagMap.entries())
+            .filter(([, data]) => data.count >= 1) // At least 1 post
+            .sort((a, b) => {
+              // Sort by count first, then by engagement
+              const scoreA = a[1].count * 10 + a[1].engagement;
+              const scoreB = b[1].count * 10 + b[1].engagement;
+              return scoreB - scoreA;
+            })
+            .slice(0, 10)
+            .map(([hashtag, data], index) => ({
+              id: index + 1,
+              rank: index + 1,
+              hashtag: hashtag,
+              posts: data.count,
+              engagement: data.engagement,
+              growth: `+${Math.min(99, Math.floor(data.count * 5 + Math.random() * 10))}%`,
+              positive: true
+            }));
+          
+          if (sortedHashtags.length > 0) {
+            setHashtags(sortedHashtags);
+            setHashtagsError('Extracted from posts - live hashtag data unavailable');
+            console.log('✅ Extracted hashtags from posts:', sortedHashtags);
+          } else {
+            throw new Error('No hashtags found in posts');
+          }
+        } else {
+          throw new Error('No posts available for hashtag extraction');
+        }
+      } catch (fallbackError) {
+        console.error('❌ Fallback also failed:', fallbackError);
+        setHashtagsError('Unable to load trending hashtags');
+        setHashtags([]);
+      }
     } finally {
       setHashtagsLoading(false);
     }
   };
 
-  // FIXED: Users fetch with proper service integration
-  useEffect(() => {
-    if (activeTab === 'users') {
-      fetchTrendingUsers();
-    }
-  }, [activeTab]);
-
+  // Users fetch function (COMMENTED OUT)
+  /*
   const fetchTrendingUsers = async () => {
     try {
       setUsersLoading(true);
@@ -679,40 +647,35 @@ const TrendingPage = () => {
       
       console.log('👥 Fetching trending users...');
       
-      // FIXED: Use userService instead of direct fetch
       const response = await userService.getTrendingUsers(15);
       
-      if (response.success && response.users && response.users.length > 0) {
-        const transformedUsers = response.users.map((user, index) => ({
+      if (response && response.success && response.users) {
+        const formattedUsers = response.users.map((user, index) => ({
           ...user,
           rank: index + 1,
           growth: `+${Math.floor(Math.random() * 15 + 1)}%`,
           engagement_rate: Math.floor(Math.random() * 20 + 60) + '%'
         }));
         
-        console.log(`✅ Processed ${transformedUsers.length} trending users`);
-        setTrendingUsers(transformedUsers);
+        setTrendingUsers(formattedUsers);
+        console.log(`✅ Loaded ${formattedUsers.length} trending users`);
       } else {
-        throw new Error('No trending users found');
+        throw new Error('Invalid response format');
       }
-      
     } catch (error) {
-      console.error('❌ Error fetching trending users:', error);
+      console.error('❌ Primary trending users failed:', error);
       
-      // FIXED: Better fallback with search
       try {
-        console.log('🔄 Trying search fallback for users...');
-        const searchResponse = await userService.searchUsers('', { per_page: 10 });
+        console.log('🔄 Trying fallback with search...');
+        const fallbackResponse = await userService.searchUsers('', { page: 1, perPage: 15 });
         
-        if (searchResponse.success && searchResponse.users.length > 0) {
-          const fallbackUsers = searchResponse.users
-            .slice(0, 8)
-            .map((user, index) => ({
-              ...user,
-              rank: index + 1,
-              growth: `+${Math.floor(Math.random() * 15 + 1)}%`,
-              engagement_rate: Math.floor(Math.random() * 20 + 60) + '%'
-            }));
+        if (fallbackResponse && fallbackResponse.success && fallbackResponse.users) {
+          const fallbackUsers = fallbackResponse.users.map((user, index) => ({
+            ...user,
+            rank: index + 1,
+            growth: `+${Math.floor(Math.random() * 15 + 1)}%`,
+            engagement_rate: Math.floor(Math.random() * 20 + 60) + '%'
+          }));
           
           console.log(`✅ Fallback: Found ${fallbackUsers.length} users via search`);
           setTrendingUsers(fallbackUsers);
@@ -730,15 +693,15 @@ const TrendingPage = () => {
       setUsersLoading(false);
     }
   };
+  */
 
   const handleRefresh = () => {
     if (activeTab === 'posts') {
       fetchTrendingPostsDirectly(true);
     } else if (activeTab === 'hashtags') {
       fetchHashtags();
-    } else if (activeTab === 'users') {
-      fetchTrendingUsers();
     }
+    // Users refresh removed
   };
 
   const handleRetry = () => {
@@ -746,18 +709,20 @@ const TrendingPage = () => {
       fetchTrendingPostsDirectly();
     } else if (activeTab === 'hashtags') {
       fetchHashtags();
-    } else if (activeTab === 'users') {
-      fetchTrendingUsers();
     }
+    // Users retry removed
   };
 
   const handleHashtagClick = (hashtag) => {
     window.location.href = `/search?q=${encodeURIComponent(hashtag)}`;
   };
 
+  // User click handler (COMMENTED OUT)
+  /*
   const handleUserClick = (userId) => {
     window.location.href = `/profile/${userId}`;
   };
+  */
 
   const renderPosts = () => {
     if (loading) {
@@ -785,25 +750,20 @@ const TrendingPage = () => {
         <EmptyState>
           <TrendingUp className="icon" />
           <h3>No trending posts yet</h3>
-          <p>Check back later for trending content in the medical community.</p>
+          <p>Engaging posts from the medical community will appear here.</p>
         </EmptyState>
       );
     }
 
     return (
       <PostsList>
-        {trendingPosts.map((post, index) => (
-          <TrendingPostCard key={post.id}>
-            <TrendingRank rank={index + 1}>#{index + 1}</TrendingRank>
-            <TrendingIndicator>
-              <Flame size={14} />
-              Hot
-            </TrendingIndicator>
-            <PostCard 
-              post={post}
-              showComments={false}
-            />
-          </TrendingPostCard>
+        {trendingPosts.map((post) => (
+          <PostCard 
+            key={post.id} 
+            post={post} 
+            currentUser={user}
+            showActions={true}
+          />
         ))}
       </PostsList>
     );
@@ -819,7 +779,7 @@ const TrendingPage = () => {
       );
     }
 
-    if (hashtagsError && hashtags.length === 0) {
+    if (hashtagsError) {
       return (
         <ErrorState>
           <Hash className="icon" />
@@ -834,37 +794,20 @@ const TrendingPage = () => {
       return (
         <EmptyState>
           <Hash className="icon" />
-          <h3>No trending hashtags yet</h3>
-          <p>Hashtags will appear here as they become popular.</p>
+          <h3>No trending hashtags found</h3>
+          <p>Popular medical topics and hashtags will appear here.</p>
         </EmptyState>
       );
     }
 
     return (
       <HashtagsList>
-        {hashtagsError && (
-          <div style={{
-            background: '#fff3cd',
-            border: '1px solid #ffeeba',
-            borderRadius: '8px',
-            padding: '12px',
-            marginBottom: '16px',
-            color: '#856404',
-            fontSize: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <AlertCircle size={16} />
-            {hashtagsError}
-          </div>
-        )}
         {hashtags.map((item) => (
           <HashtagCard 
-            key={item.hashtag} 
+            key={item.id}
             onClick={() => handleHashtagClick(item.hashtag)}
           >
-            <HashtagRank>{item.rank}</HashtagRank>
+            <HashtagRank>#{item.rank}</HashtagRank>
             <HashtagContent>
               <div className="hashtag-name">{item.hashtag}</div>
               <div className="hashtag-stats">
@@ -882,6 +825,8 @@ const TrendingPage = () => {
     );
   };
 
+  // Users render function (COMMENTED OUT)
+  /*
   const renderUsers = () => {
     if (usersLoading) {
       return (
@@ -972,6 +917,7 @@ const TrendingPage = () => {
       </UsersList>
     );
   };
+  */
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -979,8 +925,8 @@ const TrendingPage = () => {
         return renderPosts();
       case 'hashtags':
         return renderHashtags();
-      case 'users':
-        return renderUsers();
+      // case 'users':     // COMMENTED OUT
+      //   return renderUsers();
       default:
         return renderPosts();
     }
@@ -990,7 +936,7 @@ const TrendingPage = () => {
   const totalPosts = trendingPosts.length;
   const avgGrowth = hashtags.length > 0 ? 
     Math.round(hashtags.reduce((sum, h) => sum + parseInt(h.growth.replace('%', '').replace('+', '')), 0) / hashtags.length) : 0;
-  const totalTrendingUsers = trendingUsers.length;
+  // const totalTrendingUsers = trendingUsers.length;  // COMMENTED OUT
 
   return (
     <TrendingContainer>
@@ -1029,6 +975,8 @@ const TrendingPage = () => {
           <div className="stat-label">Avg Growth</div>
         </StatCard>
         
+        {/* USERS STAT CARD COMMENTED OUT */}
+        {/*
         <StatCard color="#FD7E14">
           <div className="stat-icon">
             <Users size={24} />
@@ -1036,6 +984,7 @@ const TrendingPage = () => {
           <div className="stat-number">{totalTrendingUsers}</div>
           <div className="stat-label">Active Users</div>
         </StatCard>
+        */}
       </StatsHeader>
 
       <TabContainer>
@@ -1055,6 +1004,8 @@ const TrendingPage = () => {
           Hashtags
         </TabButton>
         
+        {/* USERS TAB BUTTON COMMENTED OUT */}
+        {/*
         <TabButton 
           active={activeTab === 'users'}
           onClick={() => setActiveTab('users')}
@@ -1062,6 +1013,7 @@ const TrendingPage = () => {
           <Users size={18} />
           Users
         </TabButton>
+        */}
         
         {/* FIXED: Refresh button only shows for posts and hashtags, not users */}
         {activeTab !== 'users' && (
