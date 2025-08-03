@@ -11,7 +11,12 @@ import {
   MoreHorizontal,
   Send,
   Clock,
-  Loader
+  Loader,
+  Copy,          // NEW
+  ExternalLink,  // NEW
+  Flag,          // NEW
+  Edit,          // NEW
+  Trash2         // NEW
 } from 'lucide-react';
 
 // Fixed imports
@@ -346,6 +351,99 @@ const EmptyComments = styled.div`
   }
 `;
 
+// NEW styled components from first file
+const DropdownMenu = styled.div`
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid ${props => props.theme.colors.gray200};
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 150px;
+  overflow: hidden;
+`;
+
+const DropdownItem = styled.button`
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: ${props => props.danger ? props.theme.colors.danger : props.theme.colors.gray700};
+  font-size: 14px;
+  transition: background 0.2s ease;
+  
+  &:hover {
+    background: ${props => props.danger ? '#fef2f2' : props.theme.colors.gray50};
+  }
+  
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+const MoreOptionsContainer = styled.div`
+  position: relative;
+`;
+
+const ShareMenu = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+`;
+
+const ShareDialog = styled.div`
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+`;
+
+const ShareOptions = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+`;
+
+const ShareOption = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: ${props => props.theme.colors.gray50};
+  border: 1px solid ${props => props.theme.colors.gray200};
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: ${props => props.theme.colors.gray100};
+    border-color: ${props => props.theme.colors.primary};
+  }
+  
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
 const PostDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -360,6 +458,10 @@ const PostDetailPage = () => {
   const [error, setError] = useState(null);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  
+  // NEW state for dropdown and share
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
 
   // Load post and comments on component mount
   useEffect(() => {
@@ -368,6 +470,99 @@ const PostDetailPage = () => {
       loadComments();
     }
   }, [id]);
+
+  // NEW: Handle more options click
+  const handleMoreOptions = () => {
+    setShowDropdown(!showDropdown);
+  };
+
+  // NEW: Handle share functionality
+  const handleShare = async () => {
+    setShowShareMenu(true);
+    
+    // Also track share in backend
+    try {
+      await postService.sharePost(post.id);
+      setPost(prev => ({
+        ...prev,
+        shares_count: (prev.shares_count || 0) + 1
+      }));
+    } catch (error) {
+      console.error('Failed to track share:', error);
+    }
+  };
+
+  // NEW: Copy link to clipboard
+  const handleCopyLink = async () => {
+    const postUrl = `${window.location.origin}/post/${post.id}`;
+    try {
+      await navigator.clipboard.writeText(postUrl);
+      alert('Link copied to clipboard!');
+      setShowShareMenu(false);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+    }
+  };
+
+  // NEW: Share via web API
+  const handleWebShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'IAP Connect Post',
+          text: post.content.substring(0, 100) + '...',
+          url: `${window.location.origin}/post/${post.id}`
+        });
+        setShowShareMenu(false);
+      } catch (error) {
+        console.error('Web share failed:', error);
+      }
+    } else {
+      handleCopyLink(); // Fallback
+    }
+  };
+
+  // NEW: Edit post (only for post owner)
+  const handleEditPost = () => {
+    navigate(`/edit-post/${post.id}`);
+    setShowDropdown(false);
+  };
+
+  // NEW: Delete post (only for post owner or admin)
+  const handleDeletePost = async () => {
+    if (window.confirm('Are you sure you want to delete this post?')) {
+      try {
+        await postService.deletePost(post.id);
+        alert('Post deleted successfully!');
+        navigate('/feed');
+      } catch (error) {
+        console.error('Failed to delete post:', error);
+        alert('Failed to delete post. Please try again.');
+      }
+    }
+    setShowDropdown(false);
+  };
+
+  // NEW: Report post
+  const handleReportPost = () => {
+    alert('Report functionality will be implemented soon.');
+    setShowDropdown(false);
+  };
+
+  // NEW: Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowDropdown(false);
+    };
+    
+    if (showDropdown) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showDropdown]);
 
   const loadPostData = async () => {
     try {
@@ -489,6 +684,10 @@ const PostDetailPage = () => {
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
   };
 
+  // Check if current user is post owner
+  const isPostOwner = post && user && post.author?.id === user.id;
+  const isAdmin = user?.user_type === 'admin';
+
   // Loading state
   if (loading) {
     return (
@@ -570,9 +769,49 @@ const PostDetailPage = () => {
               </div>
             </AuthorDetails>
           </AuthorInfo>
-          <button style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}>
-            <MoreHorizontal size={20} />
-          </button>
+          
+          {/* UPDATED: More options with dropdown */}
+          <MoreOptionsContainer>
+            <button 
+              style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMoreOptions();
+              }}
+            >
+              <MoreHorizontal size={20} />
+            </button>
+            
+            {showDropdown && (
+              <DropdownMenu>
+                <DropdownItem onClick={handleCopyLink}>
+                  <Copy />
+                  Copy Link
+                </DropdownItem>
+                
+                {isPostOwner && (
+                  <DropdownItem onClick={handleEditPost}>
+                    <Edit />
+                    Edit Post
+                  </DropdownItem>
+                )}
+                
+                {(isPostOwner || isAdmin) && (
+                  <DropdownItem onClick={handleDeletePost} danger>
+                    <Trash2 />
+                    Delete Post
+                  </DropdownItem>
+                )}
+                
+                {!isPostOwner && (
+                  <DropdownItem onClick={handleReportPost} danger>
+                    <Flag />
+                    Report Post
+                  </DropdownItem>
+                )}
+              </DropdownMenu>
+            )}
+          </MoreOptionsContainer>
         </PostHeader>
 
         <PostContent>
@@ -603,9 +842,11 @@ const PostDetailPage = () => {
               <MessageCircle size={18} />
               {post.comments_count || 0}
             </ActionButton>
-            <ActionButton>
+            
+            {/* UPDATED: Share button with functionality */}
+            <ActionButton onClick={handleShare}>
               <Share2 size={18} />
-              Share
+              {post.shares_count || 0}
             </ActionButton>
           </ActionGroup>
         </PostActions>
@@ -672,6 +913,42 @@ const PostDetailPage = () => {
           )}
         </CommentsList>
       </CommentsSection>
+
+      {/* NEW: Share Menu Modal */}
+      {showShareMenu && (
+        <ShareMenu onClick={() => setShowShareMenu(false)}>
+          <ShareDialog onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>Share this post</h3>
+            
+            <ShareOptions>
+              <ShareOption onClick={handleWebShare}>
+                <ExternalLink />
+                Share
+              </ShareOption>
+              
+              <ShareOption onClick={handleCopyLink}>
+                <Copy />
+                Copy Link
+              </ShareOption>
+            </ShareOptions>
+            
+            <button 
+              onClick={() => setShowShareMenu(false)}
+              style={{
+                width: '100%',
+                padding: '8px',
+                marginTop: '16px',
+                background: 'none',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+          </ShareDialog>
+        </ShareMenu>
+      )}
     </PostDetailContainer>
   );
 };
