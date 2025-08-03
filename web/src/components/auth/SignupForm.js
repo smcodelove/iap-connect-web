@@ -1,4 +1,4 @@
-// web/src/components/auth/SignupForm.js - IMMEDIATE FIX
+// web/src/components/auth/SignupForm.js - FIXED VERSION
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useDispatch, useSelector } from 'react-redux';
@@ -60,7 +60,10 @@ const InputIcon = styled.div`
 const Input = styled.input`
   width: 100%;
   padding: ${props => props.hasIcon ? '0.75rem 0.75rem 0.75rem 2.5rem' : '0.75rem'};
-  border: 1px solid ${props => props.error ? props.theme.colors.red300 : props.theme.colors.gray300};
+  border: 1px solid ${props => props.error ? 
+    props.theme.colors.red300 : 
+    props.theme.colors.gray300
+  };
   border-radius: 0.5rem;
   font-size: 0.875rem;
   transition: all 0.2s;
@@ -101,54 +104,29 @@ const PasswordToggle = styled.button`
   }
 `;
 
-const ErrorMessage = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: ${props => props.theme.colors.red600};
-  font-size: 0.75rem;
-  margin-top: 0.25rem;
-`;
-
-const SuccessMessage = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: ${props => props.theme.colors.green600};
-  font-size: 0.875rem;
-  background-color: ${props => props.theme.colors.green50};
-  border: 1px solid ${props => props.theme.colors.green200};
-  border-radius: 0.5rem;
+const TextArea = styled.textarea`
+  width: 100%;
   padding: 0.75rem;
-`;
-
-const PasswordStrength = styled.div`
-  margin-top: 0.5rem;
-`;
-
-const StrengthBar = styled.div`
-  height: 0.25rem;
-  background-color: ${props => props.theme.colors.gray200};
-  border-radius: 0.125rem;
-  overflow: hidden;
-`;
-
-const StrengthFill = styled.div`
-  height: 100%;
-  width: ${props => (props.strength / 3) * 100}%;
-  background-color: ${props => {
-    if (props.strength === 1) return props.theme.colors.red500;
-    if (props.strength === 2) return props.theme.colors.yellow500;
-    if (props.strength === 3) return props.theme.colors.green500;
-    return props.theme.colors.gray300;
-  }};
-  transition: all 0.3s;
-`;
-
-const StrengthText = styled.div`
-  font-size: 0.75rem;
-  color: ${props => props.theme.colors.gray600};
-  margin-top: 0.25rem;
+  border: 1px solid ${props => props.error ? 
+    props.theme.colors.red300 : 
+    props.theme.colors.gray300
+  };
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  transition: all 0.2s;
+  
+  &:focus {
+    outline: none;
+    border-color: ${props => props.theme.colors.blue500};
+    box-shadow: 0 0 0 3px ${props => props.theme.colors.blue100};
+  }
+  
+  &::placeholder {
+    color: ${props => props.theme.colors.gray400};
+  }
 `;
 
 const CheckboxContainer = styled.div`
@@ -159,7 +137,8 @@ const CheckboxContainer = styled.div`
 `;
 
 const Checkbox = styled.input`
-  margin-top: 0.125rem;
+  margin-top: 0.25rem;
+  accent-color: ${props => props.theme.colors.blue600};
 `;
 
 const CheckboxLabel = styled.label`
@@ -177,14 +156,58 @@ const CheckboxLabel = styled.label`
   }
 `;
 
+const ErrorMessage = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: ${props => props.theme.colors.red600};
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+`;
+
+const PasswordStrengthContainer = styled.div`
+  margin-top: 0.5rem;
+`;
+
+const PasswordStrengthBar = styled.div`
+  width: 100%;
+  height: 0.25rem;
+  background-color: ${props => props.theme.colors.gray200};
+  border-radius: 0.125rem;
+  overflow: hidden;
+`;
+
+const PasswordStrengthFill = styled.div`
+  height: 100%;
+  width: ${props => props.strength * 25}%;
+  background-color: ${props => {
+    if (props.strength <= 1) return props.theme.colors.red500;
+    if (props.strength <= 2) return props.theme.colors.yellow500;
+    if (props.strength <= 3) return props.theme.colors.blue500;
+    return props.theme.colors.green500;
+  }};
+  transition: all 0.3s ease;
+`;
+
+const PasswordStrengthText = styled.div`
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  color: ${props => {
+    if (props.strength <= 1) return props.theme.colors.red600;
+    if (props.strength <= 2) return props.theme.colors.yellow600;
+    if (props.strength <= 3) return props.theme.colors.blue600;
+    return props.theme.colors.green600;
+  }};
+`;
+
 const SubmitButton = styled.button`
   width: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: ${props => props.theme.colors.blue600};
   color: white;
   border: none;
   border-radius: 0.5rem;
-  padding: 1rem 1rem;
-  font-size: 1rem;
+  padding: 0.875rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -192,12 +215,10 @@ const SubmitButton = styled.button`
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   
   &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    background: ${props => props.theme.colors.blue700};
+    transform: translateY(-1px);
   }
   
   &:disabled {
@@ -208,8 +229,8 @@ const SubmitButton = styled.button`
 `;
 
 const LoadingSpinner = styled.div`
-  width: 1rem;
-  height: 1rem;
+  width: 20px;
+  height: 20px;
   border: 2px solid transparent;
   border-top: 2px solid currentColor;
   border-radius: 50%;
@@ -224,16 +245,16 @@ const LoadingSpinner = styled.div`
 const SignupForm = ({ onSuccess }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { loading, error, registrationSuccess } = useSelector(state => state.auth);
+  const { loading, error } = useSelector(state => state.auth);
   
+  // FIXED: Default to doctor, no user type selection
   const [formData, setFormData] = useState({
+    full_name: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
-    full_name: '',
-    username: '',
-    user_type: 'doctor', // ALWAYS DOCTOR
-    specialty: '',
+    specialty: '', // Always required since everyone is doctor
     bio: '',
     agreedToTerms: false
   });
@@ -243,12 +264,14 @@ const SignupForm = ({ onSuccess }) => {
   const [fieldErrors, setFieldErrors] = useState({});
   const [passwordStrength, setPasswordStrength] = useState(0);
 
-  // Calculate password strength
+  // Password strength calculation
   const calculatePasswordStrength = (password) => {
     let strength = 0;
     if (password.length >= 8) strength++;
-    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) strength++;
-    if (/\d/.test(password) && /[!@#$%^&*]/.test(password)) strength++;
+    if (/[A-Z]/.test(password)) strength++;
+    if (/[a-z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
+    if (/[^A-Za-z0-9]/.test(password)) strength++;
     return strength;
   };
 
@@ -341,67 +364,43 @@ const SignupForm = ({ onSuccess }) => {
         setTimeout(() => {
           navigate('/login', { 
             state: { 
-              message: 'Registration successful! Please log in with your credentials.' 
-            }
+              message: 'Registration successful! Please log in with your credentials.'
+            } 
           });
-        }, 2000);
+        }, 1000);
       }
     } catch (error) {
       console.error('Registration failed:', error);
     }
   };
 
-  // Show success message
-  if (registrationSuccess) {
-    return (
-      <FormContainer>
-        <SuccessMessage style={{ 
-          padding: '2rem', 
-          textAlign: 'center', 
-          flexDirection: 'column',
-          gap: '1rem',
-          fontSize: '1rem'
-        }}>
-          <CheckCircle size={48} />
-          <div>
-            <strong>Registration Successful!</strong>
-            <br />
-            You can now log in with your credentials.
-          </div>
-        </SuccessMessage>
-      </FormContainer>
-    );
-  }
+  const getPasswordStrengthText = () => {
+    if (passwordStrength <= 1) return 'Weak';
+    if (passwordStrength <= 2) return 'Fair';
+    if (passwordStrength <= 3) return 'Good';
+    return 'Strong';
+  };
 
   return (
     <FormContainer>
       <Form onSubmit={handleSubmit}>
-        {/* Global Error */}
-        {error && (
-          <ErrorMessage style={{ marginBottom: '1rem' }}>
-            <AlertCircle size={16} />
-            {error}
-          </ErrorMessage>
-        )}
-
-        {/* Hidden input - ALWAYS DOCTOR */}
-        <input type="hidden" name="user_type" value="doctor" />
-
-        {/* Personal Information */}
+        {/* Full Name and Username Row */}
         <FormRow>
           <FormGroup>
-            <Label htmlFor="full_name">Full Name <span className="required">*</span></Label>
+            <Label htmlFor="full_name">
+              Full Name <span className="required">*</span>
+            </Label>
             <InputContainer>
               <InputIcon>
                 <User size={18} />
               </InputIcon>
               <Input
-                id="full_name"
                 type="text"
+                id="full_name"
+                hasIcon
                 placeholder="Enter your full name"
                 value={formData.full_name}
                 onChange={(e) => handleInputChange('full_name', e.target.value)}
-                hasIcon
                 error={fieldErrors.full_name}
                 disabled={loading}
               />
@@ -415,18 +414,20 @@ const SignupForm = ({ onSuccess }) => {
           </FormGroup>
 
           <FormGroup>
-            <Label htmlFor="username">Username <span className="required">*</span></Label>
+            <Label htmlFor="username">
+              Username <span className="required">*</span>
+            </Label>
             <InputContainer>
               <InputIcon>
-                <UserPlus size={18} />
+                <User size={18} />
               </InputIcon>
               <Input
-                id="username"
                 type="text"
+                id="username"
+                hasIcon
                 placeholder="Choose a username"
                 value={formData.username}
                 onChange={(e) => handleInputChange('username', e.target.value)}
-                hasIcon
                 error={fieldErrors.username}
                 disabled={loading}
               />
@@ -442,18 +443,20 @@ const SignupForm = ({ onSuccess }) => {
 
         {/* Email */}
         <FormGroup>
-          <Label htmlFor="email">Email Address <span className="required">*</span></Label>
+          <Label htmlFor="email">
+            Email Address <span className="required">*</span>
+          </Label>
           <InputContainer>
             <InputIcon>
               <Mail size={18} />
             </InputIcon>
             <Input
-              id="email"
               type="email"
+              id="email"
+              hasIcon
               placeholder="Enter your email address"
               value={formData.email}
               onChange={(e) => handleInputChange('email', e.target.value)}
-              hasIcon
               error={fieldErrors.email}
               disabled={loading}
             />
@@ -466,45 +469,73 @@ const SignupForm = ({ onSuccess }) => {
           )}
         </FormGroup>
 
-        {/* Password Fields */}
+        {/* Medical Specialty - Always shown since everyone is doctor */}
+        <FormGroup>
+          <Label htmlFor="specialty">
+            Medical Specialty <span className="required">*</span>
+          </Label>
+          <InputContainer>
+            <InputIcon>
+              <Stethoscope size={18} />
+            </InputIcon>
+            <Input
+              type="text"
+              id="specialty"
+              hasIcon
+              placeholder="e.g., Cardiology, Neurology, General Medicine"
+              value={formData.specialty}
+              onChange={(e) => handleInputChange('specialty', e.target.value)}
+              error={fieldErrors.specialty}
+              disabled={loading}
+            />
+          </InputContainer>
+          {fieldErrors.specialty && (
+            <ErrorMessage>
+              <AlertCircle size={16} />
+              {fieldErrors.specialty}
+            </ErrorMessage>
+          )}
+        </FormGroup>
+
+        {/* Password and Confirm Password Row */}
         <FormRow>
           <FormGroup>
-            <Label htmlFor="password">Password <span className="required">*</span></Label>
+            <Label htmlFor="password">
+              Password <span className="required">*</span>
+            </Label>
             <InputContainer>
               <InputIcon>
                 <Lock size={18} />
               </InputIcon>
               <Input
-                id="password"
                 type={showPassword ? 'text' : 'password'}
+                id="password"
+                hasIcon
                 placeholder="Create a strong password"
                 value={formData.password}
                 onChange={(e) => handleInputChange('password', e.target.value)}
-                hasIcon
                 error={fieldErrors.password}
                 disabled={loading}
               />
               <PasswordToggle
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                disabled={loading}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </PasswordToggle>
             </InputContainer>
+            
             {formData.password && (
-              <PasswordStrength>
-                <StrengthBar>
-                  <StrengthFill strength={passwordStrength} />
-                </StrengthBar>
-                <StrengthText>
-                  {passwordStrength === 0 && 'Enter a password'}
-                  {passwordStrength === 1 && 'Weak password'}
-                  {passwordStrength === 2 && 'Good password'}
-                  {passwordStrength === 3 && 'Strong password'}
-                </StrengthText>
-              </PasswordStrength>
+              <PasswordStrengthContainer>
+                <PasswordStrengthBar>
+                  <PasswordStrengthFill strength={passwordStrength} />
+                </PasswordStrengthBar>
+                <PasswordStrengthText strength={passwordStrength}>
+                  Password strength: {getPasswordStrengthText()}
+                </PasswordStrengthText>
+              </PasswordStrengthContainer>
             )}
+            
             {fieldErrors.password && (
               <ErrorMessage>
                 <AlertCircle size={16} />
@@ -514,25 +545,26 @@ const SignupForm = ({ onSuccess }) => {
           </FormGroup>
 
           <FormGroup>
-            <Label htmlFor="confirmPassword">Confirm Password <span className="required">*</span></Label>
+            <Label htmlFor="confirmPassword">
+              Confirm Password <span className="required">*</span>
+            </Label>
             <InputContainer>
               <InputIcon>
                 <Lock size={18} />
               </InputIcon>
               <Input
-                id="confirmPassword"
                 type={showConfirmPassword ? 'text' : 'password'}
+                id="confirmPassword"
+                hasIcon
                 placeholder="Confirm your password"
                 value={formData.confirmPassword}
                 onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                hasIcon
                 error={fieldErrors.confirmPassword}
                 disabled={loading}
               />
               <PasswordToggle
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                disabled={loading}
               >
                 {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </PasswordToggle>
@@ -546,51 +578,19 @@ const SignupForm = ({ onSuccess }) => {
           </FormGroup>
         </FormRow>
 
-        {/* Medical Specialty - ALWAYS SHOWN */}
+        {/* Bio - Optional */}
         <FormGroup>
-          <Label htmlFor="specialty">Medical Specialty <span className="required">*</span></Label>
-          <InputContainer>
-            <InputIcon>
-              <Stethoscope size={18} />
-            </InputIcon>
-            <Input
-              id="specialty"
-              type="text"
-              placeholder="e.g., Cardiology, Neurology, General Medicine"
-              value={formData.specialty}
-              onChange={(e) => handleInputChange('specialty', e.target.value)}
-              hasIcon
-              error={fieldErrors.specialty}
-              disabled={loading}
-            />
-          </InputContainer>
-          {fieldErrors.specialty && (
-            <ErrorMessage>
-              <AlertCircle size={16} />
-              {fieldErrors.specialty}
-            </ErrorMessage>
-          )}
-        </FormGroup>
-
-        {/* Professional Bio */}
-        <FormGroup>
-          <Label htmlFor="bio">Professional Bio (Optional)</Label>
-          <Input
+          <Label htmlFor="bio">
+            Professional Bio <em>(Optional)</em>
+          </Label>
+          <TextArea
             id="bio"
-            as="textarea"
-            rows="3"
             placeholder="Tell us about your medical background and interests..."
             value={formData.bio}
             onChange={(e) => handleInputChange('bio', e.target.value)}
             error={fieldErrors.bio}
             disabled={loading}
           />
-          {fieldErrors.bio && (
-            <ErrorMessage>
-              <AlertCircle size={16} />
-              {fieldErrors.bio}
-            </ErrorMessage>
-          )}
         </FormGroup>
 
         {/* Terms and Conditions */}
@@ -603,7 +603,9 @@ const SignupForm = ({ onSuccess }) => {
             disabled={loading}
           />
           <CheckboxLabel htmlFor="agreedToTerms">
-            I agree to the <Link to="/terms" target="_blank">Terms of Service</Link> and{' '}
+            I agree to the{' '}
+            <Link to="/terms" target="_blank">Terms of Service</Link>
+            {' '}and{' '}
             <Link to="/privacy" target="_blank">Privacy Policy</Link>
           </CheckboxLabel>
         </CheckboxContainer>
@@ -614,7 +616,7 @@ const SignupForm = ({ onSuccess }) => {
           </ErrorMessage>
         )}
 
-        {/* Submit Button - BEAUTIFUL */}
+        {/* Submit Button */}
         <SubmitButton type="submit" disabled={loading}>
           {loading ? (
             <>
