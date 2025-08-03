@@ -1,5 +1,5 @@
-// web/src/pages/post/PostDetailPage.js
-import React, { useState } from 'react';
+// web/src/pages/post/PostDetailPage.js - REAL API INTEGRATION
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -11,8 +11,11 @@ import {
   MoreHorizontal,
   Send,
   User,
-  Clock
+  Clock,
+  Loader
 } from 'lucide-react';
+
+import { postService, commentService } from '../../services/api';
 
 const PostDetailContainer = styled.div`
   max-width: 800px;
@@ -40,6 +43,40 @@ const BackButton = styled.button`
     border-color: ${props => props.theme.colors.primary};
     color: ${props => props.theme.colors.primary};
   }
+`;
+
+const LoadingSpinner = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: ${props => props.theme.colors.gray600};
+  
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid ${props => props.theme.colors.gray200};
+    border-top: 3px solid ${props => props.theme.colors.primary};
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
+const ErrorMessage = styled.div`
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  text-align: center;
 `;
 
 const PostCard = styled.div`
@@ -75,6 +112,13 @@ const Avatar = styled.div`
   color: white;
   font-weight: bold;
   font-size: 1.1rem;
+  overflow: hidden;
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 `;
 
 const AuthorDetails = styled.div`
@@ -96,18 +140,28 @@ const AuthorDetails = styled.div`
 const PostContent = styled.div`
   margin-bottom: 25px;
   
-  h1 {
-    color: ${props => props.theme.colors.textPrimary};
-    margin-bottom: 15px;
-    font-size: 1.8rem;
-    line-height: 1.3;
-  }
-  
-  p {
+  .content-text {
     color: ${props => props.theme.colors.gray700};
     line-height: 1.7;
     font-size: 1.05rem;
     margin-bottom: 15px;
+    white-space: pre-line;
+  }
+  
+  .hashtags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 15px;
+  }
+  
+  .hashtag {
+    background: ${props => props.theme.colors.primary}10;
+    color: ${props => props.theme.colors.primary};
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
   }
 `;
 
@@ -143,6 +197,11 @@ const ActionButton = styled.button`
     color: ${props => props.theme.colors.primary};
   }
   
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
   svg {
     width: 18px;
     height: 18px;
@@ -161,7 +220,7 @@ const CommentsSection = styled.div`
 const CommentsHeader = styled.div`
   display: flex;
   align-items: center;
-  justify-content: between;
+  justify-content: space-between;
   margin-bottom: 20px;
   
   h3 {
@@ -192,6 +251,7 @@ const CommentInput = styled.textarea`
   &:focus {
     border-color: ${props => props.theme.colors.primary};
     box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+    outline: none;
   }
   
   &::placeholder {
@@ -213,7 +273,7 @@ const CommentButton = styled.button`
   gap: 8px;
   height: fit-content;
   
-  &:hover {
+  &:hover:not(:disabled) {
     background: ${props => props.theme.colors.primaryDark};
   }
   
@@ -233,6 +293,7 @@ const CommentItem = styled.div`
   padding: 15px;
   border: 1px solid ${props => props.theme.colors.gray200};
   border-radius: 8px;
+  transition: background 0.2s ease;
   
   &:hover {
     background: ${props => props.theme.colors.gray50};
@@ -288,75 +349,125 @@ const PostDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useSelector(state => state.auth);
+  
+  // State management
+  const [post, setPost] = useState(null);
+  const [comments, setComments] = useState([]);
   const [comment, setComment] = useState('');
-  const [isLiked, setIsLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState(12);
+  const [loading, setLoading] = useState(true);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Mock post data - replace with actual API call
-  const post = {
-    id: id,
-    title: 'Understanding Cardiovascular Disease Prevention',
-    content: `Cardiovascular disease remains one of the leading causes of mortality worldwide. Recent research has shown that early intervention and lifestyle modifications can significantly reduce the risk of developing heart disease.
-
-Key prevention strategies include:
-
-1. Regular cardiovascular exercise - at least 150 minutes of moderate-intensity exercise per week
-2. Maintaining a healthy diet rich in fruits, vegetables, and whole grains
-3. Managing stress through meditation and relaxation techniques
-4. Regular health screenings and blood pressure monitoring
-5. Avoiding tobacco and limiting alcohol consumption
-
-The latest studies indicate that these interventions can reduce cardiovascular risk by up to 80% when implemented consistently. Healthcare providers should emphasize the importance of preventive care rather than reactive treatment.
-
-What are your thoughts on implementing these strategies in clinical practice?`,
-    author: {
-      id: 1,
-      name: 'Dr. Sarah Johnson',
-      username: 'drjohnson',
-      specialty: 'Cardiology',
-      avatar_url: null
-    },
-    created_at: '2024-01-15T10:30:00Z',
-    likes_count: 24,
-    comments_count: 8,
-    is_liked_by_user: false
-  };
-
-  // Mock comments data
-  const comments = [
-    {
-      id: 1,
-      content: 'Excellent points about prevention! I\'ve been implementing similar strategies with my patients and seeing great results.',
-      author: {
-        name: 'Dr. Michael Chen',
-        username: 'drchen',
-        specialty: 'Internal Medicine'
-      },
-      created_at: '2024-01-15T11:15:00Z'
-    },
-    {
-      id: 2,
-      content: 'As a medical student, this is incredibly valuable information. The emphasis on prevention over treatment is something we should focus more on in medical school.',
-      author: {
-        name: 'Emma Rodriguez',
-        username: 'emmamed',
-        college: 'Johns Hopkins'
-      },
-      created_at: '2024-01-15T12:45:00Z'
+  // Load post and comments on component mount
+  useEffect(() => {
+    if (id) {
+      loadPostData();
+      loadComments();
     }
-  ];
+  }, [id]);
 
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
+  const loadPostData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🔍 Loading post details for ID:', id);
+      
+      const response = await postService.getPostById(id);
+      
+      if (response.success && response.post) {
+        setPost(response.post);
+        console.log('✅ Post loaded successfully:', response.post);
+      } else {
+        throw new Error('Post not found');
+      }
+    } catch (error) {
+      console.error('❌ Error loading post:', error);
+      setError('Failed to load post details. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCommentSubmit = (e) => {
+  const loadComments = async () => {
+    try {
+      setCommentsLoading(true);
+      console.log('💬 Loading comments for post:', id);
+      
+      const response = await commentService.getPostComments(id, 1, 50);
+      
+      if (response.success && response.comments) {
+        setComments(response.comments);
+        console.log(`✅ Loaded ${response.comments.length} comments`);
+      } else {
+        setComments([]);
+      }
+    } catch (error) {
+      console.error('❌ Error loading comments:', error);
+      setComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  const handleLike = async () => {
+    if (actionLoading || !post) return;
+    
+    try {
+      setActionLoading(true);
+      console.log('❤️ Toggling like for post:', post.id);
+      
+      let response;
+      if (post.is_liked_by_user) {
+        response = await postService.unlikePost(post.id);
+      } else {
+        response = await postService.likePost(post.id);
+      }
+      
+      if (response.success) {
+        setPost(prev => ({
+          ...prev,
+          is_liked_by_user: response.liked,
+          likes_count: response.likes_count
+        }));
+        console.log('✅ Like toggled successfully');
+      }
+    } catch (error) {
+      console.error('❌ Error toggling like:', error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCommentSubmit = async (e) => {
     e.preventDefault();
-    if (comment.trim()) {
-      // Here you would submit the comment to your API
-      console.log('Submitting comment:', comment);
-      setComment('');
+    if (!comment.trim() || submittingComment) return;
+
+    try {
+      setSubmittingComment(true);
+      console.log('💬 Submitting comment:', comment);
+      
+      const response = await commentService.addComment(id, comment.trim());
+      
+      if (response.success && response.comment) {
+        // Add new comment to the top of the list
+        setComments(prev => [response.comment, ...prev]);
+        
+        // Update post comments count
+        setPost(prev => ({
+          ...prev,
+          comments_count: prev.comments_count + 1
+        }));
+        
+        setComment('');
+        console.log('✅ Comment added successfully');
+      }
+    } catch (error) {
+      console.error('❌ Error submitting comment:', error);
+      alert('Failed to add comment. Please try again.');
+    } finally {
+      setSubmittingComment(false);
     }
   };
 
@@ -375,6 +486,54 @@ What are your thoughts on implementing these strategies in clinical practice?`,
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <PostDetailContainer>
+        <Header>
+          <BackButton onClick={() => navigate('/feed')}>
+            <ArrowLeft size={20} />
+          </BackButton>
+          <h1>Post Details</h1>
+        </Header>
+        <LoadingSpinner>
+          <div className="spinner"></div>
+          <div>Loading post details...</div>
+        </LoadingSpinner>
+      </PostDetailContainer>
+    );
+  }
+
+  // Error state
+  if (error || !post) {
+    return (
+      <PostDetailContainer>
+        <Header>
+          <BackButton onClick={() => navigate('/feed')}>
+            <ArrowLeft size={20} />
+          </BackButton>
+          <h1>Post Details</h1>
+        </Header>
+        <ErrorMessage>
+          {error || 'Post not found'}
+        </ErrorMessage>
+        <button 
+          onClick={loadPostData}
+          style={{
+            background: '#0066cc',
+            color: 'white',
+            border: 'none',
+            padding: '10px 20px',
+            borderRadius: '6px',
+            cursor: 'pointer'
+          }}
+        >
+          Try Again
+        </button>
+      </PostDetailContainer>
+    );
+  }
+
   return (
     <PostDetailContainer>
       <Header>
@@ -388,20 +547,21 @@ What are your thoughts on implementing these strategies in clinical practice?`,
         <PostHeader>
           <AuthorInfo>
             <Avatar>
-              {post.author.avatar_url ? (
+              {post.author?.avatar_url ? (
                 <img 
                   src={post.author.avatar_url} 
-                  alt={post.author.name}
-                  style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                  alt={post.author.full_name || post.author.username}
                 />
               ) : (
-                getInitials(post.author.name)
+                getInitials(post.author?.full_name || post.author?.username || 'User')
               )}
             </Avatar>
             <AuthorDetails>
-              <div className="name">{post.author.name}</div>
+              <div className="name">
+                {post.author?.full_name || post.author?.username || 'Unknown User'}
+              </div>
               <div className="meta">
-                <span>{post.author.specialty || post.author.college}</span>
+                <span>{post.author?.user_type || 'User'}</span>
                 <Clock size={14} />
                 <span>{formatTimeAgo(post.created_at)}</span>
               </div>
@@ -413,21 +573,32 @@ What are your thoughts on implementing these strategies in clinical practice?`,
         </PostHeader>
 
         <PostContent>
-          <h1>{post.title}</h1>
-          {post.content.split('\n\n').map((paragraph, index) => (
-            <p key={index}>{paragraph}</p>
-          ))}
+          <div className="content-text">{post.content}</div>
+          
+          {post.hashtags && post.hashtags.length > 0 && (
+            <div className="hashtags">
+              {post.hashtags.map((hashtag, index) => (
+                <span key={index} className="hashtag">
+                  {hashtag.startsWith('#') ? hashtag : `#${hashtag}`}
+                </span>
+              ))}
+            </div>
+          )}
         </PostContent>
 
         <PostActions>
           <ActionGroup>
-            <ActionButton active={isLiked} onClick={handleLike}>
+            <ActionButton 
+              active={post.is_liked_by_user} 
+              onClick={handleLike}
+              disabled={actionLoading}
+            >
               <Heart size={18} />
-              {likesCount}
+              {post.likes_count}
             </ActionButton>
             <ActionButton>
               <MessageCircle size={18} />
-              {comments.length}
+              {post.comments_count}
             </ActionButton>
             <ActionButton>
               <Share2 size={18} />
@@ -439,7 +610,7 @@ What are your thoughts on implementing these strategies in clinical practice?`,
 
       <CommentsSection>
         <CommentsHeader>
-          <h3>Comments ({comments.length})</h3>
+          <h3>Comments ({post.comments_count})</h3>
         </CommentsHeader>
 
         <CommentForm onSubmit={handleCommentSubmit}>
@@ -451,24 +622,35 @@ What are your thoughts on implementing these strategies in clinical practice?`,
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             maxLength={1000}
+            disabled={submittingComment}
           />
-          <CommentButton type="submit" disabled={!comment.trim()}>
-            <Send size={16} />
-            Comment
+          <CommentButton 
+            type="submit" 
+            disabled={!comment.trim() || submittingComment}
+          >
+            {submittingComment ? <Loader size={16} /> : <Send size={16} />}
+            {submittingComment ? 'Posting...' : 'Comment'}
           </CommentButton>
         </CommentForm>
 
         <CommentsList>
-          {comments.length > 0 ? (
+          {commentsLoading ? (
+            <LoadingSpinner>
+              <div className="spinner"></div>
+              <div>Loading comments...</div>
+            </LoadingSpinner>
+          ) : comments.length > 0 ? (
             comments.map(comment => (
               <CommentItem key={comment.id}>
                 <CommentHeader>
                   <CommentAuthor>
                     <Avatar style={{ width: '35px', height: '35px', fontSize: '0.8rem' }}>
-                      {getInitials(comment.author.name)}
+                      {getInitials(comment.author?.full_name || comment.author?.username || 'User')}
                     </Avatar>
                     <div>
-                      <div className="name">{comment.author.name}</div>
+                      <div className="name">
+                        {comment.author?.full_name || comment.author?.username || 'Unknown User'}
+                      </div>
                       <div className="time">{formatTimeAgo(comment.created_at)}</div>
                     </div>
                   </CommentAuthor>
