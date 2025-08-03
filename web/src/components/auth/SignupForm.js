@@ -1,36 +1,29 @@
-// src/components/auth/SignupForm.js - DOCTORS ONLY VERSION
+// web/src/components/auth/SignupForm.js - DOCTORS ONLY VERSION
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-  Eye, 
-  EyeOff, 
-  Mail, 
-  Lock, 
-  User, 
-  UserPlus, 
-  AlertCircle, 
-  CheckCircle,
-  Stethoscope,
-  // GraduationCap,  // Commented for doctors-only
-  Building2
-} from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, UserPlus, AlertCircle, CheckCircle, Stethoscope, GraduationCap, Building2 } from 'lucide-react';
 import { registerUser, clearError } from '../../store/slices/authSlice';
-import Button from '../common/Button';
-// import { USER_TYPES } from '../../utils/constants';  // Commented for doctors-only
+import { USER_TYPES } from '../../utils/constants';
 
-const FormContainer = styled.form`
+// Styled Components (keeping all existing styles)
+const FormContainer = styled.div`
   width: 100%;
   max-width: 500px;
   margin: 0 auto;
 `;
 
+const Form = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+`;
+
 const FormRow = styled.div`
   display: grid;
-  grid-template-columns: ${props => props.columns || '1fr'};
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
-  margin-bottom: 1.5rem;
   
   @media (max-width: 640px) {
     grid-template-columns: 1fr;
@@ -38,19 +31,18 @@ const FormRow = styled.div`
 `;
 
 const FormGroup = styled.div`
-  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 `;
 
 const Label = styled.label`
-  display: block;
-  margin-bottom: 0.5rem;
   font-weight: 600;
-  color: ${props => props.theme.colors.textPrimary};
+  color: ${props => props.theme.colors.gray800};
   font-size: 0.875rem;
   
   .required {
-    color: ${props => props.theme.colors.danger};
-    margin-left: 0.25rem;
+    color: ${props => props.theme.colors.red500};
   }
 `;
 
@@ -60,79 +52,54 @@ const InputContainer = styled.div`
   align-items: center;
 `;
 
-const Input = styled.input`
-  width: 100%;
-  padding: 0.75rem 1rem;
-  padding-left: ${props => props.hasIcon ? '2.5rem' : '1rem'};
-  padding-right: ${props => props.hasRightIcon ? '2.5rem' : '1rem'};
-  border: 2px solid ${props => props.error ? props.theme.colors.danger : props.theme.colors.gray300};
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  background: white;
-  transition: all 0.2s ease;
-  
-  &:focus {
-    outline: none;
-    border-color: ${props => props.error ? props.theme.colors.danger : props.theme.colors.primary};
-    box-shadow: 0 0 0 3px ${props => props.error ? 
-      props.theme.colors.danger + '20' : 
-      props.theme.colors.primary + '20'};
-  }
-  
-  &::placeholder {
-    color: ${props => props.theme.colors.gray500};
-  }
-  
-  &:disabled {
-    background: ${props => props.theme.colors.gray100};
-    cursor: not-allowed;
-  }
-`;
-
-const Select = styled.select`
-  width: 100%;
-  padding: 0.75rem 1rem;
-  padding-left: ${props => props.hasIcon ? '2.5rem' : '1rem'};
-  border: 2px solid ${props => props.error ? props.theme.colors.danger : props.theme.colors.gray300};
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  background: white;
-  transition: all 0.2s ease;
-  cursor: pointer;
-  
-  &:focus {
-    outline: none;
-    border-color: ${props => props.error ? props.theme.colors.danger : props.theme.colors.primary};
-    box-shadow: 0 0 0 3px ${props => props.error ? 
-      props.theme.colors.danger + '20' : 
-      props.theme.colors.primary + '20'};
-  }
-  
-  &:disabled {
-    background: ${props => props.theme.colors.gray100};
-    cursor: not-allowed;
-  }
-`;
-
 const InputIcon = styled.div`
   position: absolute;
   left: 0.75rem;
-  color: ${props => props.theme.colors.gray500};
+  color: ${props => props.theme.colors.gray400};
   z-index: 1;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: ${props => props.hasIcon ? '0.75rem 0.75rem 0.75rem 2.5rem' : '0.75rem'};
+  border: 1px solid ${props => props.error ? props.theme.colors.red300 : props.theme.colors.gray300};
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  background: white;
+  
+  &:focus {
+    outline: none;
+    border-color: ${props => props.theme.colors.blue500};
+    box-shadow: 0 0 0 3px ${props => props.theme.colors.blue100};
+  }
+  
+  &:disabled {
+    background-color: ${props => props.theme.colors.gray100};
+    cursor: not-allowed;
+  }
+  
+  &::placeholder {
+    color: ${props => props.theme.colors.gray400};
+  }
 `;
 
 const PasswordToggle = styled.button`
   position: absolute;
   right: 0.75rem;
+  color: ${props => props.theme.colors.gray400};
   background: none;
   border: none;
-  color: ${props => props.theme.colors.gray500};
   cursor: pointer;
   padding: 0.25rem;
-  transition: color 0.2s ease;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   
   &:hover {
-    color: ${props => props.theme.colors.gray700};
+    color: ${props => props.theme.colors.gray600};
+    background-color: ${props => props.theme.colors.gray100};
   }
 `;
 
@@ -140,140 +107,152 @@ const ErrorMessage = styled.div`
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-top: 0.5rem;
-  color: ${props => props.theme.colors.danger};
-  font-size: 0.875rem;
+  color: ${props => props.theme.colors.red600};
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
 `;
 
 const SuccessMessage = styled.div`
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-top: 0.5rem;
-  color: ${props => props.theme.colors.success};
+  color: ${props => props.theme.colors.green600};
   font-size: 0.875rem;
+  background-color: ${props => props.theme.colors.green50};
+  border: 1px solid ${props => props.theme.colors.green200};
+  border-radius: 0.5rem;
+  padding: 0.75rem;
 `;
-
-// COMMENTED OUT - USER TYPE SELECTOR (FOR FUTURE USE)
-// const UserTypeSelector = styled.div`
-//   display: grid;
-//   grid-template-columns: 1fr 1fr;
-//   gap: 1rem;
-//   margin-bottom: 1.5rem;
-// `;
-
-// const UserTypeCard = styled.div`
-//   padding: 1rem;
-//   border: 2px solid ${props => props.selected ? props.theme.colors.primary : props.theme.colors.gray300};
-//   border-radius: 0.75rem;
-//   background: ${props => props.selected ? props.theme.colors.primary + '10' : 'white'};
-//   cursor: pointer;
-//   transition: all 0.2s ease;
-//   text-align: center;
-//   
-//   &:hover {
-//     border-color: ${props => props.theme.colors.primary};
-//     background: ${props => props.theme.colors.primary + '05'};
-//   }
-//   
-//   .icon {
-//     margin-bottom: 0.5rem;
-//     color: ${props => props.selected ? props.theme.colors.primary : props.theme.colors.gray600};
-//   }
-//   
-//   .title {
-//     font-weight: 600;
-//     color: ${props => props.selected ? props.theme.colors.primary : props.theme.colors.gray800};
-//     margin-bottom: 0.25rem;
-//   }
-//   
-//   .description {
-//     font-size: 0.875rem;
-//     color: ${props => props.theme.colors.gray600};
-//   }
-// `;
 
 const PasswordStrength = styled.div`
   margin-top: 0.5rem;
+`;
+
+const StrengthBar = styled.div`
+  height: 0.25rem;
+  background-color: ${props => props.theme.colors.gray200};
+  border-radius: 0.125rem;
+  overflow: hidden;
+`;
+
+const StrengthFill = styled.div`
+  height: 100%;
+  width: ${props => (props.strength / 3) * 100}%;
+  background-color: ${props => {
+    if (props.strength === 1) return props.theme.colors.red500;
+    if (props.strength === 2) return props.theme.colors.yellow500;
+    if (props.strength === 3) return props.theme.colors.green500;
+    return props.theme.colors.gray300;
+  }};
+  transition: all 0.3s;
+`;
+
+const StrengthText = styled.div`
+  font-size: 0.75rem;
+  color: ${props => props.theme.colors.gray600};
+  margin-top: 0.25rem;
+`;
+
+// COMMENTED OUT - User Type Selection (for future use)
+/*
+const UserTypeSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+`;
+
+const UserTypeGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
   
-  .strength-label {
-    font-size: 0.75rem;
-    color: ${props => props.theme.colors.gray600};
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const UserTypeCard = styled.div`
+  border: 2px solid ${props => props.selected ? props.theme.colors.blue500 : props.theme.colors.gray200};
+  border-radius: 0.75rem;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: ${props => props.selected ? props.theme.colors.blue50 : 'white'};
+  
+  &:hover {
+    border-color: ${props => props.theme.colors.blue400};
+    background-color: ${props => props.theme.colors.blue25};
+  }
+  
+  .icon {
+    color: ${props => props.selected ? props.theme.colors.blue600 : props.theme.colors.gray500};
+    margin-bottom: 0.5rem;
+  }
+  
+  .title {
+    font-weight: 600;
+    color: ${props => props.selected ? props.theme.colors.blue800 : props.theme.colors.gray800};
     margin-bottom: 0.25rem;
   }
   
-  .strength-bar {
-    height: 0.25rem;
-    background: ${props => props.theme.colors.gray200};
-    border-radius: 0.125rem;
-    overflow: hidden;
-  }
-  
-  .strength-fill {
-    height: 100%;
-    transition: all 0.3s ease;
-    background: ${props => {
-      switch (props.strength) {
-        case 1: return props.theme.colors.danger;
-        case 2: return props.theme.colors.warning;
-        case 3: return props.theme.colors.success;
-        default: return props.theme.colors.gray300;
-      }
-    }};
-    width: ${props => (props.strength / 3) * 100}%;
+  .description {
+    font-size: 0.75rem;
+    color: ${props => props.selected ? props.theme.colors.blue600 : props.theme.colors.gray500};
   }
 `;
+*/
 
-const TermsContainer = styled.div`
-  margin-bottom: 1.5rem;
-`;
-
-const CheckboxContainer = styled.label`
+const CheckboxContainer = styled.div`
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
-  cursor: pointer;
-  font-size: 0.875rem;
-  color: ${props => props.theme.colors.gray700};
-  line-height: 1.5;
+  margin-top: 0.5rem;
 `;
 
 const Checkbox = styled.input`
-  width: 1rem;
-  height: 1rem;
   margin-top: 0.125rem;
-  accent-color: ${props => props.theme.colors.primary};
-  flex-shrink: 0;
 `;
 
-const TermsLink = styled.a`
-  color: ${props => props.theme.colors.primary};
-  text-decoration: none;
+const CheckboxLabel = styled.label`
+  font-size: 0.875rem;
+  color: ${props => props.theme.colors.gray700};
+  line-height: 1.4;
   
-  &:hover {
-    text-decoration: underline;
+  a {
+    color: ${props => props.theme.colors.blue600};
+    text-decoration: none;
+    
+    &:hover {
+      text-decoration: underline;
+    }
   }
 `;
 
-const SubmitButton = styled(Button)`
+const SubmitButton = styled.button`
   width: 100%;
-  margin-bottom: 1rem;
-`;
-
-const LoginPrompt = styled.div`
-  text-align: center;
-  color: ${props => props.theme.colors.gray600};
+  background: ${props => props.theme.colors.blue600};
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
   font-size: 0.875rem;
-`;
-
-const LoginLink = styled(Link)`
-  color: ${props => props.theme.colors.primary};
-  text-decoration: none;
   font-weight: 600;
-  margin-left: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   
-  &:hover {
-    text-decoration: underline;
+  &:hover:not(:disabled) {
+    background: ${props => props.theme.colors.blue700};
+    transform: translateY(-1px);
+  }
+  
+  &:disabled {
+    background: ${props => props.theme.colors.gray400};
+    cursor: not-allowed;
+    transform: none;
   }
 `;
 
@@ -302,9 +281,9 @@ const SignupForm = ({ onSuccess }) => {
     confirmPassword: '',
     full_name: '',
     username: '',
-    user_type: 'doctor',  // FIXED TO DOCTOR - always doctor for this platform
+    user_type: 'doctor', // FIXED: Always doctor
     specialty: '',
-    // college: '',  // Not needed for doctors
+    // college: '', // COMMENTED OUT - Only for students
     bio: '',
     agreedToTerms: false
   });
@@ -314,21 +293,23 @@ const SignupForm = ({ onSuccess }) => {
   const [fieldErrors, setFieldErrors] = useState({});
   const [passwordStrength, setPasswordStrength] = useState(0);
 
-  // COMMENTED OUT - USER TYPES (FOR FUTURE USE)
-  // const userTypes = [
-  //   {
-  //     value: USER_TYPES.DOCTOR,
-  //     title: 'Doctor',
-  //     description: 'Medical professional',
-  //     icon: <Stethoscope size={24} />
-  //   },
-  //   {
-  //     value: USER_TYPES.STUDENT,
-  //     title: 'Student',
-  //     description: 'Medical student',
-  //     icon: <GraduationCap size={24} />
-  //   }
-  // ];
+  // COMMENTED OUT - User Type Options (for future use)
+  /*
+  const userTypes = [
+    {
+      value: USER_TYPES.DOCTOR,
+      title: 'Doctor',
+      description: 'Medical professional',
+      icon: <Stethoscope size={24} />
+    },
+    {
+      value: USER_TYPES.STUDENT,
+      title: 'Student',
+      description: 'Medical student',
+      icon: <GraduationCap size={24} />
+    }
+  ];
+  */
 
   // Calculate password strength
   const calculatePasswordStrength = (password) => {
@@ -359,7 +340,20 @@ const SignupForm = ({ onSuccess }) => {
     }
   };
 
-  // Form validation
+  // COMMENTED OUT - User Type Handler (for future use)
+  /*
+  const handleUserTypeChange = (userType) => {
+    handleInputChange('user_type', userType);
+    // Clear conditional field errors
+    setFieldErrors(prev => ({
+      ...prev,
+      specialty: null,
+      college: null
+    }));
+  };
+  */
+
+  // Form validation - UPDATED for doctors only
   const validateForm = () => {
     const errors = {};
     
@@ -392,17 +386,17 @@ const SignupForm = ({ onSuccess }) => {
       errors.confirmPassword = 'Passwords do not match';
     }
     
-    // REMOVED - user_type validation (always doctor)
+    // REMOVED - User type validation (always doctor now)
     // if (!formData.user_type) {
     //   errors.user_type = 'Please select your role';
     // }
     
-    // Medical specialty required for doctors (which is everyone now)
+    // Doctor specialty is required (since all users are doctors)
     if (!formData.specialty.trim()) {
       errors.specialty = 'Medical specialty is required';
     }
     
-    // REMOVED - college validation (not needed for doctors)
+    // COMMENTED OUT - Student college validation
     // if (formData.user_type === USER_TYPES.STUDENT && !formData.college.trim()) {
     //   errors.college = 'College/University is required for students';
     // }
@@ -415,7 +409,7 @@ const SignupForm = ({ onSuccess }) => {
     return Object.keys(errors).length === 0;
   };
 
-  // Handle form submission
+  // Handle form submission - UPDATED for doctors only
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -429,19 +423,22 @@ const SignupForm = ({ onSuccess }) => {
         password: formData.password,
         full_name: formData.full_name.trim(),
         username: formData.username.trim(),
-        user_type: 'doctor',  // ALWAYS DOCTOR
-        specialty: formData.specialty.trim(),
+        user_type: 'doctor', // ALWAYS DOCTOR
+        specialty: formData.specialty.trim(), // Always required
         bio: formData.bio.trim() || null
       };
       
-      // REMOVED - conditional fields logic (always doctor now)
-      // if (formData.user_type === USER_TYPES.DOCTOR) {
-      //   userData.specialty = formData.specialty.trim();
-      // }
-      // 
-      // if (formData.user_type === USER_TYPES.STUDENT) {
-      //   userData.college = formData.college.trim();
-      // }
+      // COMMENTED OUT - Conditional fields logic
+      /*
+      // Add conditional fields
+      if (formData.user_type === USER_TYPES.DOCTOR) {
+        userData.specialty = formData.specialty.trim();
+      }
+      
+      if (formData.user_type === USER_TYPES.STUDENT) {
+        userData.college = formData.college.trim();
+      }
+      */
       
       await dispatch(registerUser(userData)).unwrap();
       
@@ -479,301 +476,302 @@ const SignupForm = ({ onSuccess }) => {
           <div>
             <strong>Registration Successful!</strong>
             <br />
-            Welcome to the medical professional community!
+            You can now log in with your credentials.
           </div>
-          <Button
-            variant="primary"
-            onClick={() => navigate('/login')}
-          >
-            Go to Login
-          </Button>
         </SuccessMessage>
       </FormContainer>
     );
   }
 
   return (
-    <FormContainer onSubmit={handleSubmit}>
-      {/* COMMENTED OUT - User Type Selection (FOR FUTURE USE) */}
-      {/* <FormGroup>
-        <Label>Select Your Role <span className="required">*</span></Label>
-        <UserTypeSelector>
-          {userTypes.map(type => (
-            <UserTypeCard
-              key={type.value}
-              selected={formData.user_type === type.value}
-              onClick={() => handleInputChange('user_type', type.value)}
-            >
-              <div className="icon">{type.icon}</div>
-              <div className="title">{type.title}</div>
-              <div className="description">{type.description}</div>
-            </UserTypeCard>
-          ))}
-        </UserTypeSelector>
-        {fieldErrors.user_type && (
-          <ErrorMessage>
+    <FormContainer>
+      <Form onSubmit={handleSubmit}>
+        {/* Global Error */}
+        {error && (
+          <ErrorMessage style={{ marginBottom: '1rem' }}>
             <AlertCircle size={16} />
-            {fieldErrors.user_type}
+            {error}
           </ErrorMessage>
         )}
-      </FormGroup> */}
 
-      {/* HIDDEN INPUT - Always Doctor */}
-      <input type="hidden" value="doctor" name="user_type" />
-
-      {/* Name and Username */}
-      <FormRow columns="1fr 1fr">
-        <FormGroup>
-          <Label htmlFor="full_name">Full Name <span className="required">*</span></Label>
-          <InputContainer>
-            <InputIcon>
-              <User size={18} />
-            </InputIcon>
-            <Input
-              id="full_name"
-              type="text"
-              placeholder="Enter your full name"
-              value={formData.full_name}
-              onChange={(e) => handleInputChange('full_name', e.target.value)}
-              hasIcon
-              error={fieldErrors.full_name}
-              disabled={loading}
-              autoComplete="name"
-            />
-          </InputContainer>
-          {fieldErrors.full_name && (
+        {/* COMMENTED OUT - User Type Selection */}
+        {/*
+        <UserTypeSection>
+          <Label>I am a <span className="required">*</span></Label>
+          <UserTypeGrid>
+            {userTypes.map((type) => (
+              <UserTypeCard
+                key={type.value}
+                selected={formData.user_type === type.value}
+                onClick={() => handleUserTypeChange(type.value)}
+              >
+                <div className="icon">{type.icon}</div>
+                <div className="title">{type.title}</div>
+                <div className="description">{type.description}</div>
+              </UserTypeCard>
+            ))}
+          </UserTypeGrid>
+          {fieldErrors.user_type && (
             <ErrorMessage>
               <AlertCircle size={16} />
-              {fieldErrors.full_name}
+              {fieldErrors.user_type}
+            </ErrorMessage>
+          )}
+        </UserTypeSection>
+        */}
+
+        {/* Hidden input for user type - always doctor */}
+        <input type="hidden" name="user_type" value="doctor" />
+
+        {/* Personal Information */}
+        <FormRow>
+          <FormGroup>
+            <Label htmlFor="full_name">Full Name <span className="required">*</span></Label>
+            <InputContainer>
+              <InputIcon>
+                <User size={18} />
+              </InputIcon>
+              <Input
+                id="full_name"
+                type="text"
+                placeholder="Enter your full name"
+                value={formData.full_name}
+                onChange={(e) => handleInputChange('full_name', e.target.value)}
+                hasIcon
+                error={fieldErrors.full_name}
+                disabled={loading}
+              />
+            </InputContainer>
+            {fieldErrors.full_name && (
+              <ErrorMessage>
+                <AlertCircle size={16} />
+                {fieldErrors.full_name}
+              </ErrorMessage>
+            )}
+          </FormGroup>
+
+          <FormGroup>
+            <Label htmlFor="username">Username <span className="required">*</span></Label>
+            <InputContainer>
+              <InputIcon>
+                <UserPlus size={18} />
+              </InputIcon>
+              <Input
+                id="username"
+                type="text"
+                placeholder="Choose a username"
+                value={formData.username}
+                onChange={(e) => handleInputChange('username', e.target.value)}
+                hasIcon
+                error={fieldErrors.username}
+                disabled={loading}
+              />
+            </InputContainer>
+            {fieldErrors.username && (
+              <ErrorMessage>
+                <AlertCircle size={16} />
+                {fieldErrors.username}
+              </ErrorMessage>
+            )}
+          </FormGroup>
+        </FormRow>
+
+        {/* Email */}
+        <FormGroup>
+          <Label htmlFor="email">Email Address <span className="required">*</span></Label>
+          <InputContainer>
+            <InputIcon>
+              <Mail size={18} />
+            </InputIcon>
+            <Input
+              id="email"
+              type="email"
+              placeholder="Enter your email address"
+              value={formData.email}
+              onChange={(e) => handleInputChange('email', e.target.value)}
+              hasIcon
+              error={fieldErrors.email}
+              disabled={loading}
+            />
+          </InputContainer>
+          {fieldErrors.email && (
+            <ErrorMessage>
+              <AlertCircle size={16} />
+              {fieldErrors.email}
             </ErrorMessage>
           )}
         </FormGroup>
 
+        {/* Password Fields */}
+        <FormRow>
+          <FormGroup>
+            <Label htmlFor="password">Password <span className="required">*</span></Label>
+            <InputContainer>
+              <InputIcon>
+                <Lock size={18} />
+              </InputIcon>
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Create a strong password"
+                value={formData.password}
+                onChange={(e) => handleInputChange('password', e.target.value)}
+                hasIcon
+                error={fieldErrors.password}
+                disabled={loading}
+              />
+              <PasswordToggle
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={loading}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </PasswordToggle>
+            </InputContainer>
+            {formData.password && (
+              <PasswordStrength>
+                <StrengthBar>
+                  <StrengthFill strength={passwordStrength} />
+                </StrengthBar>
+                <StrengthText>
+                  {passwordStrength === 0 && 'Enter a password'}
+                  {passwordStrength === 1 && 'Weak password'}
+                  {passwordStrength === 2 && 'Good password'}
+                  {passwordStrength === 3 && 'Strong password'}
+                </StrengthText>
+              </PasswordStrength>
+            )}
+            {fieldErrors.password && (
+              <ErrorMessage>
+                <AlertCircle size={16} />
+                {fieldErrors.password}
+              </ErrorMessage>
+            )}
+          </FormGroup>
+
+          <FormGroup>
+            <Label htmlFor="confirmPassword">Confirm Password <span className="required">*</span></Label>
+            <InputContainer>
+              <InputIcon>
+                <Lock size={18} />
+              </InputIcon>
+              <Input
+                id="confirmPassword"
+                type={showConfirmPassword ? 'text' : 'password'}
+                placeholder="Confirm your password"
+                value={formData.confirmPassword}
+                onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                hasIcon
+                error={fieldErrors.confirmPassword}
+                disabled={loading}
+              />
+              <PasswordToggle
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                disabled={loading}
+              >
+                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </PasswordToggle>
+            </InputContainer>
+            {fieldErrors.confirmPassword && (
+              <ErrorMessage>
+                <AlertCircle size={16} />
+                {fieldErrors.confirmPassword}
+              </ErrorMessage>
+            )}
+          </FormGroup>
+        </FormRow>
+
+        {/* Medical Specialty - ALWAYS VISIBLE (since all users are doctors) */}
         <FormGroup>
-          <Label htmlFor="username">Username <span className="required">*</span></Label>
+          <Label htmlFor="specialty">Medical Specialty <span className="required">*</span></Label>
           <InputContainer>
             <InputIcon>
-              <User size={18} />
+              <Stethoscope size={18} />
             </InputIcon>
             <Input
-              id="username"
+              id="specialty"
               type="text"
-              placeholder="Choose a username"
-              value={formData.username}
-              onChange={(e) => handleInputChange('username', e.target.value.toLowerCase())}
+              placeholder="e.g., Cardiology, Neurology, General Medicine"
+              value={formData.specialty}
+              onChange={(e) => handleInputChange('specialty', e.target.value)}
               hasIcon
-              error={fieldErrors.username}
+              error={fieldErrors.specialty}
               disabled={loading}
-              autoComplete="username"
             />
           </InputContainer>
-          {fieldErrors.username && (
+          {fieldErrors.specialty && (
             <ErrorMessage>
               <AlertCircle size={16} />
-              {fieldErrors.username}
+              {fieldErrors.specialty}
             </ErrorMessage>
           )}
         </FormGroup>
-      </FormRow>
 
-      {/* Email */}
-      <FormGroup>
-        <Label htmlFor="email">Email Address <span className="required">*</span></Label>
-        <InputContainer>
-          <InputIcon>
-            <Mail size={18} />
-          </InputIcon>
+        {/* COMMENTED OUT - College Field (for students only) */}
+        {/*
+        {formData.user_type === USER_TYPES.STUDENT && (
+          <FormGroup>
+            <Label htmlFor="college">College/University <span className="required">*</span></Label>
+            <InputContainer>
+              <InputIcon>
+                <Building2 size={18} />
+              </InputIcon>
+              <Input
+                id="college"
+                type="text"
+                placeholder="Enter your college or university name"
+                value={formData.college}
+                onChange={(e) => handleInputChange('college', e.target.value)}
+                hasIcon
+                error={fieldErrors.college}
+                disabled={loading}
+              />
+            </InputContainer>
+            {fieldErrors.college && (
+              <ErrorMessage>
+                <AlertCircle size={16} />
+                {fieldErrors.college}
+              </ErrorMessage>
+            )}
+          </FormGroup>
+        )}
+        */}
+
+        {/* Professional Bio */}
+        <FormGroup>
+          <Label htmlFor="bio">Professional Bio (Optional)</Label>
           <Input
-            id="email"
-            type="email"
-            placeholder="Enter your email"
-            value={formData.email}
-            onChange={(e) => handleInputChange('email', e.target.value)}
-            hasIcon
-            error={fieldErrors.email}
-            disabled={loading}
-            autoComplete="email"
-          />
-        </InputContainer>
-        {fieldErrors.email && (
-          <ErrorMessage>
-            <AlertCircle size={16} />
-            {fieldErrors.email}
-          </ErrorMessage>
-        )}
-      </FormGroup>
-
-      {/* Password Fields */}
-      <FormRow columns="1fr 1fr">
-        <FormGroup>
-          <Label htmlFor="password">Password <span className="required">*</span></Label>
-          <InputContainer>
-            <InputIcon>
-              <Lock size={18} />
-            </InputIcon>
-            <Input
-              id="password"
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Create a password"
-              value={formData.password}
-              onChange={(e) => handleInputChange('password', e.target.value)}
-              hasIcon
-              hasRightIcon
-              error={fieldErrors.password}
-              disabled={loading}
-              autoComplete="new-password"
-            />
-            <PasswordToggle
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              disabled={loading}
-            >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </PasswordToggle>
-          </InputContainer>
-          {formData.password && (
-            <PasswordStrength strength={passwordStrength}>
-              <div className="strength-label">
-                Password strength: {
-                  passwordStrength === 0 ? 'Weak' :
-                  passwordStrength === 1 ? 'Fair' :
-                  passwordStrength === 2 ? 'Good' : 'Strong'
-                }
-              </div>
-              <div className="strength-bar">
-                <div className="strength-fill" />
-              </div>
-            </PasswordStrength>
-          )}
-          {fieldErrors.password && (
-            <ErrorMessage>
-              <AlertCircle size={16} />
-              {fieldErrors.password}
-            </ErrorMessage>
-          )}
-        </FormGroup>
-
-        <FormGroup>
-          <Label htmlFor="confirmPassword">Confirm Password <span className="required">*</span></Label>
-          <InputContainer>
-            <InputIcon>
-              <Lock size={18} />
-            </InputIcon>
-            <Input
-              id="confirmPassword"
-              type={showConfirmPassword ? 'text' : 'password'}
-              placeholder="Confirm your password"
-              value={formData.confirmPassword}
-              onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-              hasIcon
-              hasRightIcon
-              error={fieldErrors.confirmPassword}
-              disabled={loading}
-              autoComplete="new-password"
-            />
-            <PasswordToggle
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              disabled={loading}
-            >
-              {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </PasswordToggle>
-          </InputContainer>
-          {fieldErrors.confirmPassword && (
-            <ErrorMessage>
-              <AlertCircle size={16} />
-              {fieldErrors.confirmPassword}
-            </ErrorMessage>
-          )}
-        </FormGroup>
-      </FormRow>
-
-      {/* Medical Specialty - ALWAYS SHOWN (since everyone is a doctor) */}
-      <FormGroup>
-        <Label htmlFor="specialty">Medical Specialty <span className="required">*</span></Label>
-        <InputContainer>
-          <InputIcon>
-            <Stethoscope size={18} />
-          </InputIcon>
-          <Input
-            id="specialty"
-            type="text"
-            placeholder="e.g., Cardiology, Neurology, General Medicine"
-            value={formData.specialty}
-            onChange={(e) => handleInputChange('specialty', e.target.value)}
-            hasIcon
-            error={fieldErrors.specialty}
+            id="bio"
+            as="textarea"
+            rows="3"
+            placeholder="Tell us about your medical background and interests..."
+            value={formData.bio}
+            onChange={(e) => handleInputChange('bio', e.target.value)}
+            error={fieldErrors.bio}
             disabled={loading}
           />
-        </InputContainer>
-        {fieldErrors.specialty && (
-          <ErrorMessage>
-            <AlertCircle size={16} />
-            {fieldErrors.specialty}
-          </ErrorMessage>
-        )}
-      </FormGroup>
-
-      {/* COMMENTED OUT - College Field (not needed for doctors) */}
-      {/* {formData.user_type === USER_TYPES.STUDENT && (
-        <FormGroup>
-          <Label htmlFor="college">College/University <span className="required">*</span></Label>
-          <InputContainer>
-            <InputIcon>
-              <Building2 size={18} />
-            </InputIcon>
-            <Input
-              id="college"
-              type="text"
-              placeholder="Enter your college or university name"
-              value={formData.college}
-              onChange={(e) => handleInputChange('college', e.target.value)}
-              hasIcon
-              error={fieldErrors.college}
-              disabled={loading}
-            />
-          </InputContainer>
-          {fieldErrors.college && (
+          {fieldErrors.bio && (
             <ErrorMessage>
               <AlertCircle size={16} />
-              {fieldErrors.college}
+              {fieldErrors.bio}
             </ErrorMessage>
           )}
         </FormGroup>
-      )} */}
 
-      {/* Bio */}
-      <FormGroup>
-        <Label htmlFor="bio">Professional Bio (Optional)</Label>
-        <Input
-          id="bio"
-          as="textarea"
-          rows="3"
-          placeholder="Tell us about your medical background and interests..."
-          value={formData.bio}
-          onChange={(e) => handleInputChange('bio', e.target.value)}
-          disabled={loading}
-          style={{ resize: 'vertical', minHeight: '80px' }}
-        />
-      </FormGroup>
-
-      {/* Terms and Conditions */}
-      <TermsContainer>
+        {/* Terms and Conditions */}
         <CheckboxContainer>
           <Checkbox
             type="checkbox"
+            id="agreedToTerms"
             checked={formData.agreedToTerms}
             onChange={(e) => handleInputChange('agreedToTerms', e.target.checked)}
             disabled={loading}
           />
-          I agree to the{' '}
-          <TermsLink href="/terms" target="_blank">
-            Terms of Service
-          </TermsLink>{' '}
-          and{' '}
-          <TermsLink href="/privacy" target="_blank">
-            Privacy Policy
-          </TermsLink>
+          <CheckboxLabel htmlFor="agreedToTerms">
+            I agree to the <Link to="/terms" target="_blank">Terms of Service</Link> and{' '}
+            <Link to="/privacy" target="_blank">Privacy Policy</Link>
+          </CheckboxLabel>
         </CheckboxContainer>
         {fieldErrors.agreedToTerms && (
           <ErrorMessage>
@@ -781,41 +779,22 @@ const SignupForm = ({ onSuccess }) => {
             {fieldErrors.agreedToTerms}
           </ErrorMessage>
         )}
-      </TermsContainer>
 
-      {error && (
-        <ErrorMessage style={{ marginBottom: '1rem' }}>
-          <AlertCircle size={16} />
-          {error}
-        </ErrorMessage>
-      )}
-
-      <SubmitButton
-        type="submit"
-        variant="primary"
-        size="large"
-        disabled={loading}
-        loading={loading}
-      >
-        {loading ? (
-          <>
-            <LoadingSpinner />
-            Creating Account...
-          </>
-        ) : (
-          <>
-            <UserPlus size={18} />
-            Join Medical Community
-          </>
-        )}
-      </SubmitButton>
-
-      <LoginPrompt>
-        Already have an account?
-        <LoginLink to="/login">
-          Sign in here
-        </LoginLink>
-      </LoginPrompt>
+        {/* Submit Button */}
+        <SubmitButton type="submit" disabled={loading}>
+          {loading ? (
+            <>
+              <LoadingSpinner />
+              Creating Account...
+            </>
+          ) : (
+            <>
+              <UserPlus size={18} />
+              Join Medical Community
+            </>
+          )}
+        </SubmitButton>
+      </Form>
     </FormContainer>
   );
 };
