@@ -94,12 +94,12 @@ class User(Base):
     )
 
     # Notification relationships
-    #received_notifications = relationship(
-    #    "Notification", 
-    #    foreign_keys="Notification.recipient_id", 
-     #   back_populates="recipient",
-     #   cascade="all, delete-orphan"
-    #)
+    received_notifications = relationship(
+        "Notification", 
+        foreign_keys="Notification.recipient_id", 
+        back_populates="recipient",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', type='{self.user_type}')>"
