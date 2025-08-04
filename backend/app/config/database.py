@@ -1,83 +1,78 @@
 """
-Database configuration for IAP Connect application.
-Fixed AsyncPG configuration for Neon PostgreSQL.
+Database creation script for IAP Connect.
+Fixed for Neon PostgreSQL deployment - no asyncpg needed.
 """
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from .settings import settings
-import os
-
-def get_database_url():
-    """Get database URL with AsyncPG driver for Neon."""
-    database_url = settings.database_url
-    
-    # Convert to AsyncPG driver
-    if database_url.startswith("postgresql://"):
-        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
-    elif database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql+asyncpg://")
-    
-    # Remove sslmode parameter as AsyncPG handles SSL automatically for Neon
-    if "sslmode=require" in database_url:
-        database_url = database_url.replace("sslmode=require", "")
-        database_url = database_url.replace("&sslmode=require", "")
-        database_url = database_url.replace("?sslmode=require&", "?")
-        database_url = database_url.replace("?sslmode=require", "")
-    
-    # Clean up any double separators
-    database_url = database_url.replace("&&", "&")
-    database_url = database_url.replace("?&", "?")
-    if database_url.endswith("&") or database_url.endswith("?"):
-        database_url = database_url[:-1]
-    
-    return database_url
-
-# Create database engine with AsyncPG
-engine = create_engine(
-    get_database_url(),
-    echo=False,
-    pool_size=5,
-    max_overflow=10,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-    # AsyncPG connection args (SSL is automatic for neon.tech)
-    connect_args={
-        "server_settings": {
-            "application_name": "iap_connect",
-        }
-    }
-)
-
-# Create session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Create base class for models
-Base = declarative_base()
+from sqlalchemy.orm import Session
+from app.config.database import SessionLocal, engine
+from app.models import Base, User, UserType
+from app.utils.security import get_password_hash
 
 
-def get_db():
-    """
-    Database dependency for FastAPI routes.
-    Creates and closes database sessions automatically.
-    
-    Yields:
-        db: SQLAlchemy database session
-    """
+def create_tables():
+    """Create all database tables."""
+    try:
+        print("🔧 Creating database tables...")
+        Base.metadata.create_all(bind=engine)
+        print("✅ Database tables created successfully")
+    except Exception as e:
+        print(f"❌ Error creating tables: {e}")
+
+
+def create_admin_user():
+    """Create default admin user."""
     db = SessionLocal()
     try:
-        yield db
+        # Check if admin user already exists
+        admin_exists = db.query(User).filter(
+            User.user_type == UserType.ADMIN
+        ).first()
+        
+        if not admin_exists:
+            # Create admin user
+            admin_user = User(
+                username="admin",
+                email="admin@iapconnect.com",
+                password_hash=get_password_hash("admin123"),
+                user_type=UserType.ADMIN,
+                full_name="IAP Connect Administrator",
+                bio="System Administrator",
+                is_active=True,
+                followers_count=0,
+                following_count=0,
+                posts_count=0
+            )
+            
+            db.add(admin_user)
+            db.commit()
+            print("✅ Admin user created successfully")
+            print("   Email: admin@iapconnect.com")
+            print("   Password: admin123")
+        else:
+            print("✅ Admin user already exists")
+            
+    except Exception as e:
+        print(f"❌ Error creating admin user: {e}")
+        db.rollback()
     finally:
         db.close()
 
 
-def test_connection():
-    """Test database connection for deployment verification."""
-    try:
-        with engine.connect() as connection:
-            result = connection.execute(text("SELECT 1"))
-            return True
-    except Exception as e:
-        print(f"Database connection failed: {e}")
-        return False
+def main():
+    """Main setup function."""
+    print("🚀 Setting up IAP Connect Database...")
+    print("-" * 50)
+    
+    # Step 1: Create tables
+    create_tables()
+    
+    # Step 2: Create admin user
+    create_admin_user()
+    
+    print("-" * 50)
+    print("✅ Database setup completed!")
+    print("\n🌟 IAP Connect is ready to launch!")
+
+
+if __name__ == "__main__":
+    main()
