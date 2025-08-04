@@ -1,6 +1,6 @@
 """
 Database configuration for IAP Connect application.
-Fixed for Neon PostgreSQL with AsyncPG driver.
+Fixed AsyncPG configuration for Neon PostgreSQL.
 """
 
 from sqlalchemy import create_engine, text
@@ -13,20 +13,28 @@ def get_database_url():
     """Get database URL with AsyncPG driver for Neon."""
     database_url = settings.database_url
     
-    # Force use of asyncpg driver instead of psycopg2
+    # Convert to AsyncPG driver
     if database_url.startswith("postgresql://"):
         database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
     elif database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql+asyncpg://")
     
-    # Handle Neon SSL requirements
-    if "neon.tech" in database_url and "sslmode" not in database_url:
-        separator = "&" if "?" in database_url else "?"
-        database_url = f"{database_url}{separator}sslmode=require"
+    # Remove sslmode parameter as AsyncPG handles SSL automatically for Neon
+    if "sslmode=require" in database_url:
+        database_url = database_url.replace("sslmode=require", "")
+        database_url = database_url.replace("&sslmode=require", "")
+        database_url = database_url.replace("?sslmode=require&", "?")
+        database_url = database_url.replace("?sslmode=require", "")
+    
+    # Clean up any double separators
+    database_url = database_url.replace("&&", "&")
+    database_url = database_url.replace("?&", "?")
+    if database_url.endswith("&") or database_url.endswith("?"):
+        database_url = database_url[:-1]
     
     return database_url
 
-# Create database engine with AsyncPG driver
+# Create database engine with AsyncPG
 engine = create_engine(
     get_database_url(),
     echo=False,
@@ -34,7 +42,7 @@ engine = create_engine(
     max_overflow=10,
     pool_pre_ping=True,
     pool_recycle=3600,
-    # AsyncPG specific connection args
+    # AsyncPG connection args (SSL is automatic for neon.tech)
     connect_args={
         "server_settings": {
             "application_name": "iap_connect",
