@@ -14,6 +14,7 @@ import {
   Heart,
   TrendingUp
 } from 'lucide-react';
+import { DollarSign } from 'lucide-react';
 
 const SidebarContainer = styled.div`
   width: 280px;
@@ -151,6 +152,12 @@ const Sidebar = () => {
     { path: '/profile', icon: User, label: 'Profile' },
   ];
 
+  const iapItems = [
+    { path: '/iap/president-message', icon: User, label: 'President Message' },
+    { path: '/iap/secretary-message', icon: Users, label: 'Secretary General' },
+    { path: '/iap/treasurer-message', icon: DollarSign, label: 'National Treasurer' }
+  ];
+
   const adminItems = user?.user_type === 'admin' ? [
     { path: '/admin', icon: Shield, label: 'Admin Panel' }
   ] : [];
@@ -188,6 +195,22 @@ const Sidebar = () => {
             <span>{item.label}</span>
           </NavItem>
         ))}
+
+        {/* IAP Pages Section */}
+        <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #e5e7eb' }}>
+          {iapItems.map((item) => (
+            <NavItem
+              key={item.path}
+              to={item.path}
+              active={location.pathname === item.path}
+            >
+              <item.icon />
+              <span>{item.label}</span>
+            </NavItem>
+          ))}
+        </div>
+
+
       </Navigation>
 
       <UserSection>

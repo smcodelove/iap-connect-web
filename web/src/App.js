@@ -21,6 +21,12 @@ import SearchPage from './pages/search/SearchPage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import BookmarksPage from './pages/bookmarks/BookmarksPage';
 
+// static pages
+import StaticPagesLayout from './pages/static/StaticPagesLayout';
+import PresidentMessagePage from './pages/static/PresidentMessagePage';
+import SecretaryMessagePage from './pages/static/SecretaryMessagePage';
+import TreasurerMessagePage from './pages/static/TreasurerMessagePage';
+
 // Import User Pages (NEW)
 import UserProfilePage from './pages/user/UserProfilePage';
 import UserFollowersPage from './pages/user/UserFollowersPage';
@@ -107,6 +113,13 @@ const AppLayout = () => {
             <Route path="/search" element={<SearchPage />} />
             <Route path="/bookmarks" element={<BookmarksPage />} />
             <Route path="/admin" element={<AdminDashboardPage />} />
+
+            {/* IAP Static Pages Routes */}
+            <Route path="/iap" element={<StaticPagesLayout />}>
+              <Route path="president-message" element={<PresidentMessagePage />} />
+              <Route path="secretary-message" element={<SecretaryMessagePage />} />
+              <Route path="treasurer-message" element={<TreasurerMessagePage />} />
+            </Route>
             
             {/* Placeholder Routes */}
             <Route path="/notifications" element={<div>Notifications page coming soon!</div>} />
