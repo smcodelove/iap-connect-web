@@ -1,6 +1,6 @@
 """
 Database configuration for IAP Connect application.
-Updated for Neon PostgreSQL deployment.
+Fixed for Neon PostgreSQL with AsyncPG driver.
 """
 
 from sqlalchemy import create_engine, text
@@ -10,8 +10,14 @@ from .settings import settings
 import os
 
 def get_database_url():
-    """Get database URL with proper SSL for Neon."""
+    """Get database URL with AsyncPG driver for Neon."""
     database_url = settings.database_url
+    
+    # Force use of asyncpg driver instead of psycopg2
+    if database_url.startswith("postgresql://"):
+        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
+    elif database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql+asyncpg://")
     
     # Handle Neon SSL requirements
     if "neon.tech" in database_url and "sslmode" not in database_url:
@@ -20,14 +26,20 @@ def get_database_url():
     
     return database_url
 
-# Create database engine with Neon-optimized settings
+# Create database engine with AsyncPG driver
 engine = create_engine(
     get_database_url(),
-    echo=False,  # Set to False for production
-    pool_size=5,  # Reduced for Neon's connection limits
+    echo=False,
+    pool_size=5,
     max_overflow=10,
-    pool_pre_ping=True,  # Test connections before use
-    pool_recycle=3600,   # Recycle connections every hour
+    pool_pre_ping=True,
+    pool_recycle=3600,
+    # AsyncPG specific connection args
+    connect_args={
+        "server_settings": {
+            "application_name": "iap_connect",
+        }
+    }
 )
 
 # Create session factory
