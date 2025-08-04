@@ -217,7 +217,7 @@ const SuccessMessage = styled.div`
   
   .success-button {
     margin-top: 1rem;
-    background: ${props => props.theme.colors.green600};
+    background: #0066cc;
     color: white;
     border: none;
     border-radius: 0.5rem;

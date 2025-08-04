@@ -1,8 +1,12 @@
-// web/src/pages/search/SearchPage.js
+// web/src/pages/search/SearchPage.js - FIXED: Real API Integration
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
 import { useSearchParams } from 'react-router-dom';
+import styled from 'styled-components';
 import { Search, Users, FileText, Hash } from 'lucide-react';
+
+// Import real services - ADD THESE IMPORTS
+import userService from '../../services/userService';
+import postService from '../../services/postService';
 
 const SearchContainer = styled.div`
   max-width: 800px;
@@ -13,167 +17,126 @@ const SearchContainer = styled.div`
 const SearchHeader = styled.div`
   background: white;
   border-radius: 12px;
-  padding: 25px;
+  padding: 24px;
   margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 `;
 
 const SearchForm = styled.form`
-  position: relative;
+  display: flex;
   margin-bottom: 20px;
 `;
 
 const SearchInput = styled.input`
-  width: 100%;
-  padding: 15px 50px 15px 20px;
-  border: 2px solid ${props => props.theme.colors.gray200};
-  border-radius: 12px;
-  font-size: 1.1rem;
-  transition: all 0.3s ease;
-  
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e1e8ed;
+  border-radius: 25px;
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.2s;
+
   &:focus {
-    border-color: ${props => props.theme.colors.primary};
-    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
-  }
-  
-  &::placeholder {
-    color: ${props => props.theme.colors.gray500};
+    border-color: #1da1f2;
   }
 `;
 
 const SearchButton = styled.button`
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: ${props => props.theme.colors.primary};
+  background: #1da1f2;
   color: white;
   border: none;
-  border-radius: 8px;
-  padding: 10px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    background: ${props => props.theme.colors.primaryDark};
-  }
-`;
-
-const FilterSection = styled.div`
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  margin-left: 10px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-  flex-wrap: wrap;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:hover {
+    background: #1991db;
+  }
 `;
 
 const FilterTabs = styled.div`
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 `;
 
 const FilterTab = styled.button`
-  background: ${props => props.active ? props.theme.colors.primary : 'white'};
-  color: ${props => props.active ? 'white' : props.theme.colors.gray600};
-  border: 2px solid ${props => props.active ? props.theme.colors.primary : props.theme.colors.gray200};
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.9rem;
-  
+  gap: 8px;
+  padding: 8px 16px;
+  border: 2px solid ${props => props.active ? '#1da1f2' : '#e1e8ed'};
+  background: ${props => props.active ? '#1da1f2' : 'white'};
+  color: ${props => props.active ? 'white' : '#666'};
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+
   &:hover {
-    border-color: ${props => props.theme.colors.primary};
-    color: ${props => props.active ? 'white' : props.theme.colors.primary};
+    border-color: #1da1f2;
+    color: ${props => props.active ? 'white' : '#1da1f2'};
   }
 `;
 
 const SearchResults = styled.div`
   background: white;
   border-radius: 12px;
-  padding: 25px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 `;
 
 const ResultsHeader = styled.div`
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 2px solid ${props => props.theme.colors.gray200};
   
   h2 {
-    color: ${props => props.theme.colors.textPrimary};
-    font-size: 1.4rem;
+    margin: 0;
+    color: #333;
   }
   
   .count {
-    color: ${props => props.theme.colors.gray600};
-    font-size: 0.9rem;
+    color: #666;
+    font-size: 14px;
   }
 `;
 
-const EmptyState = styled.div`
-  text-align: center;
-  padding: 60px 20px;
-  color: ${props => props.theme.colors.gray600};
-  
-  .icon {
-    font-size: 4rem;
-    margin-bottom: 20px;
-    opacity: 0.5;
-  }
-  
-  h3 {
-    margin-bottom: 10px;
-    color: ${props => props.theme.colors.gray700};
-  }
-  
-  p {
-    line-height: 1.6;
-  }
-`;
-
-const ResultCard = styled.div`
-  border: 1px solid ${props => props.theme.colors.gray200};
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 15px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  
-  &:hover {
-    border-color: ${props => props.theme.colors.primary};
-    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.1);
-  }
-  
-  &:last-child {
-    margin-bottom: 0;
-  }
-`;
-
-const UserResult = styled(ResultCard)`
+const UserResult = styled.div`
   display: flex;
   align-items: center;
-  gap: 15px;
+  padding: 15px 0;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:hover {
+    background: #f8f9fa;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
 `;
 
 const UserAvatar = styled.div`
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: linear-gradient(135deg, ${props => props.theme.colors.primary} 0%, ${props => props.theme.colors.primaryLight} 100%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   font-weight: bold;
-  font-size: 1.1rem;
+  margin-right: 15px;
+  flex-shrink: 0;
 `;
 
 const UserInfo = styled.div`
@@ -181,62 +144,115 @@ const UserInfo = styled.div`
   
   .name {
     font-weight: 600;
-    color: ${props => props.theme.colors.textPrimary};
+    color: #333;
     margin-bottom: 4px;
   }
   
   .meta {
-    color: ${props => props.theme.colors.gray600};
-    font-size: 0.9rem;
-    margin-bottom: 6px;
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 4px;
   }
   
   .bio {
-    color: ${props => props.theme.colors.gray700};
-    font-size: 0.9rem;
+    color: #888;
+    font-size: 13px;
     line-height: 1.4;
   }
 `;
 
-const PostResult = styled(ResultCard)`
+const PostResult = styled.div`
+  padding: 15px 0;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:hover {
+    background: #f8f9fa;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+  
   .title {
     font-weight: 600;
-    color: ${props => props.theme.colors.textPrimary};
+    color: #333;
     margin-bottom: 8px;
-    font-size: 1.1rem;
   }
   
   .content {
-    color: ${props => props.theme.colors.gray700};
-    margin-bottom: 12px;
+    color: #666;
     line-height: 1.5;
+    margin-bottom: 8px;
   }
   
   .meta {
     display: flex;
-    align-items: center;
     gap: 15px;
-    font-size: 0.85rem;
-    color: ${props => props.theme.colors.gray600};
+    color: #888;
+    font-size: 13px;
+    
+    span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
   }
 `;
 
-const TagResult = styled(ResultCard)`
+const TagResult = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 0;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:hover {
+    background: #f8f9fa;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+  
   .tag {
     font-weight: 600;
-    color: ${props => props.theme.colors.primary};
-    margin-bottom: 8px;
-    font-size: 1.1rem;
+    color: #1da1f2;
+    font-size: 16px;
   }
   
   .description {
-    color: ${props => props.theme.colors.gray700};
-    margin-bottom: 8px;
+    color: #666;
+    margin: 4px 0;
   }
   
   .stats {
-    font-size: 0.85rem;
-    color: ${props => props.theme.colors.gray600};
+    color: #888;
+    font-size: 13px;
+  }
+`;
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+  
+  .icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+  
+  h3 {
+    margin: 0 0 8px 0;
+    color: #333;
+  }
+  
+  p {
+    margin: 0;
+    line-height: 1.5;
   }
 `;
 
@@ -244,14 +260,14 @@ const LoadingSpinner = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 40px;
+  height: 200px;
   
   &::after {
     content: '';
     width: 40px;
     height: 40px;
-    border: 3px solid ${props => props.theme.colors.gray200};
-    border-top: 3px solid ${props => props.theme.colors.primary};
+    border: 3px solid #e1e8ed;
+    border-top: 3px solid #1da1f2;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -262,11 +278,23 @@ const LoadingSpinner = styled.div`
   }
 `;
 
+// Add Error Message styling
+const ErrorMessage = styled.div`
+  background: #fee;
+  color: #c33;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid #fcc;
+`;
+
 const SearchPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [activeFilter, setActiveFilter] = useState('all');
   const [loading, setLoading] = useState(false);
+  // Add error state for better UX
+  const [error, setError] = useState(null);
   const [results, setResults] = useState({
     users: [],
     posts: [],
@@ -288,94 +316,139 @@ const SearchPage = () => {
     }
   }, [searchParams]);
 
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    
+    setSearchParams({ q: query });
+    performSearch(query);
+  };
+
+  // REPLACE THIS MOCK DATA PART WITH REAL API CALLS
   const performSearch = async (searchQuery) => {
     if (!searchQuery.trim()) return;
     
     setLoading(true);
+    setError(null);
+    
     try {
-      // Simulate API call - replace with actual API calls
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log(`🔍 Searching for: "${searchQuery}"`);
       
-      // Mock results - replace with actual API results
-      setResults({
-        users: [
-          {
-            id: 1,
-            name: 'Dr. Sarah Johnson',
-            username: 'drjohnson',
-            specialty: 'Cardiology',
-            bio: 'Cardiologist specializing in heart disease prevention and treatment.',
-            type: 'doctor'
-          },
-          {
-            id: 2,
-            name: 'Medical Student Alex',
-            username: 'medalex',
-            college: 'Harvard Medical School',
-            bio: 'Final year medical student interested in pediatrics.',
-            type: 'student'
-          }
-        ],
-        posts: [
-          {
-            id: 1,
-            title: 'Latest advances in cardiac surgery',
-            content: 'Recent developments in minimally invasive cardiac procedures have shown promising results...',
-            author: 'Dr. Sarah Johnson',
-            likes: 24,
-            comments: 8,
-            created_at: '2024-01-15'
-          },
-          {
-            id: 2,
-            title: 'Study tips for medical students',
-            content: 'Effective study strategies that helped me through medical school...',
-            author: 'Medical Student Alex',
-            likes: 15,
-            comments: 12,
-            created_at: '2024-01-14'
-          }
-        ],
-        tags: [
-          { id: 1, name: 'cardiology', posts: 45, description: 'Posts related to heart and cardiovascular medicine' },
-          { id: 2, name: 'medical-school', posts: 32, description: 'Tips and discussions for medical students' },
-          { id: 3, name: 'surgery', posts: 28, description: 'Surgical procedures and techniques' }
-        ]
+      // Parallel API calls for better performance
+      const searchPromises = [];
+      
+      // Search users - using your existing userService
+      searchPromises.push(
+        userService.searchUsers(searchQuery, { page: 1, perPage: 10 })
+          .then(response => ({ type: 'users', response }))
+          .catch(error => ({ type: 'users', error }))
+      );
+      
+      // Search posts - using your existing postService
+      searchPromises.push(
+        postService.searchPosts(searchQuery, { page: 1, perPage: 10 })
+          .then(response => ({ type: 'posts', response }))
+          .catch(error => ({ type: 'posts', error }))
+      );
+      
+      // Execute all searches
+      const searchResults = await Promise.all(searchPromises);
+      
+      const newResults = {
+        users: [],
+        posts: [],
+        tags: []
+      };
+      
+      // Process results
+      searchResults.forEach(result => {
+        if (result.error) {
+          console.error(`❌ ${result.type} search failed:`, result.error);
+          return;
+        }
+        
+        if (result.type === 'users' && result.response?.success) {
+          newResults.users = result.response.users.map(user => ({
+            id: user.id,
+            name: user.full_name || user.username,
+            username: user.username,
+            specialty: user.specialty,
+            college: user.college,
+            bio: user.bio,
+            type: user.user_type,
+            profile_picture_url: user.profile_picture_url
+          }));
+          console.log(`✅ Found ${newResults.users.length} users`);
+        }
+        
+        if (result.type === 'posts' && result.response?.success) {
+          newResults.posts = result.response.posts.map(post => ({
+            id: post.id,
+            title: post.content.substring(0, 60) + (post.content.length > 60 ? '...' : ''),
+            content: post.content,
+            author: post.author?.full_name || 'Unknown Author',
+            likes: post.likes_count || 0,
+            comments: post.comments_count || 0,
+            shares: post.shares_count || 0,
+            created_at: post.created_at
+          }));
+          console.log(`✅ Found ${newResults.posts.length} posts`);
+        }
       });
+      
+      // Extract hashtags from posts content for tags
+      if (newResults.posts.length > 0) {
+        const hashtagMap = new Map();
+        
+        newResults.posts.forEach((post, index) => {
+          const hashtagMatches = post.content.match(/#[\w]+/g);
+          if (hashtagMatches) {
+            hashtagMatches.forEach(tag => {
+              const cleanTag = tag.toLowerCase();
+              if (hashtagMap.has(cleanTag)) {
+                hashtagMap.set(cleanTag, hashtagMap.get(cleanTag) + 1);
+              } else {
+                hashtagMap.set(cleanTag, 1);
+              }
+            });
+          }
+        });
+        
+        newResults.tags = Array.from(hashtagMap.entries()).map(([tag, count], index) => ({
+          id: index + 1,
+          name: tag.substring(1), // Remove # symbol
+          description: `Found in ${count} post${count > 1 ? 's' : ''}`,
+          posts: count
+        }));
+        
+        console.log(`✅ Extracted ${newResults.tags.length} hashtags`);
+      }
+      
+      setResults(newResults);
+      
+      const totalResults = newResults.users.length + newResults.posts.length + newResults.tags.length;
+      console.log(`🎯 Search completed: ${totalResults} total results`);
+      
     } catch (error) {
-      console.error('Search failed:', error);
+      console.error('❌ Search failed:', error);
+      setError('Search failed. Please try again.');
+      setResults({ users: [], posts: [], tags: [] });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (query.trim()) {
-      setSearchParams({ q: query.trim() });
-      performSearch(query.trim());
-    }
-  };
-
-  const getFilteredResults = () => {
-    switch (activeFilter) {
-      case 'users':
-        return { users: results.users, posts: [], tags: [] };
-      case 'posts':
-        return { users: [], posts: results.posts, tags: [] };
-      case 'tags':
-        return { users: [], posts: [], tags: results.tags };
-      default:
-        return results;
-    }
-  };
-
-  const filteredResults = getFilteredResults();
-  const totalResults = filteredResults.users.length + filteredResults.posts.length + filteredResults.tags.length;
-
   const getInitials = (name) => {
     return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
   };
+
+  const filteredResults = {
+    users: activeFilter === 'all' || activeFilter === 'users' ? results.users : [],
+    posts: activeFilter === 'all' || activeFilter === 'posts' ? results.posts : [],
+    tags: activeFilter === 'all' || activeFilter === 'tags' ? results.tags : []
+  };
+
+  const totalResults = filteredResults.users.length + filteredResults.posts.length + filteredResults.tags.length;
 
   return (
     <SearchContainer>
@@ -392,23 +465,21 @@ const SearchPage = () => {
           </SearchButton>
         </SearchForm>
 
-        <FilterSection>
-          <FilterTabs>
-            {filters.map(filter => {
-              const Icon = filter.icon;
-              return (
-                <FilterTab
-                  key={filter.id}
-                  active={activeFilter === filter.id}
-                  onClick={() => setActiveFilter(filter.id)}
-                >
-                  <Icon size={16} />
-                  {filter.label}
-                </FilterTab>
-              );
-            })}
-          </FilterTabs>
-        </FilterSection>
+        <FilterTabs>
+          {filters.map(filter => {
+            const Icon = filter.icon;
+            return (
+              <FilterTab
+                key={filter.id}
+                active={activeFilter === filter.id}
+                onClick={() => setActiveFilter(filter.id)}
+              >
+                <Icon size={16} />
+                {filter.label}
+              </FilterTab>
+            );
+          })}
+        </FilterTabs>
       </SearchHeader>
 
       <SearchResults>
@@ -420,6 +491,8 @@ const SearchPage = () => {
             </div>
           </ResultsHeader>
         )}
+
+        {error && <ErrorMessage>{error}</ErrorMessage>}
 
         {loading ? (
           <LoadingSpinner />
@@ -450,14 +523,22 @@ const SearchPage = () => {
                   Users ({filteredResults.users.length})
                 </h3>
                 {filteredResults.users.map(user => (
-                  <UserResult key={user.id}>
+                  <UserResult key={user.id} onClick={() => window.location.href = `/user/${user.id}`}>
                     <UserAvatar>
-                      {getInitials(user.name)}
+                      {user.profile_picture_url ? (
+                        <img 
+                          src={user.profile_picture_url} 
+                          alt={user.name}
+                          style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        getInitials(user.name)
+                      )}
                     </UserAvatar>
                     <UserInfo>
                       <div className="name">{user.name}</div>
                       <div className="meta">
-                        @{user.username} • {user.specialty || user.college}
+                        @{user.username} • {user.specialty || user.college || user.type}
                       </div>
                       {user.bio && <div className="bio">{user.bio}</div>}
                     </UserInfo>
@@ -473,7 +554,7 @@ const SearchPage = () => {
                   Posts ({filteredResults.posts.length})
                 </h3>
                 {filteredResults.posts.map(post => (
-                  <PostResult key={post.id}>
+                  <PostResult key={post.id} onClick={() => window.location.href = `/post/${post.id}`}>
                     <div className="title">{post.title}</div>
                     <div className="content">
                       {post.content.length > 200 
@@ -485,6 +566,7 @@ const SearchPage = () => {
                       <span>By {post.author}</span>
                       <span>❤️ {post.likes}</span>
                       <span>💬 {post.comments}</span>
+                      <span>🔄 {post.shares}</span>
                       <span>{new Date(post.created_at).toLocaleDateString()}</span>
                     </div>
                   </PostResult>
@@ -499,9 +581,11 @@ const SearchPage = () => {
                   Tags ({filteredResults.tags.length})
                 </h3>
                 {filteredResults.tags.map(tag => (
-                  <TagResult key={tag.id}>
-                    <div className="tag">#{tag.name}</div>
-                    <div className="description">{tag.description}</div>
+                  <TagResult key={tag.id} onClick={() => window.location.href = `/search?q=${encodeURIComponent('#' + tag.name)}`}>
+                    <div>
+                      <div className="tag">#{tag.name}</div>
+                      <div className="description">{tag.description}</div>
+                    </div>
                     <div className="stats">{tag.posts} posts</div>
                   </TagResult>
                 ))}

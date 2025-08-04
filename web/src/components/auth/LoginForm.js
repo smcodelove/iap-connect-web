@@ -115,7 +115,7 @@ const CheckboxLabel = styled.label`
 
 const SubmitButton = styled.button`
   width: 100%;
-  background: ${props => props.theme.colors.blue600};
+  background: #0066cc;
   color: white;
   border: none;
   border-radius: 0.5rem;

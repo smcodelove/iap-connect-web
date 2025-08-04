@@ -202,7 +202,7 @@ const PasswordStrengthText = styled.div`
 
 const SubmitButton = styled.button`
   width: 100%;
-  background: ${props => props.theme.colors.blue600};
+  background: #0066cc;
   color: white;
   border: none;
   border-radius: 0.5rem;
@@ -215,6 +215,8 @@ const SubmitButton = styled.button`
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  margin-top: 1.5rem;        // ADD THIS - Space above button
+  margin-bottom: 2rem;       // ADD THIS - Space below button
   
   &:hover:not(:disabled) {
     background: ${props => props.theme.colors.blue700};
