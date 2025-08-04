@@ -1,6 +1,6 @@
 """
 Database configuration for IAP Connect application.
-Fixed AsyncPG configuration for Neon PostgreSQL.
+Simple configuration for Neon PostgreSQL using psycopg2.
 """
 
 from sqlalchemy import create_engine, text
@@ -10,44 +10,32 @@ from .settings import settings
 import os
 
 def get_database_url():
-    """Get database URL with AsyncPG driver for Neon."""
+    """Get database URL with proper SSL for Neon."""
     database_url = settings.database_url
     
-    # Convert to AsyncPG driver
-    if database_url.startswith("postgresql://"):
-        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
-    elif database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql+asyncpg://")
+    # Ensure standard postgresql:// prefix (no AsyncPG)
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://")
     
-    # Remove sslmode parameter as AsyncPG handles SSL automatically for Neon
-    if "sslmode=require" in database_url:
-        database_url = database_url.replace("sslmode=require", "")
-        database_url = database_url.replace("&sslmode=require", "")
-        database_url = database_url.replace("?sslmode=require&", "?")
-        database_url = database_url.replace("?sslmode=require", "")
+    # Remove any AsyncPG references
+    if "+asyncpg" in database_url:
+        database_url = database_url.replace("+asyncpg", "")
     
-    # Clean up any double separators
-    database_url = database_url.replace("&&", "&")
-    database_url = database_url.replace("?&", "?")
-    if database_url.endswith("&") or database_url.endswith("?"):
-        database_url = database_url[:-1]
+    # Add SSL mode for Neon if not present
+    if "neon.tech" in database_url and "sslmode" not in database_url:
+        separator = "&" if "?" in database_url else "?"
+        database_url = f"{database_url}{separator}sslmode=require"
     
     return database_url
 
-# Create database engine with AsyncPG
+# Simple engine configuration with psycopg2
 engine = create_engine(
     get_database_url(),
     echo=False,
     pool_size=5,
     max_overflow=10,
     pool_pre_ping=True,
-    pool_recycle=3600,
-    # AsyncPG connection args (SSL is automatic for neon.tech)
-    connect_args={
-        "server_settings": {
-            "application_name": "iap_connect",
-        }
-    }
+    pool_recycle=3600
 )
 
 # Create session factory
@@ -58,13 +46,7 @@ Base = declarative_base()
 
 
 def get_db():
-    """
-    Database dependency for FastAPI routes.
-    Creates and closes database sessions automatically.
-    
-    Yields:
-        db: SQLAlchemy database session
-    """
+    """Database dependency for FastAPI routes."""
     db = SessionLocal()
     try:
         yield db
@@ -73,11 +55,11 @@ def get_db():
 
 
 def test_connection():
-    """Test database connection for deployment verification."""
+    """Test database connection."""
     try:
         with engine.connect() as connection:
-            result = connection.execute(text("SELECT 1"))
-            return True
+            connection.execute(text("SELECT 1"))
+        return True
     except Exception as e:
-        print(f"Database connection failed: {e}")
+        print(f"Database connection test failed: {e}")
         return False
