@@ -2,11 +2,34 @@
 /**
  * Media service for file uploads and management
  * Handles avatar uploads, post media, and document uploads
+ * UPDATED: Added AWS S3 integration alongside existing local upload functionality
  */
 
 import api from './api';
 
 class MediaService {
+  constructor() {
+    this.useS3 = false; // Feature flag to switch between local and S3 uploads
+    this.s3Config = null;
+  }
+
+  /**
+   * Initialize S3 configuration (call this when S3 is ready)
+   */
+  async initializeS3() {
+    try {
+      const response = await api.get('/upload/config');
+      if (response.data?.success && response.data?.data?.storage_provider === 'aws_s3') {
+        this.s3Config = response.data.data;
+        this.useS3 = true;
+        console.log('✅ S3 upload enabled');
+      }
+    } catch (error) {
+      console.log('💾 Using local upload (S3 not available)');
+      this.useS3 = false;
+    }
+  }
+
   /**
    * Upload user avatar
    * @param {File} file - Image file
@@ -22,6 +45,7 @@ class MediaService {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: 60000, // 1 minute for image uploads
       };
 
       if (onProgress) {
@@ -33,8 +57,12 @@ class MediaService {
         };
       }
 
-      const response = await api.post('/upload/avatar', formData, config);
-      return response.data;
+      // Use S3 route if available, otherwise fallback to existing
+      const endpoint = this.useS3 ? '/upload/avatar' : '/upload/avatar';
+      const response = await api.post(endpoint, formData, config);
+      
+      // Handle both S3 and local response formats
+      return this.useS3 ? response.data.data : response.data;
     } catch (error) {
       console.error('Avatar upload failed:', error);
       throw new Error(
@@ -72,6 +100,7 @@ class MediaService {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: 120000, // 2 minutes for multiple uploads
       };
 
       if (onProgress) {
@@ -83,8 +112,11 @@ class MediaService {
         };
       }
 
-      const response = await api.post('/upload/post-media', formData, config);
-      return response.data;
+      // Use S3 route if available, otherwise fallback
+      const endpoint = this.useS3 ? '/upload/post-images' : '/upload/post-media';
+      const response = await api.post(endpoint, formData, config);
+      
+      return this.useS3 ? response.data.data : response.data;
     } catch (error) {
       console.error('Post media upload failed:', error);
       throw new Error(
@@ -114,12 +146,17 @@ class MediaService {
 
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('folder', 'posts');
+      
+      // Add folder parameter for local uploads
+      if (!this.useS3) {
+        formData.append('folder', 'posts');
+      }
 
       const config = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: 60000,
       };
 
       if (onProgress) {
@@ -131,12 +168,60 @@ class MediaService {
         };
       }
 
-      const response = await api.post('/upload/document', formData, config);
-      return response.data;
+      // Use S3 route if available, otherwise existing route
+      const endpoint = this.useS3 ? '/upload/image' : '/upload/document';
+      const response = await api.post(endpoint, formData, config);
+      
+      return this.useS3 ? response.data.data : response.data;
     } catch (error) {
       console.error('Image upload failed:', error);
       throw new Error(
         error.response?.data?.detail || 'Image upload failed'
+      );
+    }
+  }
+
+  /**
+   * Upload multiple individual images (S3 optimized)
+   * @param {FileList|Array} files - Image files
+   * @param {Function} onProgress - Progress callback
+   * @returns {Promise} Upload results
+   */
+  async uploadMultipleImages(files, onProgress = null) {
+    if (!this.useS3) {
+      // Fallback to existing uploadPostMedia for local uploads
+      return this.uploadPostMedia(files, onProgress);
+    }
+
+    try {
+      const formData = new FormData();
+      
+      Array.from(files).forEach((file) => {
+        formData.append('files', file);
+      });
+
+      const config = {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 120000,
+      };
+
+      if (onProgress) {
+        config.onUploadProgress = (progressEvent) => {
+          const progress = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(progress);
+        };
+      }
+
+      const response = await api.post('/upload/images', formData, config);
+      return response.data.data;
+    } catch (error) {
+      console.error('Multiple image upload failed:', error);
+      throw new Error(
+        error.response?.data?.detail || 'Failed to upload images'
       );
     }
   }
@@ -180,15 +265,24 @@ class MediaService {
 
   /**
    * Delete uploaded file
-   * @param {string} filePath - File path or URL
+   * @param {string} filePath - File path or URL (or S3 key)
    * @returns {Promise} Deletion result
    */
   async deleteFile(filePath) {
     try {
-      const response = await api.delete('/upload/file', {
-        params: { file_path: filePath },
-      });
-      return response.data;
+      let response;
+      
+      if (this.useS3) {
+        // For S3, filePath should be the S3 key
+        response = await api.delete(`/upload/file/${filePath}`);
+      } else {
+        // For local uploads, use query parameter
+        response = await api.delete('/upload/file', {
+          params: { file_path: filePath },
+        });
+      }
+      
+      return this.useS3 ? response.data : response.data;
     } catch (error) {
       console.error('File deletion failed:', error);
       throw new Error(
@@ -199,20 +293,51 @@ class MediaService {
 
   /**
    * Get file information
-   * @param {string} filePath - File path or URL
+   * @param {string} filePath - File path or URL (or S3 key)
    * @returns {Promise} File information
    */
   async getFileInfo(filePath) {
     try {
-      const response = await api.get('/upload/file-info', {
-        params: { file_path: filePath },
-      });
-      return response.data;
+      let response;
+      
+      if (this.useS3) {
+        response = await api.get(`/upload/file-info/${filePath}`);
+        return response.data.data;
+      } else {
+        response = await api.get('/upload/file-info', {
+          params: { file_path: filePath },
+        });
+        return response.data;
+      }
     } catch (error) {
       console.error('Failed to get file info:', error);
       throw new Error(
         error.response?.data?.detail || 'Failed to get file information'
       );
+    }
+  }
+
+  /**
+   * Get upload configuration from server
+   * @returns {Promise} Upload configuration
+   */
+  async getUploadConfig() {
+    try {
+      const response = await this.useS3 ? 
+        api.get('/upload/config') : 
+        api.get('/upload/health');
+      
+      return this.useS3 ? response.data.data : response.data;
+    } catch (error) {
+      console.error('Failed to get upload config:', error);
+      // Return default config
+      return {
+        max_file_size_mb: 10,
+        supported_formats: {
+          images: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
+          documents: ['pdf', 'doc', 'docx', 'txt'],
+        },
+      };
     }
   }
 
@@ -268,6 +393,51 @@ class MediaService {
         size: file.size,
         type: file.type,
         sizeMB: (file.size / (1024 * 1024)).toFixed(2),
+      },
+    };
+  }
+
+  /**
+   * Validate image file (S3 specific)
+   * @param {File} file - Image file to validate
+   * @param {string} type - Validation type ('image', 'avatar')
+   * @returns {Object} Validation result
+   */
+  validateImage(file, type = 'image') {
+    const errors = [];
+
+    if (!file) {
+      errors.push('No file selected');
+      return { isValid: false, errors };
+    }
+
+    // Size limits
+    const sizeLimits = {
+      avatar: 2 * 1024 * 1024,   // 2MB
+      image: 10 * 1024 * 1024,   // 10MB
+    };
+
+    const maxSize = sizeLimits[type] || sizeLimits.image;
+    if (file.size > maxSize) {
+      errors.push(`File size must be less than ${maxSize / (1024 * 1024)}MB`);
+    }
+
+    // Type validation - only images
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    
+    if (!allowedTypes.includes(file.type)) {
+      errors.push(`Invalid file type. Allowed: JPG, PNG, WebP, GIF`);
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      fileInfo: {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        sizeMB: (file.size / (1024 * 1024)).toFixed(2),
+        isImage: file.type.startsWith('image/')
       },
     };
   }
@@ -460,27 +630,36 @@ class MediaService {
   }
 
   /**
-   * Get upload configuration from server
-   * @returns {Promise} Upload configuration
+   * Check if S3 upload is enabled
+   * @returns {boolean} True if S3 is enabled
    */
-  async getUploadConfig() {
-    try {
-      const response = await api.get('/upload/health');
-      return response.data;
-    } catch (error) {
-      console.error('Failed to get upload config:', error);
-      // Return default config
-      return {
-        max_file_size_mb: 10,
-        supported_formats: {
-          images: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-          documents: ['pdf', 'doc', 'docx', 'txt'],
-        },
-      };
-    }
+  isS3Enabled() {
+    return this.useS3;
+  }
+
+  /**
+   * Get storage provider info
+   * @returns {Object} Storage provider information
+   */
+  getStorageInfo() {
+    return {
+      provider: this.useS3 ? 'aws_s3' : 'local',
+      config: this.s3Config,
+      features: {
+        optimization: this.useS3,
+        cdn: this.useS3,
+        scalability: this.useS3 ? 'unlimited' : 'limited'
+      }
+    };
   }
 }
 
 // Export singleton instance
 const mediaService = new MediaService();
+
+// Initialize S3 on service creation (non-blocking)
+mediaService.initializeS3().catch(() => {
+  console.log('💾 Continuing with local upload support');
+});
+
 export default mediaService;

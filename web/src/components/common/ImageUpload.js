@@ -1,462 +1,502 @@
 // web/src/components/common/ImageUpload.js
 /**
- * Image Upload Component with preview, compression, and progress
- * Features: Drag & drop, multiple files, progress tracking, validation
+ * Image Upload Component - Images Only
+ * Supports drag & drop, preview, and progress tracking
  */
 
-import React, { useState, useCallback, useRef } from 'react';
-import styled, { keyframes } from 'styled-components';
-import { 
-  Upload, 
-  X, 
-  Camera, 
-  Image as ImageIcon, 
-  AlertCircle,
-  CheckCircle,
-  Loader
-} from 'lucide-react';
-import { mediaService } from '../../services/api';
-
-const uploadAnimation = keyframes`
-  0% { transform: translateY(10px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
-`;
+import React, { useState, useRef, useCallback } from 'react';
+import styled from 'styled-components';
+import { FiUpload, FiX, FiImage, FiCheck, FiAlertCircle } from 'react-icons/fi';
+import mediaService from '../../services/mediaService';
 
 const UploadContainer = styled.div`
-  position: relative;
-`;
-
-const DropZone = styled.div`
-  border: 2px dashed ${props => props.isDragOver ? props.theme.colors.primary : props.theme.colors.gray300};
+  border: 2px dashed ${props => 
+    props.isDragOver ? props.theme.colors.primary : 
+    props.hasError ? props.theme.colors.danger : 
+    props.theme.colors.border
+  };
   border-radius: 12px;
-  padding: 40px 20px;
+  padding: 32px;
+  background: ${props => 
+    props.isDragOver ? `${props.theme.colors.primary}08` : 
+    props.theme.colors.background
+  };
   text-align: center;
-  background: ${props => props.isDragOver ? `${props.theme.colors.primary}10` : props.theme.colors.gray50};
-  transition: all 0.3s ease;
   cursor: pointer;
-  
+  transition: all 0.3s ease;
+  position: relative;
+
   &:hover {
     border-color: ${props => props.theme.colors.primary};
-    background: ${props => props.theme.colors.primary}10;
+    background: ${props => props.theme.colors.primary}05;
   }
-  
+
   ${props => props.disabled && `
     opacity: 0.6;
     cursor: not-allowed;
+    pointer-events: none;
+  `}
+
+  ${props => props.compact && `
+    padding: 16px;
     
-    &:hover {
-      border-color: ${props.theme.colors.gray300};
-      background: ${props.theme.colors.gray50};
+    .upload-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+    
+    .upload-text {
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    
+    .upload-subtext {
+      font-size: 12px;
+      margin-bottom: 8px;
     }
   `}
 `;
 
 const UploadIcon = styled.div`
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: ${props => props.theme.colors.primary}20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 16px;
-  color: ${props => props.theme.colors.primary};
+  font-size: 48px;
+  color: ${props => props.theme.colors.textSecondary};
+  margin-bottom: 16px;
 `;
 
 const UploadText = styled.div`
-  h3 {
-    margin: 0 0 8px 0;
-    color: ${props => props.theme.colors.gray800};
-    font-size: 18px;
-    font-weight: 600;
-  }
-  
-  p {
-    margin: 0;
-    color: ${props => props.theme.colors.gray600};
-    font-size: 14px;
-  }
+  font-size: 16px;
+  font-weight: 600;
+  color: ${props => props.theme.colors.text};
+  margin-bottom: 8px;
 `;
 
-const UploadButtons = styled.div`
-  display: flex;
+const UploadSubtext = styled.div`
+  font-size: 14px;
+  color: ${props => props.theme.colors.textSecondary};
+  margin-bottom: 16px;
+`;
+
+const ImageGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 12px;
-  justify-content: center;
   margin-top: 20px;
 `;
 
-const UploadButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border: 1px solid ${props => props.theme.colors.primary};
-  background: ${props => props.primary ? props.theme.colors.primary : 'white'};
-  color: ${props => props.primary ? 'white' : props.theme.colors.primary};
+const ImageItem = styled.div`
+  position: relative;
+  border: 1px solid ${props => props.theme.colors.border};
   border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background: ${props => props.primary ? props.theme.colors.primaryDark : props.theme.colors.primary};
-    color: white;
-    transform: translateY(-1px);
-  }
-`;
-
-const ImagePreviewContainer = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 12px;
-  margin-top: 16px;
-  animation: ${uploadAnimation} 0.3s ease;
+  overflow: hidden;
+  background: ${props => props.theme.colors.background};
+  aspect-ratio: 1;
 `;
 
 const ImagePreview = styled.div`
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: 8px;
-  overflow: hidden;
-  background: ${props => props.theme.colors.gray100};
-  border: 2px solid ${props => props.error ? props.theme.colors.danger : 'transparent'};
-`;
-
-const PreviewImage = styled.img`
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-`;
-
-const RemoveButton = styled.button`
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.7);
-  border: none;
-  color: white;
-  cursor: pointer;
+  height: 120px;
+  background: ${props => props.theme.colors.backgroundSecondary};
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background: ${props => props.theme.colors.danger};
-    transform: scale(1.1);
+  position: relative;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .placeholder-icon {
+    font-size: 32px;
+    color: ${props => props.theme.colors.textSecondary};
   }
 `;
 
-const ProgressOverlay = styled.div`
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: white;
+const ImageInfo = styled.div`
+  padding: 8px;
+  background: ${props => props.theme.colors.background};
+`;
+
+const ImageName = styled.div`
+  font-size: 12px;
+  font-weight: 500;
+  color: ${props => props.theme.colors.text};
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const ImageSize = styled.div`
+  font-size: 10px;
+  color: ${props => props.theme.colors.textSecondary};
 `;
 
 const ProgressBar = styled.div`
-  width: 80%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.3);
+  width: 100%;
+  height: 3px;
+  background: ${props => props.theme.colors.backgroundSecondary};
   border-radius: 2px;
   overflow: hidden;
-  margin-top: 8px;
-`;
+  margin-top: 4px;
 
-const ProgressFill = styled.div`
-  height: 100%;
-  background: ${props => props.theme.colors.success};
-  width: ${props => props.progress}%;
-  transition: width 0.3s ease;
+  .progress-fill {
+    height: 100%;
+    background: ${props => props.theme.colors.primary};
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    width: ${props => props.progress}%;
+  }
 `;
 
 const StatusIcon = styled.div`
   position: absolute;
-  bottom: 4px;
-  right: 4px;
+  top: 6px;
+  right: 6px;
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: ${props => props.success ? props.theme.colors.success : props.theme.colors.danger};
-  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 10px;
+  background: ${props => 
+    props.status === 'success' ? props.theme.colors.success : 
+    props.status === 'error' ? props.theme.colors.danger : 
+    props.theme.colors.primary
+  };
+  color: white;
 `;
 
-const ErrorMessage = styled.div`
-  color: ${props => props.theme.colors.danger};
-  font-size: 12px;
-  margin-top: 4px;
-  text-align: center;
+const RemoveButton = styled.button`
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+
+  ${ImageItem}:hover & {
+    opacity: 1;
+  }
+
+  &:hover {
+    background: rgba(255, 0, 0, 0.8);
+  }
 `;
 
 const HiddenInput = styled.input`
   display: none;
 `;
 
+const ErrorMessage = styled.div`
+  color: ${props => props.theme.colors.danger};
+  font-size: 12px;
+  margin-top: 8px;
+  text-align: left;
+  padding: 8px;
+  background: ${props => props.theme.colors.danger}10;
+  border-radius: 4px;
+`;
+
 const ImageUpload = ({
   multiple = true,
   maxFiles = 5,
   maxSizeMB = 10,
-  accept = "image/jpeg,image/png,image/gif,image/webp",
   onUploadComplete,
   onUploadError,
+  onFilesChange,
   disabled = false,
   showPreview = true,
-  variant = 'default' // 'default', 'avatar', 'compact'
+  autoUpload = true,
+  variant = 'default', // 'default', 'avatar', 'compact'
+  accept = "image/jpeg,image/png,image/webp,image/gif"
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
-  const [uploadingFiles, setUploadingFiles] = useState([]);
-  const [completedFiles, setCompletedFiles] = useState([]);
+  const [images, setImages] = useState([]);
+  const [uploadConfig, setUploadConfig] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Validate file
-  const validateFile = (file) => {
-    const errors = [];
-    
-    // Check file type
-    if (!accept.split(',').some(type => file.type.includes(type.trim()))) {
-      errors.push('Invalid file type');
-    }
-    
-    // Check file size
-    const maxSizeBytes = maxSizeMB * 1024 * 1024;
-    if (file.size > maxSizeBytes) {
-      errors.push(`File size must be less than ${maxSizeMB}MB`);
-    }
-    
-    return errors;
+  // Load upload config
+  React.useEffect(() => {
+    mediaService.getUploadConfig().then(setUploadConfig);
+  }, []);
+
+  // Validate image
+  const validateImage = (file) => {
+    const validation = mediaService.validateImage(file, variant === 'avatar' ? 'avatar' : 'image');
+    return validation;
   };
 
   // Handle file selection
-  const handleFiles = useCallback(async (files) => {
+  const handleFiles = useCallback(async (fileList) => {
     if (disabled) return;
     
-    const fileList = Array.from(files);
-    const totalFiles = completedFiles.length + fileList.length;
+    const newFiles = Array.from(fileList);
+    const totalFiles = images.length + newFiles.length;
     
     if (totalFiles > maxFiles) {
-      alert(`Maximum ${maxFiles} files allowed`);
+      if (onUploadError) {
+        onUploadError(`Maximum ${maxFiles} images allowed`);
+      }
       return;
     }
 
-    for (const file of fileList) {
-      const errors = validateFile(file);
+    const processedImages = [];
+
+    for (const file of newFiles) {
+      const validation = validateImage(file);
+      const imageId = Date.now() + Math.random();
       
-      if (errors.length > 0) {
-        if (onUploadError) {
-          onUploadError(file.name, errors[0]);
-        }
-        continue;
-      }
+      const imageData = {
+        id: imageId,
+        file,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        previewUrl: null,
+        progress: 0,
+        status: validation.isValid ? 'pending' : 'error',
+        errors: validation.errors,
+        uploadResult: null
+      };
 
       // Create preview URL
-      const previewUrl = URL.createObjectURL(file);
-      const fileId = Date.now() + Math.random();
-      
-      // Add to uploading files
-      setUploadingFiles(prev => [...prev, {
-        id: fileId,
-        file,
-        previewUrl,
-        progress: 0,
-        status: 'uploading'
-      }]);
+      if (validation.isValid && showPreview) {
+        imageData.previewUrl = mediaService.createPreviewUrl(file);
+      }
 
-      try {
-        // Upload file
-        const result = await mediaService.uploadImage(file, (progress) => {
-          setUploadingFiles(prev => prev.map(item =>
-            item.id === fileId ? { ...item, progress } : item
-          ));
-        });
+      processedImages.push(imageData);
 
-        if (result.success) {
-          // Move to completed files
-          const completedFile = {
-            id: fileId,
-            url: result.url,
-            thumbnailUrl: result.thumbnailUrl,
-            filename: result.filename,
-            previewUrl,
-            status: 'completed'
-          };
-
-          setCompletedFiles(prev => [...prev, completedFile]);
-          setUploadingFiles(prev => prev.filter(item => item.id !== fileId));
-
-          if (onUploadComplete) {
-            onUploadComplete(completedFile);
-          }
-        } else {
-          throw new Error('Upload failed');
-        }
-      } catch (error) {
-        // Mark as error
-        setUploadingFiles(prev => prev.map(item =>
-          item.id === fileId ? { ...item, status: 'error' } : item
-        ));
-
-        if (onUploadError) {
-          onUploadError(file.name, error.message);
-        }
-
-        // Remove after 3 seconds
-        setTimeout(() => {
-          setUploadingFiles(prev => prev.filter(item => item.id !== fileId));
-        }, 3000);
+      // Auto upload if enabled and file is valid
+      if (autoUpload && validation.isValid) {
+        uploadImage(imageData);
       }
     }
-  }, [disabled, maxFiles, maxSizeMB, accept, completedFiles.length, onUploadComplete, onUploadError]);
 
-  // Handle drag events
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault();
-    if (!disabled) setIsDragOver(true);
-  }, [disabled]);
-
-  const handleDragLeave = useCallback((e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    if (!disabled) {
-      handleFiles(e.dataTransfer.files);
-    }
-  }, [disabled, handleFiles]);
-
-  // Handle file input
-  const handleFileInput = useCallback((e) => {
-    if (e.target.files) {
-      handleFiles(e.target.files);
-    }
-  }, [handleFiles]);
-
-  // Remove file
-  const removeFile = useCallback((fileId) => {
-    setCompletedFiles(prev => {
-      const file = prev.find(f => f.id === fileId);
-      if (file?.previewUrl) {
-        URL.revokeObjectURL(file.previewUrl);
-      }
-      return prev.filter(f => f.id !== fileId);
-    });
+    const updatedImages = multiple ? [...images, ...processedImages] : processedImages;
+    setImages(updatedImages);
     
-    setUploadingFiles(prev => {
-      const file = prev.find(f => f.id === fileId);
-      if (file?.previewUrl) {
-        URL.revokeObjectURL(file.previewUrl);
-      }
-      return prev.filter(f => f.id !== fileId);
-    });
-  }, []);
+    if (onFilesChange) {
+      onFilesChange(updatedImages);
+    }
+  }, [images, maxFiles, disabled, autoUpload, showPreview, onFilesChange, onUploadError, multiple]);
 
-  // Open file dialog
-  const openFileDialog = () => {
+  // Upload single image
+  const uploadImage = async (imageData) => {
+    // Update status to uploading
+    updateImageStatus(imageData.id, { status: 'uploading', progress: 0 });
+
+    try {
+      let uploadResult;
+      
+      if (variant === 'avatar') {
+        uploadResult = await mediaService.uploadAvatar(imageData.file, (progress) => {
+          updateImageStatus(imageData.id, { progress });
+        });
+      } else {
+        uploadResult = await mediaService.uploadImage(imageData.file, (progress) => {
+          updateImageStatus(imageData.id, { progress });
+        });
+      }
+
+      // Update with success
+      updateImageStatus(imageData.id, {
+        status: 'success',
+        progress: 100,
+        uploadResult
+      });
+
+      if (onUploadComplete) {
+        onUploadComplete(uploadResult, imageData);
+      }
+
+    } catch (error) {
+      updateImageStatus(imageData.id, {
+        status: 'error',
+        errors: [error.message]
+      });
+
+      if (onUploadError) {
+        onUploadError(error.message, imageData);
+      }
+    }
+  };
+
+  // Update image status
+  const updateImageStatus = (imageId, updates) => {
+    setImages(prevImages => 
+      prevImages.map(image => 
+        image.id === imageId ? { ...image, ...updates } : image
+      )
+    );
+  };
+
+  // Remove image
+  const removeImage = (imageId) => {
+    const image = images.find(img => img.id === imageId);
+    if (image?.previewUrl) {
+      mediaService.revokePreviewUrl(image.previewUrl);
+    }
+
+    const updatedImages = images.filter(img => img.id !== imageId);
+    setImages(updatedImages);
+    
+    if (onFilesChange) {
+      onFilesChange(updatedImages);
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+    if (files.length > 0) {
+      handleFiles(files);
+    }
+  };
+
+  const handleClick = () => {
     if (!disabled) {
       fileInputRef.current?.click();
     }
   };
 
-  const allFiles = [...uploadingFiles, ...completedFiles];
+  const handleInputChange = (e) => {
+    handleFiles(e.target.files);
+  };
+
+  // Render status icon
+  const renderStatusIcon = (status) => {
+    switch (status) {
+      case 'success':
+        return <FiCheck />;
+      case 'error':
+        return <FiAlertCircle />;
+      default:
+        return null;
+    }
+  };
+
+  const getUploadText = () => {
+    switch (variant) {
+      case 'avatar':
+        return 'Upload Profile Picture';
+      case 'compact':
+        return 'Add Images';
+      default:
+        return 'Drop images here or click to browse';
+    }
+  };
+
+  const getUploadSubtext = () => {
+    const maxSize = variant === 'avatar' ? 2 : maxSizeMB;
+    const fileText = multiple ? `Max ${maxFiles} files` : '1 file';
+    return `${fileText} • JPG, PNG, WebP, GIF • Up to ${maxSize}MB each`;
+  };
 
   return (
-    <UploadContainer>
-      <HiddenInput
-        ref={fileInputRef}
-        type="file"
-        accept={accept}
-        multiple={multiple}
-        onChange={handleFileInput}
-      />
-
-      <DropZone
+    <div>
+      <UploadContainer
         isDragOver={isDragOver}
         disabled={disabled}
+        compact={variant === 'compact'}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={openFileDialog}
+        onClick={handleClick}
       >
-        <UploadIcon>
-          <Upload size={24} />
+        <UploadIcon className="upload-icon">
+          <FiUpload />
         </UploadIcon>
         
-        <UploadText>
-          <h3>Upload Images</h3>
-          <p>Drag & drop images here, or click to browse</p>
-          <p style={{ fontSize: '12px', marginTop: '8px' }}>
-            Max {maxFiles} files, {maxSizeMB}MB each
-          </p>
+        <UploadText className="upload-text">
+          {getUploadText()}
         </UploadText>
+        
+        <UploadSubtext className="upload-subtext">
+          {getUploadSubtext()}
+        </UploadSubtext>
 
-        <UploadButtons>
-          <UploadButton primary onClick={(e) => { e.stopPropagation(); openFileDialog(); }}>
-            <ImageIcon size={16} />
-            Browse Files
-          </UploadButton>
-          
-          {navigator.mediaDevices && (
-            <UploadButton onClick={(e) => { e.stopPropagation(); /* Handle camera */ }}>
-              <Camera size={16} />
-              Camera
-            </UploadButton>
-          )}
-        </UploadButtons>
-      </DropZone>
+        <HiddenInput
+          ref={fileInputRef}
+          type="file"
+          multiple={multiple}
+          accept={accept}
+          onChange={handleInputChange}
+        />
+      </UploadContainer>
 
-      {showPreview && allFiles.length > 0 && (
-        <ImagePreviewContainer>
-          {allFiles.map((file) => (
-            <ImagePreview key={file.id} error={file.status === 'error'}>
-              <PreviewImage 
-                src={file.previewUrl} 
-                alt="Upload preview" 
-              />
-              
-              <RemoveButton onClick={() => removeFile(file.id)}>
-                <X size={14} />
-              </RemoveButton>
+      {showPreview && images.length > 0 && (
+        <ImageGrid>
+          {images.map((imageData) => (
+            <ImageItem key={imageData.id}>
+              <ImagePreview>
+                {imageData.previewUrl ? (
+                  <img src={imageData.previewUrl} alt={imageData.name} />
+                ) : (
+                  <FiImage className="placeholder-icon" />
+                )}
+                
+                <RemoveButton onClick={() => removeImage(imageData.id)}>
+                  <FiX />
+                </RemoveButton>
 
-              {file.status === 'uploading' && (
-                <ProgressOverlay>
-                  <Loader size={20} className="animate-spin" />
-                  <ProgressBar>
-                    <ProgressFill progress={file.progress} />
+                {imageData.status !== 'pending' && (
+                  <StatusIcon status={imageData.status}>
+                    {renderStatusIcon(imageData.status)}
+                  </StatusIcon>
+                )}
+              </ImagePreview>
+
+              <ImageInfo>
+                <ImageName title={imageData.name}>
+                  {imageData.name}
+                </ImageName>
+                <ImageSize>
+                  {mediaService.formatFileSize(imageData.size)}
+                </ImageSize>
+
+                {imageData.status === 'uploading' && (
+                  <ProgressBar progress={imageData.progress}>
+                    <div className="progress-fill" />
                   </ProgressBar>
-                </ProgressOverlay>
-              )}
+                )}
 
-              {file.status === 'completed' && (
-                <StatusIcon success>
-                  <CheckCircle size={12} />
-                </StatusIcon>
-              )}
-
-              {file.status === 'error' && (
-                <StatusIcon>
-                  <AlertCircle size={12} />
-                </StatusIcon>
-              )}
-            </ImagePreview>
+                {imageData.errors?.length > 0 && (
+                  <ErrorMessage>
+                    {imageData.errors[0]}
+                  </ErrorMessage>
+                )}
+              </ImageInfo>
+            </ImageItem>
           ))}
-        </ImagePreviewContainer>
+        </ImageGrid>
       )}
-    </UploadContainer>
+    </div>
   );
 };
 

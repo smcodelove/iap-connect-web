@@ -1,4 +1,4 @@
-// web/src/pages/profile/EditProfilePage.js - UPDATED WITH REAL AVATAR UPLOAD
+// web/src/pages/profile/EditProfilePage.js - UPDATED WITH S3 AVATAR UPLOAD
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useSelector, useDispatch } from 'react-redux';
@@ -15,7 +15,8 @@ import {
   AlertCircle,
   Upload,
   Loader,
-  CheckCircle
+  CheckCircle,
+  Cloud
 } from 'lucide-react';
 
 import { updateUser } from '../../store/slices/authSlice';
@@ -198,6 +199,19 @@ const UploadProgress = styled.div`
   }
 `;
 
+const UploadMethodBadge = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: ${props => props.s3 ? props.theme.colors.primary + '15' : props.theme.colors.gray100};
+  color: ${props => props.s3 ? props.theme.colors.primary : props.theme.colors.gray600};
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 4px;
+`;
+
 const FormGroup = styled.div`
   margin-bottom: 20px;
 `;
@@ -364,6 +378,7 @@ const EditProfilePage = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [successMessage, setSuccessMessage] = useState('');
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [s3Available, setS3Available] = useState(false);
 
   // Initialize form data
   useEffect(() => {
@@ -376,6 +391,21 @@ const EditProfilePage = () => {
       });
     }
   }, [user]);
+
+  // Check S3 availability
+  useEffect(() => {
+    const checkS3Availability = async () => {
+      try {
+        await mediaService.initializeS3();
+        setS3Available(mediaService.isS3Enabled());
+      } catch (error) {
+        console.log('S3 not available for avatar upload, using local upload');
+        setS3Available(false);
+      }
+    };
+    
+    checkS3Availability();
+  }, []);
 
   // Handle input change
   const handleInputChange = (field, value) => {
@@ -430,13 +460,16 @@ const EditProfilePage = () => {
     fileInputRef.current?.click();
   };
 
-  // Handle file selection
+  // Enhanced file selection with S3 support
   const handleFileChange = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Validate file
-    const validation = mediaService.validateFile(file, 'avatar');
+    // Validate file using appropriate method
+    const validation = mediaService.validateImage ? 
+      mediaService.validateImage(file, 'avatar') : 
+      mediaService.validateFile(file, 'avatar');
+      
     if (!validation.isValid) {
       setErrors({ ...errors, avatar: validation.errors[0] });
       return;
@@ -451,20 +484,39 @@ const EditProfilePage = () => {
       const previewUrl = mediaService.createPreviewUrl(file);
       setAvatarPreview(previewUrl);
 
-      console.log('📤 Uploading avatar...', validation.fileInfo);
-
-      // Upload avatar
-      const result = await mediaService.uploadAvatar(file, (progress) => {
-        setUploadProgress(progress);
+      console.log('📤 Uploading avatar...', {
+        method: s3Available ? 'S3' : 'Local',
+        file: validation.fileInfo
       });
 
+      let result;
+      
+      // Use appropriate upload method
+      if (s3Available && mediaService.uploadAvatar) {
+        result = await mediaService.uploadAvatar(file, (progress) => {
+          setUploadProgress(progress);
+        });
+      } else {
+        // Fallback to existing method
+        result = await mediaService.uploadAvatar(file, (progress) => {
+          setUploadProgress(progress);
+        });
+      }
+
       console.log('✅ Avatar uploaded successfully:', result);
+
+      // Handle different response formats
+      const avatarUrl = result.url || result.file_url || result.avatar_url;
+      
+      if (!avatarUrl) {
+        throw new Error('No URL returned from upload');
+      }
 
       // Update user in Redux store
       const updatedUser = { 
         ...user, 
-        profile_picture_url: result.url,
-        avatar_url: result.url // For compatibility
+        profile_picture_url: avatarUrl,
+        avatar_url: avatarUrl // For compatibility
       };
       
       dispatch(updateUser(updatedUser));
@@ -472,18 +524,23 @@ const EditProfilePage = () => {
       // Update authService user data
       authService.setUserData(updatedUser);
       
-      setSuccessMessage('Avatar updated successfully!');
+      setSuccessMessage(
+        `Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}!`
+      );
       
       // Clean up preview URL
       if (previewUrl) {
         mediaService.revokePreviewUrl(previewUrl);
       }
       
-      setTimeout(() => setSuccessMessage(''), 3000);
+      setTimeout(() => setSuccessMessage(''), 4000);
       
     } catch (error) {
       console.error('❌ Avatar upload failed:', error);
-      setErrors({ ...errors, avatar: error.message || 'Failed to upload avatar' });
+      setErrors({ 
+        ...errors, 
+        avatar: error.message || 'Failed to upload avatar. Please try again.' 
+      });
       
       // Clean up preview on error
       if (avatarPreview) {
@@ -623,6 +680,20 @@ const EditProfilePage = () => {
                 </>
               )}
             </AvatarUpload>
+            
+            <UploadMethodBadge s3={s3Available}>
+              {s3Available ? (
+                <>
+                  <Cloud size={12} />
+                  AWS S3 (Mumbai) - Optimized
+                </>
+              ) : (
+                <>
+                  <Upload size={12} />
+                  Local Upload
+                </>
+              )}
+            </UploadMethodBadge>
             
             {uploadingAvatar && (
               <UploadProgress>

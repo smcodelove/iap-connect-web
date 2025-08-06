@@ -13,7 +13,7 @@ console.log('🔧 Environment:', process.env.REACT_APP_ENVIRONMENT || 'developme
 // Create axios instance with enhanced config for production
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // Increased timeout for production
+  timeout: 60000, // Increased timeout for production
   headers: {
     'Content-Type': 'application/json',
   },

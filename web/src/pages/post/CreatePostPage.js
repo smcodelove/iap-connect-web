@@ -12,9 +12,13 @@ import {
   Eye,
   Send,
   Plus,
-  X
+  X,
+  Upload,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 import { createPost } from '../../store/slices/postSlice';
+import mediaService from '../../services/mediaService';
 
 const CreatePostContainer = styled.div`
   max-width: 800px;
@@ -303,12 +307,13 @@ const ImageGrid = styled.div`
 
 const ImagePreview = styled.div`
   position: relative;
+  border-radius: 8px;
+  overflow: hidden;
   
   img {
     width: 100%;
     height: 100px;
     object-fit: cover;
-    border-radius: 8px;
     border: 2px solid #e9ecef;
   }
 `;
@@ -344,8 +349,70 @@ const ImageSize = styled.div`
   font-size: 10px;
 `;
 
+const UploadStatus = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const ProgressBar = styled.div`
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  
+  .progress-fill {
+    height: 100%;
+    background: ${props => props.theme.colors.primary};
+    transition: width 0.3s ease;
+    width: ${props => props.progress}%;
+  }
+`;
+
 const HiddenFileInput = styled.input`
   display: none;
+`;
+
+const UploadMethodSelector = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: ${props => props.theme.colors.gray600};
+  margin-top: 5px;
+`;
+
+const MethodBadge = styled.span`
+  background: ${props => props.active ? props.theme.colors.primary : props.theme.colors.gray200};
+  color: ${props => props.active ? 'white' : props.theme.colors.gray600};
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+`;
+
+const ErrorMessage = styled.div`
+  background: ${props => props.theme.colors.danger}15;
+  border: 1px solid ${props => props.theme.colors.danger};
+  color: ${props => props.theme.colors.danger};
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 `;
 
 const CreatePostPage = () => {
@@ -367,9 +434,26 @@ const CreatePostPage = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [selectedImages, setSelectedImages] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadErrors, setUploadErrors] = useState([]);
+  const [s3Available, setS3Available] = useState(false);
   
   // File input ref for image upload
   const fileInputRef = useRef(null);
+
+  // Check S3 availability on component mount
+  React.useEffect(() => {
+    const checkS3Availability = async () => {
+      try {
+        await mediaService.initializeS3();
+        setS3Available(mediaService.isS3Enabled());
+      } catch (error) {
+        console.log('S3 not available, using local upload');
+        setS3Available(false);
+      }
+    };
+    
+    checkS3Availability();
+  }, []);
 
   const postTypes = [
     { id: 'discussion', label: 'Discussion', icon: Users },
@@ -413,38 +497,120 @@ const CreatePostPage = () => {
     fileInputRef.current?.click();
   };
 
+  // Enhanced file change handler with S3 support
   const handleFileChange = async (event) => {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
     setUploadingImages(true);
+    setUploadErrors([]);
     
     try {
-      // Create preview URLs for selected images
-      const imageFiles = files.map(file => ({
-        file,
-        id: Math.random().toString(36).substr(2, 9),
-        name: file.name,
-        size: file.size,
-        previewUrl: URL.createObjectURL(file)
-      }));
-
+      const imageFiles = [];
+      
+      for (const file of files) {
+        // Validate file
+        const validation = mediaService.validateImage ? 
+          mediaService.validateImage(file, 'image') : 
+          mediaService.validateFile(file, 'image');
+          
+        const imageId = Math.random().toString(36).substr(2, 9);
+        const previewUrl = mediaService.createPreviewUrl(file);
+        
+        const imageFile = {
+          file,
+          id: imageId,
+          name: file.name,
+          size: file.size,
+          previewUrl,
+          progress: 0,
+          status: validation.isValid ? 'pending' : 'error',
+          error: validation.isValid ? null : validation.errors[0],
+          uploaded: false,
+          url: null
+        };
+        
+        imageFiles.push(imageFile);
+      }
+      
       setSelectedImages(prev => [...prev, ...imageFiles]);
       
-      // In real implementation, upload to server here
-      // For now, just add preview URLs to media_urls
-      const previewUrls = imageFiles.map(img => img.previewUrl);
-      setPostData(prev => ({
-        ...prev,
-        media_urls: [...prev.media_urls, ...previewUrls]
-      }));
+      // Upload images one by one
+      for (const imageFile of imageFiles) {
+        if (imageFile.status === 'error') continue;
+        
+        try {
+          // Update status to uploading
+          setSelectedImages(prev => prev.map(img => 
+            img.id === imageFile.id ? { ...img, status: 'uploading' } : img
+          ));
+          
+          let uploadResult;
+          
+          // Use appropriate upload method based on availability
+          if (s3Available && mediaService.uploadImage) {
+            uploadResult = await mediaService.uploadImage(imageFile.file, (progress) => {
+              setSelectedImages(prev => prev.map(img => 
+                img.id === imageFile.id ? { ...img, progress } : img
+              ));
+            });
+          } else {
+            // Fallback to existing local upload
+            uploadResult = await mediaService.uploadPostMedia([imageFile.file], (progress) => {
+              setSelectedImages(prev => prev.map(img => 
+                img.id === imageFile.id ? { ...img, progress } : img
+              ));
+            });
+            
+            // Handle different response formats
+            if (uploadResult.uploaded_files && uploadResult.uploaded_files.length > 0) {
+              uploadResult = uploadResult.uploaded_files[0];
+            } else if (uploadResult.media_files && uploadResult.media_files.length > 0) {
+              uploadResult = uploadResult.media_files[0];
+            }
+          }
+          
+          // Update with success
+          setSelectedImages(prev => prev.map(img => 
+            img.id === imageFile.id ? { 
+              ...img, 
+              status: 'success', 
+              progress: 100,
+              uploaded: true,
+              url: uploadResult.url || uploadResult.file_url
+            } : img
+          ));
+          
+          // Add to post media URLs
+          const imageUrl = uploadResult.url || uploadResult.file_url;
+          if (imageUrl) {
+            setPostData(prev => ({
+              ...prev,
+              media_urls: [...prev.media_urls, imageUrl]
+            }));
+          }
+          
+        } catch (error) {
+          console.error('Image upload failed:', error);
+          
+          // Update with error
+          setSelectedImages(prev => prev.map(img => 
+            img.id === imageFile.id ? { 
+              ...img, 
+              status: 'error',
+              error: error.message || 'Upload failed'
+            } : img
+          ));
+          
+          setUploadErrors(prev => [...prev, `${imageFile.name}: ${error.message || 'Upload failed'}`]);
+        }
+      }
 
     } catch (error) {
-      console.error('Error uploading images:', error);
-      alert('Failed to upload images. Please try again.');
+      console.error('Error processing images:', error);
+      setUploadErrors(['Failed to process images. Please try again.']);
     } finally {
       setUploadingImages(false);
-      // Reset file input
       event.target.value = '';
     }
   };
@@ -453,14 +619,21 @@ const CreatePostPage = () => {
     setSelectedImages(prev => {
       const imageToRemove = prev.find(img => img.id === imageId);
       if (imageToRemove) {
-        URL.revokeObjectURL(imageToRemove.previewUrl);
+        // Revoke preview URL
+        if (imageToRemove.previewUrl) {
+          mediaService.revokePreviewUrl(imageToRemove.previewUrl);
+        }
+        
+        // Remove from media_urls if uploaded
+        if (imageToRemove.uploaded && imageToRemove.url) {
+          setPostData(current => ({
+            ...current,
+            media_urls: current.media_urls.filter(url => url !== imageToRemove.url)
+          }));
+        }
       }
       
-      const updated = prev.filter(img => img.id !== imageId);
-      // Update postData.media_urls as well
-      const urls = updated.map(img => img.previewUrl);
-      setPostData(current => ({ ...current, media_urls: urls }));
-      return updated;
+      return prev.filter(img => img.id !== imageId);
     });
   };
 
@@ -472,13 +645,18 @@ const CreatePostPage = () => {
       return;
     }
 
+    // Check if any images are still uploading
+    const uploadingCount = selectedImages.filter(img => img.status === 'uploading').length;
+    if (uploadingCount > 0) {
+      alert('Please wait for all images to finish uploading');
+      return;
+    }
+
     try {
       const postPayload = {
         content: postData.content,
-        // Fix hashtags format - send as array without # symbol
-        hashtags: postData.tags, // Send as array: ["tag1", "tag2"]
-        // For now, don't send blob URLs - they won't work on backend
-        media_urls: [] // Will be implemented with proper image upload later
+        hashtags: postData.tags,
+        media_urls: postData.media_urls
       };
 
       console.log('🚀 Sending post payload:', postPayload);
@@ -486,13 +664,14 @@ const CreatePostPage = () => {
       
       // Clean up image URLs
       selectedImages.forEach(image => {
-        URL.revokeObjectURL(image.previewUrl);
+        if (image.previewUrl) {
+          mediaService.revokePreviewUrl(image.previewUrl);
+        }
       });
       
       navigate('/feed');
     } catch (error) {
       console.error('Failed to create post:', error);
-      // Show more detailed error message
       const errorMessage = error.message || 'Failed to create post. Please try again.';
       alert(`Post creation failed: ${errorMessage}`);
     }
@@ -500,6 +679,32 @@ const CreatePostPage = () => {
 
   const getInitials = (name) => {
     return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U';
+  };
+
+  const getUploadStatusIcon = (status) => {
+    switch (status) {
+      case 'uploading':
+        return <Upload size={12} />;
+      case 'success':
+        return <CheckCircle size={12} />;
+      case 'error':
+        return <AlertCircle size={12} />;
+      default:
+        return null;
+    }
+  };
+
+  const getUploadStatusText = (image) => {
+    switch (image.status) {
+      case 'uploading':
+        return `Uploading... ${image.progress}%`;
+      case 'success':
+        return 'Uploaded';
+      case 'error':
+        return 'Failed';
+      default:
+        return '';
+    }
   };
 
   return (
@@ -619,19 +824,53 @@ const CreatePostPage = () => {
           {selectedImages.length > 0 && (
             <InputGroup>
               <Label>Selected Images ({selectedImages.length})</Label>
+              <UploadMethodSelector>
+                <span>Upload method:</span>
+                <MethodBadge active={s3Available}>
+                  {s3Available ? 'AWS S3 (Mumbai)' : 'Local Upload'}
+                </MethodBadge>
+                {s3Available && <span>✨ Optimized & Fast</span>}
+              </UploadMethodSelector>
+              
               <ImageGrid>
                 {selectedImages.map(image => (
                   <ImagePreview key={image.id}>
                     <img src={image.previewUrl} alt={image.name} />
+                    
                     <RemoveImageButton onClick={() => handleRemoveImage(image.id)}>
                       <X size={12} />
                     </RemoveImageButton>
+                    
+                    {image.status !== 'pending' && (
+                      <UploadStatus>
+                        {getUploadStatusIcon(image.status)}
+                        {getUploadStatusText(image)}
+                      </UploadStatus>
+                    )}
+                    
+                    {image.status === 'uploading' && (
+                      <ProgressBar progress={image.progress}>
+                        <div className="progress-fill" />
+                      </ProgressBar>
+                    )}
+                    
                     <ImageSize>
                       {(image.size / 1024 / 1024).toFixed(1)}MB
                     </ImageSize>
                   </ImagePreview>
                 ))}
               </ImageGrid>
+              
+              {uploadErrors.length > 0 && (
+                <div>
+                  {uploadErrors.map((error, index) => (
+                    <ErrorMessage key={index}>
+                      <AlertCircle size={14} />
+                      {error}
+                    </ErrorMessage>
+                  ))}
+                </div>
+              )}
             </InputGroup>
           )}
 
@@ -645,23 +884,25 @@ const CreatePostPage = () => {
                 <p>{postData.content}</p>
                 
                 {/* Image Preview */}
-                {selectedImages.length > 0 && (
+                {selectedImages.filter(img => img.status === 'success').length > 0 && (
                   <div style={{ marginTop: '15px' }}>
                     <ImageGrid>
-                      {selectedImages.map(image => (
-                        <div key={image.id}>
-                          <img 
-                            src={image.previewUrl} 
-                            alt={image.name}
-                            style={{ 
-                              width: '100%', 
-                              height: '150px', 
-                              objectFit: 'cover', 
-                              borderRadius: '8px' 
-                            }} 
-                          />
-                        </div>
-                      ))}
+                      {selectedImages
+                        .filter(img => img.status === 'success')
+                        .map(image => (
+                          <div key={image.id}>
+                            <img 
+                              src={image.url || image.previewUrl} 
+                              alt={image.name}
+                              style={{ 
+                                width: '100%', 
+                                height: '150px', 
+                                objectFit: 'cover', 
+                                borderRadius: '8px' 
+                              }} 
+                            />
+                          </div>
+                        ))}
                     </ImageGrid>
                   </div>
                 )}
@@ -691,7 +932,7 @@ const CreatePostPage = () => {
                 disabled={uploadingImages}
               >
                 <Image size={16} />
-                {uploadingImages ? 'Uploading...' : 'Add Image'}
+                {uploadingImages ? 'Uploading...' : 'Add Images'}
               </ActionButton>
               <ActionButton 
                 type="button" 
@@ -702,7 +943,14 @@ const CreatePostPage = () => {
               </ActionButton>
             </SecondaryActions>
 
-            <SubmitButton type="submit" disabled={loading || !postData.content.trim()}>
+            <SubmitButton 
+              type="submit" 
+              disabled={
+                loading || 
+                !postData.content.trim() || 
+                selectedImages.some(img => img.status === 'uploading')
+              }
+            >
               {loading ? (
                 'Publishing...'
               ) : (

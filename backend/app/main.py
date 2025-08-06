@@ -16,6 +16,15 @@ from .routers import auth, users, posts, comments, admin, bookmarks
 from .utils.dependencies import get_current_active_user
 from .models.user import User
 
+try:
+    from .routers import upload_s3
+    S3_UPLOAD_AVAILABLE = True
+    print("✅ S3 upload system loaded")
+except ImportError:
+    S3_UPLOAD_AVAILABLE = False
+    print("⚠️ S3 upload not available")
+
+
 # Try to import optional routes (upload and notifications)
 try:
     from .routers import upload
@@ -69,6 +78,7 @@ app.include_router(posts.router, prefix="/api/v1")
 app.include_router(comments.router, prefix="/api/v1")
 app.include_router(bookmarks.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(upload_s3.router, prefix="/api")
 
 # Include upload routes if available
 if UPLOAD_AVAILABLE:
