@@ -60,8 +60,7 @@ async def upload_user_avatar(
         
         return AvatarUploadResponse(
             **result,
-            avatar_url=result['url'],
-            thumbnail_url=result.get('thumbnail_url')  # Handle optional thumbnail
+            avatar_url=result['url'],  # Handle optional thumbnail
         )
         
     except HTTPException:
