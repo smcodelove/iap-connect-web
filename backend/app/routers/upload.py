@@ -2,6 +2,7 @@
 """
 File upload routes for IAP Connect application.
 Handles all file upload operations including avatars, post media, and documents.
+ENHANCED: Added missing /config endpoint for frontend integration
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
@@ -384,6 +385,74 @@ async def cleanup_files(
         )
 
 
+# NEW: Missing config endpoint (SAFE ADDITION)
+@router.get("/config")
+async def get_upload_config():
+    """
+    Get upload configuration for frontend
+    
+    Returns upload settings and capabilities including S3 availability.
+    This endpoint enables frontend to detect upload methods automatically.
+    """
+    try:
+        # Check if S3 is available
+        s3_available = False
+        try:
+            from ..services.s3_service import S3_AVAILABLE
+            s3_available = S3_AVAILABLE
+        except ImportError:
+            s3_available = False
+        except Exception:
+            s3_available = False
+            
+        return {
+            "success": True,
+            "data": {
+                "max_file_size_mb": 10,
+                "max_avatar_size_mb": 2,
+                "allowed_types": ["image/jpeg", "image/png", "image/webp", "image/gif"],
+                "max_files_per_upload": 5,
+                "storage_provider": "aws_s3" if s3_available else "local",
+                "s3_available": s3_available,
+                "supported_formats": ["JPG", "PNG", "WebP", "GIF"],
+                "features": {
+                    "optimization": True,
+                    "auto_resize": True,
+                    "mumbai_region": s3_available,
+                    "fast_upload": s3_available,
+                    "local_fallback": True
+                },
+                "endpoints": {
+                    "local_upload": "/api/v1/upload/",
+                    "s3_upload": "/api/upload-s3/" if s3_available else None
+                }
+            }
+        }
+    except Exception as e:
+        print(f"Upload config error: {str(e)}")
+        # Return safe fallback configuration
+        return {
+            "success": False,
+            "error": str(e),
+            "data": {
+                "max_file_size_mb": 10,
+                "max_avatar_size_mb": 2,
+                "allowed_types": ["image/jpeg", "image/png", "image/webp", "image/gif"],
+                "max_files_per_upload": 5,
+                "storage_provider": "local",
+                "s3_available": False,
+                "supported_formats": ["JPG", "PNG", "WebP", "GIF"],
+                "features": {
+                    "optimization": True,
+                    "auto_resize": True,
+                    "mumbai_region": False,
+                    "fast_upload": False,
+                    "local_fallback": True
+                }
+            }
+        }
+
+
 # Health check endpoint
 @router.get("/health")
 async def upload_service_health():
@@ -395,11 +464,20 @@ async def upload_service_health():
     try:
         upload_path = Path(UPLOAD_FOLDER)
         
+        # Check S3 availability for health report
+        s3_available = False
+        try:
+            from ..services.s3_service import S3_AVAILABLE
+            s3_available = S3_AVAILABLE
+        except ImportError:
+            pass
+        
         return {
             "status": "healthy",
             "upload_directory_exists": upload_path.exists(),
             "upload_directory_writable": os.access(upload_path, os.W_OK) if upload_path.exists() else False,
             "max_file_size_mb": 10,
+            "s3_available": s3_available,
             "supported_formats": {
                 "images": ["jpg", "jpeg", "png", "webp", "gif"],
                 "documents": ["pdf", "doc", "docx", "txt"],
