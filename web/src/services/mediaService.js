@@ -57,35 +57,76 @@ class MediaService {
         };
       }
 
+      console.log('📤 Starting avatar upload...', { fileName: file.name, size: file.size });
+
       // Use S3 route if available, otherwise fallback to existing
       const endpoint = this.useS3 ? '/upload/avatar' : '/upload/avatar';
       const response = await api.post(endpoint, formData, config);
       
-      // FIXED: Better response handling for all formats
-      const result = this.useS3 ? response.data.data : response.data;
+      console.log('📋 Raw response received:', response.data);
       
-      // FIXED: Ensure URL is present with comprehensive fallbacks
-      if (!result?.url && !result?.avatar_url && !result?.file_url) {
-        throw new Error('No URL returned from server');
+      // FIXED: Comprehensive response handling for all possible formats
+      let result;
+      
+      if (response.data) {
+        // Handle nested data structure
+        if (response.data.data) {
+          result = response.data.data;
+        } else {
+          result = response.data;
+        }
+      } else {
+        throw new Error('Empty response from server');
       }
       
-      // FIXED: Return normalized response
+      console.log('🔍 Extracted result:', result);
+      
+      // FIXED: More comprehensive URL extraction with detailed logging
+      const possibleUrls = [
+        result?.url,
+        result?.avatar_url, 
+        result?.file_url,
+        result?.data?.url,
+        result?.data?.avatar_url,
+        result?.data?.file_url
+      ].filter(Boolean);
+      
+      console.log('🔗 Found possible URLs:', possibleUrls);
+      
+      const finalUrl = possibleUrls[0];
+      
+      if (!finalUrl) {
+        console.error('❌ No URL found in response structure:', {
+          responseData: response.data,
+          result: result,
+          possibleUrls: possibleUrls
+        });
+        throw new Error('No URL returned from server. Upload may have failed.');
+      }
+      
+      console.log('✅ Using URL:', finalUrl);
+      
+      // FIXED: Return normalized response with comprehensive fallbacks
       return {
         success: true,
-        url: result.url || result.avatar_url || result.file_url,
-        avatar_url: result.avatar_url || result.url || result.file_url,
-        thumbnail_url: result.thumbnail_url,
-        filename: result.filename,
-        file_size: result.file_size,
+        url: finalUrl,
+        avatar_url: finalUrl,
+        thumbnail_url: result?.thumbnail_url || result?.data?.thumbnail_url,
+        filename: result?.filename || result?.data?.filename,
+        file_size: result?.file_size || result?.data?.file_size,
+        original_filename: result?.original_filename || result?.data?.original_filename,
         ...result
       };
     } catch (error) {
-      console.error('Avatar upload failed:', error);
+      console.error('❌ Avatar upload failed:', error);
       
       // FIXED: Better error message extraction
       let errorMessage = 'Avatar upload failed';
+      
       if (error.response?.data?.detail) {
         errorMessage = error.response.data.detail;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
       } else if (error.message) {
         errorMessage = error.message;
       }

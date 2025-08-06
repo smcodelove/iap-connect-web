@@ -380,7 +380,7 @@ async def upload_avatar(file: UploadFile, user_id: int) -> Dict[str, Any]:
         file=file,
         folder="avatars",
         optimize_images=True,
-        max_size=AVATAR_CONFIG['max_size'],
+        max_size=2 * 1024 * 1024,
         should_create_thumbnail=True
     )
     
