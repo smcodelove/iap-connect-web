@@ -89,12 +89,16 @@ class FileDeleteResponse(BaseModel):
 class AvatarUploadResponse(FileUploadResponse):
     """Specialized response for avatar uploads"""
     avatar_url: str
-    thumbnail_url: str
+    thumbnail_url: Optional[str] = None
     
-    @validator('avatar_url', pre=True, always=True)
-    def set_avatar_url(cls, v, values):
-        return values.get('url', v)
-
+    class Config:
+        from_attributes = True
+        
+    def __init__(self, **data):
+        # Set avatar_url from url if not provided
+        if 'avatar_url' not in data and 'url' in data:
+            data['avatar_url'] = data['url']
+        super().__init__(**data)
 
 class PostMediaUploadRequest(BaseModel):
     """Request schema for post media upload"""
