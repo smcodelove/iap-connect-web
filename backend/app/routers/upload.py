@@ -17,8 +17,7 @@ from ..utils.dependencies import get_current_active_user, get_admin_user
 from ..models.user import User
 from ..services.file_service import (
     upload_file, upload_avatar, upload_post_media, delete_file, 
-    get_file_info, cleanup_temp_files, UPLOAD_FOLDER,
-    validate_image_file, validate_document_file  # Updated imports
+    get_file_info, cleanup_temp_files, UPLOAD_FOLDER
 )
 from ..schemas.file import (
     FileUploadResponse, MultipleFileUploadResponse, FileInfo, 
