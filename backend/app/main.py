@@ -15,14 +15,7 @@ from .middleware.cors import add_cors_middleware
 from .routers import auth, users, posts, comments, admin, bookmarks
 from .utils.dependencies import get_current_active_user
 from .models.user import User
-
-try:
-    from .routers import upload_s3
-    S3_UPLOAD_AVAILABLE = True
-    print("✅ S3 upload system loaded")
-except ImportError:
-    S3_UPLOAD_AVAILABLE = False
-    print("⚠️ S3 upload not available")
+from .routers import upload_s3
 
 
 # Try to import optional routes (upload and notifications)
