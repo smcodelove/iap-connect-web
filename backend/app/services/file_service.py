@@ -302,10 +302,11 @@ async def upload_file(
         if is_image and optimize_images:
             # Optimize main image
             if folder == 'avatars':
-                processed_content = optimize_image(content, max_width=400, max_height=400, quality=90)
+                processed_content = optimize_image(image_data=content, max_width=400, max_height=400, quality=90)
             else:
-                processed_content = optimize_image(content, max_width=1200, max_height=1200, quality=85)
+                processed_content = optimize_image(image_data=content, max_width=1200, max_height=1200, quality=85)
             
+        
             # Create thumbnail if requested
             if create_thumbnail:
                 thumbnail_content = create_thumbnail(content)
