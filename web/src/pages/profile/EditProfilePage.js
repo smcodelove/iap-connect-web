@@ -379,6 +379,7 @@ const EditProfilePage = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [s3Available, setS3Available] = useState(false);
+  const [forceUpdate, setForceUpdate] = useState(0); // ADDED: Force re-render
 
   // Initialize form data
   useEffect(() => {
@@ -460,13 +461,13 @@ const EditProfilePage = () => {
     fileInputRef.current?.click();
   };
 
-  // FIXED: Enhanced file selection with better error handling
+  // FIXED: Enhanced file selection with immediate UI update
   const handleFileChange = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     try {
-      // FIXED: Use comprehensive validation
+      // Validation
       const validation = mediaService.validateImage ? 
         mediaService.validateImage(file, 'avatar') : 
         mediaService.validateFile(file, 'avatar');
@@ -491,14 +492,13 @@ const EditProfilePage = () => {
         type: file.type
       });
 
-      // FIXED: Upload with comprehensive error handling
+      // Upload avatar
       const result = await mediaService.uploadAvatar(file, (progress) => {
         setUploadProgress(progress);
       });
 
       console.log('✅ Avatar upload successful:', result);
 
-      // FIXED: Comprehensive URL extraction with fallbacks
       const avatarUrl = result?.url || result?.avatar_url || result?.file_url || result?.data?.url;
 
       if (!avatarUrl) {
@@ -508,48 +508,56 @@ const EditProfilePage = () => {
 
       console.log('🖼️ Avatar URL extracted:', avatarUrl);
 
-      // FIXED: Enhanced refresh with comprehensive fallback handling
+      // FIXED: Enhanced immediate UI update
       try {
-        console.log('🔄 Refreshing user data from server...');
+        console.log('🔄 Updating user data immediately...');
         
-        // Try to refresh user data from server if method exists
-        if (authService.refreshUserData && typeof authService.refreshUserData === 'function') {
-          const refreshResult = await authService.refreshUserData();
-          
-          if (refreshResult?.success && refreshResult?.data) {
-            // Update Redux with fresh server data
-            dispatch(updateUser(refreshResult.data));
-            setSuccessMessage(`Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}!`);
-          } else {
-            throw new Error('Server refresh returned invalid data');
-          }
-        } else {
-          throw new Error('refreshUserData method not available');
-        }
-      } catch (refreshError) {
-        console.warn('⚠️ Server refresh failed, using manual update:', refreshError.message);
-        
-        // FIXED: Enhanced fallback with comprehensive user update
+        // STEP 1: Update Redux state immediately
         const updatedUser = { 
           ...user, 
           profile_picture_url: avatarUrl,
-          avatar_url: avatarUrl // For compatibility with different naming conventions
+          avatar_url: avatarUrl // For compatibility
         };
         
         dispatch(updateUser(updatedUser));
         
-        // Update authService user data if method exists
+        // STEP 2: Update authService data immediately  
         if (authService.setUserData && typeof authService.setUserData === 'function') {
           authService.setUserData(updatedUser);
         }
         
-        setSuccessMessage(`Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}! (Manual sync)`);
+        // STEP 3: Clear preview and force re-render
+        setAvatarPreview(null);
+        setForceUpdate(prev => prev + 1); // Force component re-render
+        
+        // STEP 4: Try server refresh in background (non-blocking)
+        setTimeout(async () => {
+          try {
+            if (authService.refreshUserData && typeof authService.refreshUserData === 'function') {
+              console.log('🔄 Background server refresh...');
+              const refreshResult = await authService.refreshUserData();
+              
+              if (refreshResult?.success && refreshResult?.data) {
+                dispatch(updateUser(refreshResult.data));
+                console.log('✅ Server data refreshed successfully');
+              }
+            }
+          } catch (refreshError) {
+            console.warn('⚠️ Background refresh failed (non-critical):', refreshError.message);
+          }
+        }, 1000); // 1 second delay for background refresh
+        
+        setSuccessMessage(`Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}!`);
+        
+      } catch (updateError) {
+        console.error('❌ Error updating user data:', updateError);
+        // Even if update fails, show success since upload worked
+        setSuccessMessage(`Avatar uploaded successfully, but may require page refresh to display.`);
       }
       
       // Clean up preview URL
       if (previewUrl) {
         mediaService.revokePreviewUrl(previewUrl);
-        setAvatarPreview(null);
       }
       
       // Auto-hide success message
@@ -558,7 +566,6 @@ const EditProfilePage = () => {
     } catch (error) {
       console.error('❌ Avatar upload failed:', error);
       
-      // FIXED: Better error message handling
       let errorMessage = 'Failed to upload avatar. Please try again.';
       
       if (error.message) {
@@ -680,13 +687,17 @@ const EditProfilePage = () => {
             Profile Picture
           </SectionTitle>
           <AvatarContainer>
-            <Avatar>
+            <Avatar key={forceUpdate}> {/* ADDED: Key for force re-render */}
               {avatarPreview ? (
                 <img src={avatarPreview} alt="Preview" />
               ) : user.profile_picture_url || user.avatar_url ? (
                 <img 
-                  src={user.profile_picture_url || user.avatar_url} 
+                  src={`${user.profile_picture_url || user.avatar_url}?v=${forceUpdate}`}
                   alt={user.full_name}
+                  onError={(e) => {
+                    console.log('❌ Image load failed, showing initials');
+                    e.target.style.display = 'none';
+                  }}
                 />
               ) : (
                 getInitials(user.full_name || user.username)
