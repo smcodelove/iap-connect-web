@@ -3,6 +3,7 @@
 Main FastAPI application for IAP Connect.
 Entry point for the backend API server.
 UPDATED: Added file upload system with static file serving and optional notification system
+ENHANCED: Added safe S3 upload system integration
 """
 
 from fastapi import FastAPI, Depends, APIRouter
@@ -15,8 +16,15 @@ from .middleware.cors import add_cors_middleware
 from .routers import auth, users, posts, comments, admin, bookmarks
 from .utils.dependencies import get_current_active_user
 from .models.user import User
-from .routers import upload_s3
 
+# Try to import S3 upload routes safely
+try:
+    from .routers import upload_s3
+    S3_UPLOAD_AVAILABLE = True
+    print("✅ S3 upload system loaded successfully")
+except ImportError as e:
+    S3_UPLOAD_AVAILABLE = False
+    print(f"⚠️ S3 upload system not available: {e}")
 
 # Try to import optional routes (upload and notifications)
 try:
@@ -71,7 +79,11 @@ app.include_router(posts.router, prefix="/api/v1")
 app.include_router(comments.router, prefix="/api/v1")
 app.include_router(bookmarks.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
-app.include_router(upload_s3.router, prefix="/api")
+
+# Include S3 upload routes if available (NEW - SAFE ADDITION)
+if S3_UPLOAD_AVAILABLE:
+    app.include_router(upload_s3.router, prefix="/api")
+    print("✅ S3 upload routes enabled at /api/upload-s3/*")
 
 # Include upload routes if available
 if UPLOAD_AVAILABLE:
@@ -128,6 +140,7 @@ def root():
         "features": {
             "notifications": NOTIFICATIONS_AVAILABLE,
             "file_upload": UPLOAD_AVAILABLE,
+            "s3_upload": S3_UPLOAD_AVAILABLE,  # NEW
             "posts": True,
             "users": True,
             "comments": True,
@@ -137,7 +150,9 @@ def root():
         "upload_info": {
             "static_files_enabled": UPLOAD_AVAILABLE,
             "upload_directory": "uploads" if UPLOAD_AVAILABLE else None,
-            "static_url": "/static" if UPLOAD_AVAILABLE else None
+            "static_url": "/static" if UPLOAD_AVAILABLE else None,
+            "s3_upload_enabled": S3_UPLOAD_AVAILABLE,  # NEW
+            "s3_endpoints": "/api/upload-s3/*" if S3_UPLOAD_AVAILABLE else None  # NEW
         }
     }
 
@@ -155,11 +170,13 @@ def health_check():
         "features": {
             "notifications": NOTIFICATIONS_AVAILABLE,
             "file_upload": UPLOAD_AVAILABLE,
+            "s3_upload": S3_UPLOAD_AVAILABLE,  # NEW
             "core_features": ["auth", "posts", "users", "comments", "bookmarks", "admin"]
         },
         "upload_status": {
             "uploads_directory_exists": os.path.exists("uploads") if UPLOAD_AVAILABLE else False,
-            "static_serving_enabled": UPLOAD_AVAILABLE
+            "static_serving_enabled": UPLOAD_AVAILABLE,
+            "s3_service_loaded": S3_UPLOAD_AVAILABLE  # NEW
         }
     }
 
@@ -196,6 +213,39 @@ if UPLOAD_AVAILABLE:
             }
 
 
+# NEW: S3 Upload system health check (if available)
+if S3_UPLOAD_AVAILABLE:
+    @app.get("/api/upload-s3/system-health")
+    async def s3_upload_system_health():
+        """Check S3 upload system health and configuration"""
+        try:
+            from .services.s3_service import S3_AVAILABLE, s3_service
+            
+            status_info = {
+                "status": "healthy" if S3_AVAILABLE else "service_unavailable",
+                "s3_available": S3_AVAILABLE,
+                "endpoints_active": True,
+                "region": "ap-south-1",
+                "features": ["image_upload", "avatar_upload", "optimization", "mumbai_region"]
+            }
+            
+            if S3_AVAILABLE and s3_service:
+                status_info.update({
+                    "bucket_configured": bool(s3_service.bucket_name),
+                    "credentials_loaded": bool(s3_service.access_key and s3_service.secret_key),
+                    "base_url": s3_service.base_url,
+                    "bucket_name": s3_service.bucket_name
+                })
+            
+            return status_info
+        except Exception as e:
+            return {
+                "status": "error",
+                "s3_available": False,
+                "error": str(e)
+            }
+
+
 # Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
@@ -217,7 +267,8 @@ async def global_exception_handler(request, exc):
             "message": "An unexpected error occurred",
             "features_available": {
                 "notifications": NOTIFICATIONS_AVAILABLE,
-                "file_upload": UPLOAD_AVAILABLE
+                "file_upload": UPLOAD_AVAILABLE,
+                "s3_upload": S3_UPLOAD_AVAILABLE  # NEW
             }
         }
     )
@@ -251,3 +302,20 @@ async def create_admin_user():
         db.close()
     except Exception as e:
         print(f"Admin creation error: {e}")
+
+
+# NEW: Startup event for S3 system check
+@app.on_event("startup")
+async def check_s3_system():
+    """Check S3 system on startup"""
+    if S3_UPLOAD_AVAILABLE:
+        try:
+            from .services.s3_service import S3_AVAILABLE
+            if S3_AVAILABLE:
+                print("✅ S3 upload system ready - Mumbai region")
+            else:
+                print("⚠️ S3 upload system loaded but not configured")
+        except Exception as e:
+            print(f"⚠️ S3 system check failed: {e}")
+    else:
+        print("💾 S3 upload system not loaded - using local uploads only")
