@@ -9,7 +9,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from ..config.database import get_db
-from app.utils.auth import get_current_user
+from ..utils.auth import get_current_user
 
 # Safe import with fallback
 try:
