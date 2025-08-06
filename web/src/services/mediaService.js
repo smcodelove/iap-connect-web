@@ -61,13 +61,36 @@ class MediaService {
       const endpoint = this.useS3 ? '/upload/avatar' : '/upload/avatar';
       const response = await api.post(endpoint, formData, config);
       
-      // Handle both S3 and local response formats
-      return this.useS3 ? response.data.data : response.data;
+      // FIXED: Better response handling for all formats
+      const result = this.useS3 ? response.data.data : response.data;
+      
+      // FIXED: Ensure URL is present with comprehensive fallbacks
+      if (!result?.url && !result?.avatar_url && !result?.file_url) {
+        throw new Error('No URL returned from server');
+      }
+      
+      // FIXED: Return normalized response
+      return {
+        success: true,
+        url: result.url || result.avatar_url || result.file_url,
+        avatar_url: result.avatar_url || result.url || result.file_url,
+        thumbnail_url: result.thumbnail_url,
+        filename: result.filename,
+        file_size: result.file_size,
+        ...result
+      };
     } catch (error) {
       console.error('Avatar upload failed:', error);
-      throw new Error(
-        error.response?.data?.detail || 'Avatar upload failed'
-      );
+      
+      // FIXED: Better error message extraction
+      let errorMessage = 'Avatar upload failed';
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      throw new Error(errorMessage);
     }
   }
 
@@ -168,11 +191,24 @@ class MediaService {
         };
       }
 
-      // Use S3 route if available, otherwise existing route
-      const endpoint = this.useS3 ? '/upload/image' : '/upload/document';
+      // FIXED: Use correct endpoint that exists in backend
+      const endpoint = this.useS3 ? '/upload/image' : '/upload/image'; // Changed from '/upload/document'
       const response = await api.post(endpoint, formData, config);
       
-      return this.useS3 ? response.data.data : response.data;
+      // FIXED: Better response handling
+      const result = this.useS3 ? response.data.data : response.data;
+      
+      if (!result?.url) {
+        throw new Error('No URL returned from server');
+      }
+      
+      return {
+        success: true,
+        url: result.url,
+        filename: result.filename,
+        file_size: result.file_size,
+        ...result
+      };
     } catch (error) {
       console.error('Image upload failed:', error);
       throw new Error(
@@ -323,16 +359,23 @@ class MediaService {
    */
   async getUploadConfig() {
     try {
-      const response = await this.useS3 ? 
-        api.get('/upload/config') : 
-        api.get('/upload/health');
+      // FIXED: Always use config endpoint consistently
+      const response = await api.get('/upload/config');
       
-      return this.useS3 ? response.data.data : response.data;
+      // FIXED: Better response validation
+      if (response.data?.success && response.data?.data) {
+        return response.data.data;
+      } else {
+        throw new Error('Invalid config response');
+      }
     } catch (error) {
       console.error('Failed to get upload config:', error);
       // Return default config
       return {
         max_file_size_mb: 10,
+        max_avatar_size_mb: 2,
+        allowed_types: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+        storage_provider: "local",
         supported_formats: {
           images: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
           documents: ['pdf', 'doc', 'docx', 'txt'],

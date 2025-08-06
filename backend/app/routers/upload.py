@@ -29,6 +29,50 @@ from ..schemas.file import (
 router = APIRouter(prefix="/upload", tags=["File Upload"])
 
 
+# FIXED: Added missing /image endpoint that frontend needs
+@router.post("/image", response_model=FileUploadResponse)
+async def upload_single_image(
+    file: UploadFile = File(..., description="Single image file (max 10MB)"),
+    folder: str = Form("posts", description="Upload folder"),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Upload a single image file.
+    
+    - **file**: Image file (JPG, PNG, WebP, GIF)
+    - **folder**: Upload folder (default: 'posts')
+    - Maximum size: 10MB
+    - Automatically optimized and resized
+    """
+    try:
+        # Validate image file
+        if not file.content_type.startswith('image/'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only image files are allowed"
+            )
+        
+        # Upload using file service
+        result = await upload_file(
+            file=file,
+            folder=folder,
+            optimize_images=True,
+            max_size=10 * 1024 * 1024,  # 10MB
+            should_create_thumbnail=False
+        )
+        
+        return FileUploadResponse(**result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Image upload error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload image: {str(e)}"
+        )
+
+
 @router.post("/avatar", response_model=AvatarUploadResponse)
 async def upload_user_avatar(
     file: UploadFile = File(..., description="Avatar image file (max 2MB)"),
@@ -48,20 +92,45 @@ async def upload_user_avatar(
     try:
         # Delete old avatar if exists
         if current_user.profile_picture_url:
-            await delete_file(current_user.profile_picture_url)
+            try:
+                await delete_file(current_user.profile_picture_url)
+            except Exception as e:
+                print(f"Warning: Could not delete old avatar: {str(e)}")
         
         # Upload new avatar using file service
         result = await upload_avatar(file, current_user.id)
+        
+        # FIXED: Ensure result has required fields and handle all response formats
+        if not result.get('url'):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Upload failed: No URL returned from file service"
+            )
         
         # Update user's profile picture URL in database
         current_user.profile_picture_url = result['url']
         db.commit()
         db.refresh(current_user)
         
-        return AvatarUploadResponse(
-            **result,
-            avatar_url=result['url'],  # Handle optional thumbnail
-        )
+        # FIXED: Create proper response with all required fields
+        response_data = {
+            'success': result.get('success', True),
+            'filename': result.get('filename', ''),
+            'original_filename': result.get('original_filename', file.filename),
+            'url': result['url'],
+            'avatar_url': result['url'],  # Required field for AvatarUploadResponse
+            'thumbnail_url': result.get('thumbnail_url'),
+            'file_size': result.get('file_size', 0),
+            'original_size': result.get('original_size', 0),
+            'content_type': result.get('content_type', file.content_type),
+            'extension': result.get('extension', ''),
+            'is_image': result.get('is_image', True),
+            'file_hash': result.get('file_hash', ''),
+            'folder': result.get('folder', 'avatars'),
+            'upload_time': result.get('upload_time')
+        }
+        
+        return AvatarUploadResponse(**response_data)
         
     except HTTPException:
         raise
@@ -69,7 +138,7 @@ async def upload_user_avatar(
         print(f"Avatar upload error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload avatar"
+            detail=f"Failed to upload avatar: {str(e)}"
         )
 
 
@@ -93,8 +162,20 @@ async def upload_post_media_files(
         results = await upload_post_media(files, current_user.id)
         
         # Separate successful and failed uploads
-        successful_uploads = [r for r in results if r.get('success', False)]
-        failed_uploads = [r for r in results if not r.get('success', False)]
+        successful_uploads = []
+        failed_uploads = []
+        
+        for result in results:
+            if result.get('success', False):
+                # Convert to FileUploadResponse format
+                successful_uploads.append(FileUploadResponse(**result))
+            else:
+                # Handle failed uploads
+                failed_uploads.append({
+                    'success': False,
+                    'filename': result.get('filename', 'unknown'),
+                    'error': result.get('error', 'Upload failed')
+                })
         
         return MultipleFileUploadResponse(
             success=len(successful_uploads) > 0,
@@ -383,7 +464,7 @@ async def cleanup_files(
         )
 
 
-# NEW: Missing config endpoint (SAFE ADDITION)
+# FIXED: Improved config endpoint with better error handling
 @router.get("/config")
 async def get_upload_config():
     """
@@ -421,17 +502,18 @@ async def get_upload_config():
                     "local_fallback": True
                 },
                 "endpoints": {
-                    "local_upload": "/api/v1/upload/",
-                    "s3_upload": "/api/upload-s3/" if s3_available else None
+                    "avatar": "/api/v1/upload/avatar",
+                    "image": "/api/v1/upload/image",
+                    "post_media": "/api/v1/upload/post-media",
+                    "document": "/api/v1/upload/document"
                 }
             }
         }
     except Exception as e:
         print(f"Upload config error: {str(e)}")
-        # Return safe fallback configuration
+        # FIXED: Always return success=True with fallback configuration
         return {
-            "success": False,
-            "error": str(e),
+            "success": True,
             "data": {
                 "max_file_size_mb": 10,
                 "max_avatar_size_mb": 2,
@@ -446,6 +528,12 @@ async def get_upload_config():
                     "mumbai_region": False,
                     "fast_upload": False,
                     "local_fallback": True
+                },
+                "endpoints": {
+                    "avatar": "/api/v1/upload/avatar",
+                    "image": "/api/v1/upload/image", 
+                    "post_media": "/api/v1/upload/post-media",
+                    "document": "/api/v1/upload/document"
                 }
             }
         }

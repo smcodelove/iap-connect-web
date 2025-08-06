@@ -1,4 +1,4 @@
-// web/src/pages/profile/EditProfilePage.js - UPDATED WITH S3 AVATAR UPLOAD
+// web/src/pages/profile/EditProfilePage.js - FIXED AVATAR UPLOAD WITH BETTER ERROR HANDLING
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useSelector, useDispatch } from 'react-redux';
@@ -460,22 +460,22 @@ const EditProfilePage = () => {
     fileInputRef.current?.click();
   };
 
-  // Enhanced file selection with S3 support
+  // FIXED: Enhanced file selection with better error handling
   const handleFileChange = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Validate file using appropriate method
-    const validation = mediaService.validateImage ? 
-      mediaService.validateImage(file, 'avatar') : 
-      mediaService.validateFile(file, 'avatar');
-      
-    if (!validation.isValid) {
-      setErrors({ ...errors, avatar: validation.errors[0] });
-      return;
-    }
-
     try {
+      // FIXED: Use comprehensive validation
+      const validation = mediaService.validateImage ? 
+        mediaService.validateImage(file, 'avatar') : 
+        mediaService.validateFile(file, 'avatar');
+        
+      if (!validation.isValid) {
+        setErrors({ ...errors, avatar: validation.errors[0] });
+        return;
+      }
+
       setUploadingAvatar(true);
       setUploadProgress(0);
       setErrors({ ...errors, avatar: '' });
@@ -484,87 +484,94 @@ const EditProfilePage = () => {
       const previewUrl = mediaService.createPreviewUrl(file);
       setAvatarPreview(previewUrl);
 
-      console.log('📤 Uploading avatar...', {
+      console.log('📤 Starting avatar upload...', {
         method: s3Available ? 'S3' : 'Local',
-        file: validation.fileInfo
+        fileName: file.name,
+        size: file.size,
+        type: file.type
       });
 
-      let result;
-      
-      // Use appropriate upload method
-      if (s3Available && mediaService.uploadAvatar) {
-        result = await mediaService.uploadAvatar(file, (progress) => {
-          setUploadProgress(progress);
-        });
-      } else {
-        // Fallback to existing method
-        result = await mediaService.uploadAvatar(file, (progress) => {
-          setUploadProgress(progress);
-        });
-      }
+      // FIXED: Upload with comprehensive error handling
+      const result = await mediaService.uploadAvatar(file, (progress) => {
+        setUploadProgress(progress);
+      });
 
-      console.log('✅ Avatar uploaded successfully:', result);
+      console.log('✅ Avatar upload successful:', result);
 
-      // Handle different response formats
-      const avatarUrl = result.url || result.file_url || result.avatar_url;
-      
+      // FIXED: Comprehensive URL extraction with fallbacks
+      const avatarUrl = result?.url || result?.avatar_url || result?.file_url || result?.data?.url;
+
       if (!avatarUrl) {
-        throw new Error('No URL returned from upload');
+        console.error('❌ No avatar URL found in response:', result);
+        throw new Error('Upload completed but no URL was returned from server');
       }
 
-      // 🔄 REFRESH USER DATA FROM SERVER - NEW FIX FOR REFRESH ISSUE
+      console.log('🖼️ Avatar URL extracted:', avatarUrl);
+
+      // FIXED: Enhanced refresh with comprehensive fallback handling
       try {
         console.log('🔄 Refreshing user data from server...');
         
-        // Try to refresh user data from server
-        if (authService.refreshUserData) {
+        // Try to refresh user data from server if method exists
+        if (authService.refreshUserData && typeof authService.refreshUserData === 'function') {
           const refreshResult = await authService.refreshUserData();
           
-          if (refreshResult.success) {
+          if (refreshResult?.success && refreshResult?.data) {
             // Update Redux with fresh server data
             dispatch(updateUser(refreshResult.data));
-            
-            setSuccessMessage(
-              `Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}!`
-            );
+            setSuccessMessage(`Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}!`);
           } else {
-            throw new Error('Failed to refresh user data');
+            throw new Error('Server refresh returned invalid data');
           }
         } else {
           throw new Error('refreshUserData method not available');
         }
       } catch (refreshError) {
-        console.warn('⚠️ Failed to refresh from server, using fallback:', refreshError.message);
+        console.warn('⚠️ Server refresh failed, using manual update:', refreshError.message);
         
-        // Fallback: Manual update if refresh fails
+        // FIXED: Enhanced fallback with comprehensive user update
         const updatedUser = { 
           ...user, 
           profile_picture_url: avatarUrl,
-          avatar_url: avatarUrl // For compatibility
+          avatar_url: avatarUrl // For compatibility with different naming conventions
         };
         
         dispatch(updateUser(updatedUser));
         
-        // Update authService user data
-        authService.setUserData(updatedUser);
+        // Update authService user data if method exists
+        if (authService.setUserData && typeof authService.setUserData === 'function') {
+          authService.setUserData(updatedUser);
+        }
         
-        setSuccessMessage(
-          `Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}!`
-        );
+        setSuccessMessage(`Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}! (Manual sync)`);
       }
       
       // Clean up preview URL
       if (previewUrl) {
         mediaService.revokePreviewUrl(previewUrl);
+        setAvatarPreview(null);
       }
       
+      // Auto-hide success message
       setTimeout(() => setSuccessMessage(''), 4000);
       
     } catch (error) {
       console.error('❌ Avatar upload failed:', error);
+      
+      // FIXED: Better error message handling
+      let errorMessage = 'Failed to upload avatar. Please try again.';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
       setErrors({ 
         ...errors, 
-        avatar: error.message || 'Failed to upload avatar. Please try again.' 
+        avatar: errorMessage
       });
       
       // Clean up preview on error
@@ -616,7 +623,9 @@ const EditProfilePage = () => {
       dispatch(updateUser(updatedUser));
       
       // Update authService user data
-      authService.setUserData(updatedUser);
+      if (authService.setUserData && typeof authService.setUserData === 'function') {
+        authService.setUserData(updatedUser);
+      }
       
       setSuccessMessage('Profile updated successfully!');
       
