@@ -238,7 +238,7 @@ async def upload_file(
     folder: str = "general",
     optimize_images: bool = True,
     max_size: int = MAX_FILE_SIZE,
-    create_thumbnail: bool = False
+    should_create_thumbnail: bool = False
 ) -> Dict[str, Any]:
     """
     Complete file upload workflow with validation and optimization.
@@ -248,7 +248,7 @@ async def upload_file(
         folder: Subfolder for organization
         optimize_images: Whether to optimize image files
         max_size: Maximum allowed file size in bytes
-        create_thumbnail: Whether to create thumbnail for images
+        should_create_thumbnail: Whether to create thumbnail for images
     
     Returns:
         dict: Upload result with file info and URLs
@@ -308,8 +308,8 @@ async def upload_file(
             
         
             # Create thumbnail if requested
-            if create_thumbnail:
-                thumbnail_content = create_thumbnail(content)
+            if should_create_thumbnail:
+                thumbnail_content = create_thumbnail(image_data=content)
                 thumbnail_filename = f"thumb_{unique_filename}"
                 await save_uploaded_file(thumbnail_content, thumbnail_filename)
                 thumbnail_url = f"{STATIC_URL_PREFIX}/{thumbnail_filename}"
@@ -381,7 +381,7 @@ async def upload_avatar(file: UploadFile, user_id: int) -> Dict[str, Any]:
         folder="avatars",
         optimize_images=True,
         max_size=AVATAR_CONFIG['max_size'],
-        create_thumbnail=True
+        should_create_thumbnail=True
     )
     
     return result
@@ -422,7 +422,7 @@ async def upload_post_media(files: List[UploadFile], user_id: int) -> List[Dict[
                 folder="posts",
                 optimize_images=is_image,
                 max_size=max_size,
-                create_thumbnail=is_image
+                should_create_thumbnail=is_image
             )
             
             results.append(result)
