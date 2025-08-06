@@ -512,21 +512,46 @@ const EditProfilePage = () => {
         throw new Error('No URL returned from upload');
       }
 
-      // Update user in Redux store
-      const updatedUser = { 
-        ...user, 
-        profile_picture_url: avatarUrl,
-        avatar_url: avatarUrl // For compatibility
-      };
-      
-      dispatch(updateUser(updatedUser));
-      
-      // Update authService user data
-      authService.setUserData(updatedUser);
-      
-      setSuccessMessage(
-        `Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}!`
-      );
+      // 🔄 REFRESH USER DATA FROM SERVER - NEW FIX FOR REFRESH ISSUE
+      try {
+        console.log('🔄 Refreshing user data from server...');
+        
+        // Try to refresh user data from server
+        if (authService.refreshUserData) {
+          const refreshResult = await authService.refreshUserData();
+          
+          if (refreshResult.success) {
+            // Update Redux with fresh server data
+            dispatch(updateUser(refreshResult.data));
+            
+            setSuccessMessage(
+              `Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}!`
+            );
+          } else {
+            throw new Error('Failed to refresh user data');
+          }
+        } else {
+          throw new Error('refreshUserData method not available');
+        }
+      } catch (refreshError) {
+        console.warn('⚠️ Failed to refresh from server, using fallback:', refreshError.message);
+        
+        // Fallback: Manual update if refresh fails
+        const updatedUser = { 
+          ...user, 
+          profile_picture_url: avatarUrl,
+          avatar_url: avatarUrl // For compatibility
+        };
+        
+        dispatch(updateUser(updatedUser));
+        
+        // Update authService user data
+        authService.setUserData(updatedUser);
+        
+        setSuccessMessage(
+          `Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}!`
+        );
+      }
       
       // Clean up preview URL
       if (previewUrl) {
