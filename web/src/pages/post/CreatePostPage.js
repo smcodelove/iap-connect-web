@@ -1,4 +1,4 @@
-// web/src/pages/post/CreatePostPage.js
+// web/src/pages/post/CreatePostPage.js - FIXED S3 STATUS SYNC
 import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
@@ -440,14 +440,30 @@ const CreatePostPage = () => {
   // File input ref for image upload
   const fileInputRef = useRef(null);
 
-  // Check S3 availability on component mount
+  // FIXED: Check S3 availability on component mount - PROPER STATE SYNC
   React.useEffect(() => {
     const checkS3Availability = async () => {
       try {
-        await mediaService.initializeS3();
-        setS3Available(mediaService.isS3Enabled());
+        console.log('🔧 CreatePostPage: Checking S3 availability...');
+        
+        // Initialize S3 and get actual status
+        const isAvailable = await mediaService.initializeS3();
+        
+        console.log('🔧 CreatePostPage: S3 initialized, available:', isAvailable);
+        console.log('🔧 CreatePostPage: MediaService S3 check:', mediaService.isS3Available());
+        
+        // Use the actual S3 status from mediaService
+        const s3Status = mediaService.isS3Available();
+        setS3Available(s3Status);
+        
+        if (s3Status) {
+          console.log('✅ CreatePostPage: S3 available, using S3 upload');
+        } else {
+          console.log('❌ CreatePostPage: S3 not available, using local upload');
+        }
+        
       } catch (error) {
-        console.log('S3 not available, using local upload');
+        console.log('❌ CreatePostPage: S3 check failed, using local upload:', error);
         setS3Available(false);
       }
     };
@@ -497,7 +513,7 @@ const CreatePostPage = () => {
     fileInputRef.current?.click();
   };
 
-  // Enhanced file change handler with S3 support
+  // FIXED: Enhanced file change handler with proper validation
   const handleFileChange = async (event) => {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
@@ -509,13 +525,57 @@ const CreatePostPage = () => {
       const imageFiles = [];
       
       for (const file of files) {
-        // Validate file
-        const validation = mediaService.validateImage ? 
-          mediaService.validateImage(file, 'image') : 
-          mediaService.validateFile(file, 'image');
+        // FIXED: Safe validation with fallback
+        let validation;
+        
+        try {
+          // Check if mediaService has validation methods
+          if (mediaService && typeof mediaService.validateImage === 'function') {
+            validation = mediaService.validateImage(file, 'image');
+          } else if (mediaService && typeof mediaService.validateFile === 'function') {
+            validation = mediaService.validateFile(file, 'image');
+          } else {
+            // Fallback validation
+            console.warn('MediaService validation methods not found, using fallback');
+            validation = {
+              isValid: file && 
+                       file.type && 
+                       file.type.startsWith('image/') && 
+                       file.size <= 10 * 1024 * 1024,
+              errors: []
+            };
+            
+            if (!validation.isValid) {
+              if (!file.type || !file.type.startsWith('image/')) {
+                validation.errors.push('Invalid file type. Please select an image file.');
+              }
+              if (file.size > 10 * 1024 * 1024) {
+                validation.errors.push('File size too large. Maximum 10MB allowed.');
+              }
+            }
+          }
+        } catch (validationError) {
+          console.error('Validation error:', validationError);
+          validation = {
+            isValid: false,
+            errors: ['File validation failed']
+          };
+        }
           
         const imageId = Math.random().toString(36).substr(2, 9);
-        const previewUrl = mediaService.createPreviewUrl(file);
+        
+        // Safe preview URL creation
+        let previewUrl = null;
+        try {
+          if (mediaService && typeof mediaService.createPreviewUrl === 'function') {
+            previewUrl = mediaService.createPreviewUrl(file);
+          } else {
+            previewUrl = URL.createObjectURL(file);
+          }
+        } catch (previewError) {
+          console.error('Preview URL creation failed:', previewError);
+          previewUrl = null;
+        }
         
         const imageFile = {
           file,
@@ -525,7 +585,7 @@ const CreatePostPage = () => {
           previewUrl,
           progress: 0,
           status: validation.isValid ? 'pending' : 'error',
-          error: validation.isValid ? null : validation.errors[0],
+          error: validation.isValid ? null : (validation.errors && validation.errors[0]) || 'Validation failed',
           uploaded: false,
           url: null
         };
@@ -547,27 +607,54 @@ const CreatePostPage = () => {
           
           let uploadResult;
           
-          // Use appropriate upload method based on availability
-          if (s3Available && mediaService.uploadImage) {
-            uploadResult = await mediaService.uploadImage(imageFile.file, (progress) => {
-              setSelectedImages(prev => prev.map(img => 
-                img.id === imageFile.id ? { ...img, progress } : img
-              ));
-            });
+          // FIXED: Use current s3Available state for upload decision
+          console.log('🔧 Upload decision - S3 Available:', s3Available);
+          
+          if (s3Available && mediaService && typeof mediaService.uploadImage === 'function') {
+            try {
+              console.log('📤 Attempting S3 upload...');
+              uploadResult = await mediaService.uploadImage(imageFile.file, (progress) => {
+                setSelectedImages(prev => prev.map(img => 
+                  img.id === imageFile.id ? { ...img, progress } : img
+                ));
+              });
+            } catch (s3Error) {
+              console.log('❌ S3 upload failed, falling back to local:', s3Error);
+              // Fallback to local upload
+              uploadResult = await mediaService.uploadPostMedia([imageFile.file], (progress) => {
+                setSelectedImages(prev => prev.map(img => 
+                  img.id === imageFile.id ? { ...img, progress } : img
+                ));
+              });
+            }
           } else {
-            // Fallback to existing local upload
+            // Use local upload
+            console.log('📤 Using local upload...');
             uploadResult = await mediaService.uploadPostMedia([imageFile.file], (progress) => {
               setSelectedImages(prev => prev.map(img => 
                 img.id === imageFile.id ? { ...img, progress } : img
               ));
             });
-            
-            // Handle different response formats
-            if (uploadResult.uploaded_files && uploadResult.uploaded_files.length > 0) {
-              uploadResult = uploadResult.uploaded_files[0];
-            } else if (uploadResult.media_files && uploadResult.media_files.length > 0) {
-              uploadResult = uploadResult.media_files[0];
+          }
+          
+          // Handle different response formats
+          let finalResult = uploadResult;
+          if (uploadResult.uploaded_files && uploadResult.uploaded_files.length > 0) {
+            finalResult = uploadResult.uploaded_files[0];
+          } else if (uploadResult.media_files && uploadResult.media_files.length > 0) {
+            finalResult = uploadResult.media_files[0];
+          } else if (uploadResult.data) {
+            if (Array.isArray(uploadResult.data) && uploadResult.data.length > 0) {
+              finalResult = uploadResult.data[0];
+            } else if (uploadResult.data.files && uploadResult.data.files.length > 0) {
+              finalResult = uploadResult.data.files[0];
             }
+          }
+          
+          const imageUrl = finalResult.url || finalResult.file_url || finalResult.media_url;
+          
+          if (!imageUrl) {
+            throw new Error('No URL returned from upload');
           }
           
           // Update with success
@@ -577,18 +664,15 @@ const CreatePostPage = () => {
               status: 'success', 
               progress: 100,
               uploaded: true,
-              url: uploadResult.url || uploadResult.file_url
+              url: imageUrl
             } : img
           ));
           
           // Add to post media URLs
-          const imageUrl = uploadResult.url || uploadResult.file_url;
-          if (imageUrl) {
-            setPostData(prev => ({
-              ...prev,
-              media_urls: [...prev.media_urls, imageUrl]
-            }));
-          }
+          setPostData(prev => ({
+            ...prev,
+            media_urls: [...prev.media_urls, imageUrl]
+          }));
           
         } catch (error) {
           console.error('Image upload failed:', error);
@@ -621,7 +705,11 @@ const CreatePostPage = () => {
       if (imageToRemove) {
         // Revoke preview URL
         if (imageToRemove.previewUrl) {
-          mediaService.revokePreviewUrl(imageToRemove.previewUrl);
+          if (mediaService && typeof mediaService.revokePreviewUrl === 'function') {
+            mediaService.revokePreviewUrl(imageToRemove.previewUrl);
+          } else {
+            URL.revokeObjectURL(imageToRemove.previewUrl);
+          }
         }
         
         // Remove from media_urls if uploaded
@@ -665,7 +753,11 @@ const CreatePostPage = () => {
       // Clean up image URLs
       selectedImages.forEach(image => {
         if (image.previewUrl) {
-          mediaService.revokePreviewUrl(image.previewUrl);
+          if (mediaService && typeof mediaService.revokePreviewUrl === 'function') {
+            mediaService.revokePreviewUrl(image.previewUrl);
+          } else {
+            URL.revokeObjectURL(image.previewUrl);
+          }
         }
       });
       
