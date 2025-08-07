@@ -1,8 +1,8 @@
-// web/src/services/api.js - FIXED VERSION
+// web/src/services/api.js - ADD MISSING EXPORT
 
 import axios from 'axios';
 
-// FIXED: Clean backend URL configuration
+// FIXED: Get correct backend URL
 const getBackendUrl = () => {
   let baseUrl = process.env.REACT_APP_API_URL || 'https://iap-connect.onrender.com';
   
@@ -111,6 +111,59 @@ api.interceptors.response.use(
     }
   }
 );
+
+// FIXED: Add missing notificationService export
+export const notificationService = {
+  // Get unread count
+  getUnreadCount: async () => {
+    try {
+      const response = await api.get('/notifications/unread-count');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get unread count:', error);
+      return { unread_count: 0, count: 0 };
+    }
+  },
+
+  // Get all notifications
+  getNotifications: async (page = 1, limit = 20) => {
+    try {
+      const response = await api.get(`/notifications?page=${page}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get notifications:', error);
+      return {
+        notifications: [],
+        total: 0,
+        unread_count: 0,
+        page: 1,
+        has_next: false
+      };
+    }
+  },
+
+  // Mark notification as read
+  markAsRead: async (notificationId) => {
+    try {
+      const response = await api.put(`/notifications/${notificationId}/read`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+      return { success: false };
+    }
+  },
+
+  // Mark all notifications as read
+  markAllAsRead: async () => {
+    try {
+      const response = await api.put('/notifications/mark-all-read');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+      return { success: false, updated_count: 0 };
+    }
+  }
+};
 
 // Export the configured axios instance
 export default api;

@@ -1,10 +1,10 @@
-// web/src/services/mediaService.js - COMPLETELY FIXED
+// web/src/services/mediaService.js - QUICK FIX FOR URL DUPLICATION
 
 import api from './api';
 
 class MediaService {
   constructor() {
-    // FIXED: Get backend URL correctly without /api/v1
+    // FIXED: Get clean backend URL without /api/v1
     this.backendUrl = this.getCleanBackendUrl();
     this.useS3 = false;
     this.s3Config = null;
@@ -15,24 +15,28 @@ class MediaService {
   }
 
   /**
-   * Get clean backend URL (without /api/v1)
+   * Get clean backend URL (without /api/v1) - CRITICAL FIX
    */
   getCleanBackendUrl() {
+    // Start with environment URL or default
     let baseUrl = process.env.REACT_APP_API_URL || 'https://iap-connect.onrender.com';
     
-    // Remove /api/v1 if it exists
+    // CRITICAL: Remove /api/v1 completely if it exists
     if (baseUrl.includes('/api/v1')) {
       baseUrl = baseUrl.replace('/api/v1', '');
     }
     
-    // Remove trailing slash
+    // Remove any trailing slash
     baseUrl = baseUrl.replace(/\/$/, '');
+    
+    console.log('🔧 Original URL:', process.env.REACT_APP_API_URL);
+    console.log('🔧 Clean URL:', baseUrl);
     
     return baseUrl;
   }
 
   /**
-   * Initialize S3 configuration - FIXED URL
+   * Initialize S3 configuration - FIXED URL CONSTRUCTION
    */
   async initializeS3() {
     if (this.initialized) return this.s3Available;
@@ -40,7 +44,7 @@ class MediaService {
     try {
       console.log('🔧 Checking S3 availability from:', this.backendUrl);
       
-      // FIXED: Correct URL without duplication
+      // CRITICAL FIX: Correct URL without duplication
       const s3StatusUrl = `${this.backendUrl}/api/upload-s3/status`;
       console.log('🔍 S3 Status URL:', s3StatusUrl);
       
@@ -272,74 +276,6 @@ class MediaService {
     } catch (error) {
       console.error('❌ Post media upload failed:', error);
       throw new Error(error.message || 'Post media upload failed');
-    }
-  }
-
-  /**
-   * Upload single image - FIXED
-   */
-  async uploadImage(file, onProgress = null) {
-    try {
-      console.log('📤 Starting single image upload...');
-      
-      await this.initializeS3();
-      
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      if (this.useS3 && this.s3Available) {
-        console.log('📤 Uploading image to S3...');
-        
-        const response = await fetch(`${this.backendUrl}/api/upload-s3/image`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
-          },
-          body: formData,
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
-          console.log('✅ Image uploaded to S3 successfully:', result);
-          return {
-            success: true,
-            filename: result.data.filename,
-            url: result.data.url,
-            storage: 's3',
-            ...result.data
-          };
-        } else {
-          throw new Error(result.detail || 'S3 upload failed');
-        }
-      } else {
-        console.log('📤 Falling back to local upload...');
-        
-        // Use local upload endpoint
-        const response = await api.post('/upload/image', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          onUploadProgress: onProgress ? (progressEvent) => {
-            const percent = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
-            );
-            onProgress(percent);
-          } : undefined,
-        });
-        
-        return {
-          success: true,
-          filename: response.data.filename,
-          url: response.data.url,
-          storage: 'local',
-          ...response.data
-        };
-      }
-      
-    } catch (error) {
-      console.error('❌ Image upload failed:', error);
-      throw new Error(error.message || 'Image upload failed');
     }
   }
 
