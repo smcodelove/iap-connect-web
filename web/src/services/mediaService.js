@@ -1,16 +1,11 @@
-// web/src/services/mediaService.js - FIXED VERSION
+// web/src/services/mediaService.js - COMPLETELY FIXED
 
 import api from './api';
 
 class MediaService {
   constructor() {
-    // FIXED: Get correct backend URL
-    this.backendUrl = process.env.REACT_APP_API_URL || 'https://iap-connect.onrender.com';
-    // Remove /api/v1 if it exists in the URL
-    if (this.backendUrl.endsWith('/api/v1')) {
-      this.backendUrl = this.backendUrl.replace('/api/v1', '');
-    }
-    
+    // FIXED: Get backend URL correctly without /api/v1
+    this.backendUrl = this.getCleanBackendUrl();
     this.useS3 = false;
     this.s3Config = null;
     this.s3Available = false;
@@ -20,7 +15,24 @@ class MediaService {
   }
 
   /**
-   * Initialize S3 configuration - FIXED
+   * Get clean backend URL (without /api/v1)
+   */
+  getCleanBackendUrl() {
+    let baseUrl = process.env.REACT_APP_API_URL || 'https://iap-connect.onrender.com';
+    
+    // Remove /api/v1 if it exists
+    if (baseUrl.includes('/api/v1')) {
+      baseUrl = baseUrl.replace('/api/v1', '');
+    }
+    
+    // Remove trailing slash
+    baseUrl = baseUrl.replace(/\/$/, '');
+    
+    return baseUrl;
+  }
+
+  /**
+   * Initialize S3 configuration - FIXED URL
    */
   async initializeS3() {
     if (this.initialized) return this.s3Available;
@@ -28,7 +40,7 @@ class MediaService {
     try {
       console.log('🔧 Checking S3 availability from:', this.backendUrl);
       
-      // FIXED: Correct URL construction
+      // FIXED: Correct URL without duplication
       const s3StatusUrl = `${this.backendUrl}/api/upload-s3/status`;
       console.log('🔍 S3 Status URL:', s3StatusUrl);
       
@@ -42,7 +54,10 @@ class MediaService {
         },
       });
       
+      console.log('📡 S3 Status Response Status:', response.status);
+      
       if (!response.ok) {
+        console.log('❌ S3 Status request failed:', response.status, response.statusText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
@@ -103,6 +118,13 @@ class MediaService {
       // Initialize S3 first
       await this.initializeS3();
       
+      console.log('📤 Upload details:', {
+        fileName: file.name,
+        size: file.size,
+        s3Available: this.s3Available,
+        backendUrl: this.backendUrl
+      });
+      
       const formData = new FormData();
       formData.append('file', file);
       
@@ -129,13 +151,104 @@ class MediaService {
             ...result.data
           };
         } else {
+          console.error('❌ S3 avatar upload failed:', result);
+          throw new Error(result.detail || 'S3 upload failed');
+        }
+      } else {
+        console.log('📤 Using local endpoint: /upload/avatar');
+        
+        // FIXED: Use api instance for proper error handling and headers
+        try {
+          const response = await api.post('/upload/avatar', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+            onUploadProgress: onProgress ? (progressEvent) => {
+              const percent = Math.round(
+                (progressEvent.loaded * 100) / progressEvent.total
+              );
+              onProgress(percent);
+            } : undefined,
+          });
+          
+          console.log('✅ Local avatar upload successful:', response.data);
+          
+          return {
+            success: true,
+            filename: response.data.filename,
+            url: response.data.url,
+            storage: 'local',
+            ...response.data
+          };
+        } catch (apiError) {
+          console.error('❌ Local avatar upload API error:', apiError);
+          console.error('❌ Response data:', apiError.response?.data);
+          console.error('❌ Response status:', apiError.response?.status);
+          
+          // More detailed error message
+          const errorMessage = apiError.response?.data?.detail || 
+                              apiError.response?.data?.message || 
+                              apiError.message || 
+                              'Avatar upload failed';
+          
+          throw new Error(errorMessage);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Avatar upload failed:', error);
+      throw new Error(error.message || 'Avatar upload failed');
+    }
+  }
+
+  /**
+   * Upload post media - FIXED
+   */
+  async uploadPostMedia(files, onProgress = null) {
+    try {
+      console.log('📤 Starting post media upload...');
+      
+      await this.initializeS3();
+      
+      const formData = new FormData();
+      
+      // Handle single file or multiple files
+      if (Array.isArray(files)) {
+        files.forEach(file => {
+          formData.append('files', file);
+        });
+      } else {
+        formData.append('files', files);
+      }
+      
+      if (this.useS3 && this.s3Available) {
+        console.log('📤 Uploading post media to S3...');
+        
+        const response = await fetch(`${this.backendUrl}/api/upload-s3/post-images`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
+          },
+          body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+          console.log('✅ Post media uploaded to S3 successfully:', result);
+          return {
+            success: true,
+            storage: 's3',
+            ...result.data
+          };
+        } else {
           throw new Error(result.detail || 'S3 upload failed');
         }
       } else {
         console.log('📤 Falling back to local upload...');
         
-        // Fallback to local upload
-        const response = await api.post('/upload/avatar', formData, {
+        // Use local upload endpoint
+        const response = await api.post('/upload/post-media', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
@@ -147,27 +260,27 @@ class MediaService {
           } : undefined,
         });
         
+        console.log('✅ Local post media upload (S3 not available)');
+        
         return {
           success: true,
-          filename: response.data.filename,
-          url: response.data.url,
           storage: 'local',
           ...response.data
         };
       }
       
     } catch (error) {
-      console.error('❌ Avatar upload failed:', error);
-      throw new Error(error.message || 'Avatar upload failed');
+      console.error('❌ Post media upload failed:', error);
+      throw new Error(error.message || 'Post media upload failed');
     }
   }
 
   /**
-   * Upload post image - FIXED
+   * Upload single image - FIXED
    */
-  async uploadPostImage(file, onProgress = null) {
+  async uploadImage(file, onProgress = null) {
     try {
-      console.log('📤 Starting post image upload...');
+      console.log('📤 Starting single image upload...');
       
       await this.initializeS3();
       
@@ -175,7 +288,7 @@ class MediaService {
       formData.append('file', file);
       
       if (this.useS3 && this.s3Available) {
-        console.log('📤 Uploading post image to S3...');
+        console.log('📤 Uploading image to S3...');
         
         const response = await fetch(`${this.backendUrl}/api/upload-s3/image`, {
           method: 'POST',
@@ -188,7 +301,7 @@ class MediaService {
         const result = await response.json();
         
         if (response.ok && result.success) {
-          console.log('✅ Post image uploaded to S3 successfully:', result);
+          console.log('✅ Image uploaded to S3 successfully:', result);
           return {
             success: true,
             filename: result.data.filename,
@@ -202,7 +315,7 @@ class MediaService {
       } else {
         console.log('📤 Falling back to local upload...');
         
-        // Fallback to local upload
+        // Use local upload endpoint
         const response = await api.post('/upload/image', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
@@ -225,74 +338,8 @@ class MediaService {
       }
       
     } catch (error) {
-      console.error('❌ Post image upload failed:', error);
-      throw new Error(error.message || 'Post image upload failed');
-    }
-  }
-
-  /**
-   * Upload multiple images - FIXED
-   */
-  async uploadMultipleImages(files, onProgress = null) {
-    try {
-      console.log('📤 Starting multiple image upload...');
-      
-      await this.initializeS3();
-      
-      const formData = new FormData();
-      files.forEach(file => {
-        formData.append('files', file);
-      });
-      
-      if (this.useS3 && this.s3Available) {
-        console.log('📤 Uploading multiple images to S3...');
-        
-        const response = await fetch(`${this.backendUrl}/api/upload-s3/images`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
-          },
-          body: formData,
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
-          console.log('✅ Multiple images uploaded to S3 successfully:', result);
-          return {
-            success: true,
-            storage: 's3',
-            ...result.data
-          };
-        } else {
-          throw new Error(result.detail || 'S3 multiple upload failed');
-        }
-      } else {
-        console.log('📤 Falling back to local upload...');
-        
-        // Fallback to local upload
-        const response = await api.post('/upload/images', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          onUploadProgress: onProgress ? (progressEvent) => {
-            const percent = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
-            );
-            onProgress(percent);
-          } : undefined,
-        });
-        
-        return {
-          success: true,
-          storage: 'local',
-          ...response.data
-        };
-      }
-      
-    } catch (error) {
-      console.error('❌ Multiple image upload failed:', error);
-      throw new Error(error.message || 'Multiple image upload failed');
+      console.error('❌ Image upload failed:', error);
+      throw new Error(error.message || 'Image upload failed');
     }
   }
 

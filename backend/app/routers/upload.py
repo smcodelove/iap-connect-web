@@ -1,8 +1,9 @@
-# backend/app/routers/upload.py
+# backend/app/routers/upload.py - FIXED WITH DEBUGGING
 """
 File upload routes for IAP Connect application.
 Handles all file upload operations including avatars, post media, and documents.
 ENHANCED: Added missing /config endpoint for frontend integration
+FIXED: Avatar upload with proper debugging and error handling
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
@@ -16,7 +17,7 @@ from ..config.database import get_db
 from ..utils.dependencies import get_current_active_user, get_admin_user
 from ..models.user import User
 from ..services.file_service import (
-    upload_file, upload_avatar, upload_post_media, delete_file, 
+    upload_file, upload_post_media, delete_file, 
     get_file_info, cleanup_temp_files, UPLOAD_FOLDER
 )
 from ..schemas.file import (
@@ -45,11 +46,14 @@ async def upload_single_image(
     - Automatically optimized and resized
     """
     try:
+        print(f"🔍 Single image upload started by: {current_user.username}")
+        print(f"📁 File details: {file.filename}, {file.content_type}")
+        
         # Validate image file
-        if not file.content_type.startswith('image/'):
+        if not file.content_type or not file.content_type.startswith('image/'):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only image files are allowed"
+                detail=f"Only image files are allowed. Received: {file.content_type}"
             )
         
         # Upload using file service
@@ -61,20 +65,20 @@ async def upload_single_image(
             should_create_thumbnail=False
         )
         
+        print(f"✅ Single image upload successful: {result}")
         return FileUploadResponse(**result)
         
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Image upload error: {str(e)}")
+        print(f"❌ Image upload error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload image: {str(e)}"
         )
 
 
-# upload_user_avatar function 
-
+# FIXED: Avatar upload with comprehensive debugging
 @router.post("/avatar", response_model=AvatarUploadResponse)
 async def upload_user_avatar(
     file: UploadFile = File(..., description="Avatar image file (max 2MB)"),
@@ -82,95 +86,199 @@ async def upload_user_avatar(
     db: Session = Depends(get_db)
 ):
     """
-    Upload or update user avatar.
+    Upload or update user avatar - WITH COMPREHENSIVE DEBUGGING.
     UPDATED: Force S3 usage when available to avoid 404 errors on production
     """
-    
-    # NEW: Check if S3 is available and use it first
     try:
-        from ..services.s3_service import S3_AVAILABLE, s3_service
-        if S3_AVAILABLE and s3_service:
-            print("🔄 Using S3 for avatar upload...")
-            
-            # Upload to S3 directly
-            s3_result = await s3_service.upload_image(
-                file=file,
-                folder="avatars",
-                optimize=True,
-                max_size_mb=2,
-                max_width=400,
-                max_height=400
+        print(f"🔍 Avatar upload started for user: {current_user.username} (ID: {current_user.id})")
+        print(f"📁 File details: {file.filename}, {file.content_type}")
+        
+        # Check file content type
+        if not file.content_type:
+            print("⚠️ No content type provided, attempting to determine from filename")
+            if file.filename:
+                if file.filename.lower().endswith(('.jpg', '.jpeg')):
+                    file.content_type = 'image/jpeg'
+                elif file.filename.lower().endswith('.png'):
+                    file.content_type = 'image/png'
+                elif file.filename.lower().endswith('.webp'):
+                    file.content_type = 'image/webp'
+                elif file.filename.lower().endswith('.gif'):
+                    file.content_type = 'image/gif'
+                else:
+                    print(f"❌ Unsupported file extension: {file.filename}")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Unsupported file type. Only JPG, PNG, WebP, and GIF are allowed."
+                    )
+            else:
+                print("❌ No filename provided")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No filename provided"
+                )
+        
+        # Validate file type
+        if not file.content_type.startswith('image/'):
+            print(f"❌ Invalid file type: {file.content_type}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid file type: {file.content_type}. Only image files are allowed."
             )
+        
+        # Check file size
+        file_content = await file.read()
+        file_size = len(file_content)
+        print(f"📊 File size: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)")
+        
+        # Reset file pointer
+        await file.seek(0)
+        
+        # Size limit: 2MB
+        max_size = 2 * 1024 * 1024  # 2MB
+        if file_size > max_size:
+            print(f"❌ File too large: {file_size} > {max_size}")
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File too large. Maximum size: 2MB. Your file: {file_size / 1024 / 1024:.2f}MB"
+            )
+        
+        print("✅ File validation passed, proceeding with upload...")
+        
+        # NEW: Check if S3 is available and use it first
+        try:
+            from ..services.s3_service import S3_AVAILABLE, s3_service
+            if S3_AVAILABLE and s3_service:
+                print("🔄 Using S3 for avatar upload...")
+                
+                # Reset file pointer for S3
+                await file.seek(0)
+                
+                # Upload to S3 directly
+                s3_result = await s3_service.upload_avatar(
+                    file=file,
+                    user_id=current_user.id,
+                    max_size_mb=2
+                )
+                
+                print(f"✅ S3 avatar upload successful: {s3_result}")
+                
+                # Update user profile in database
+                current_user.profile_picture_url = s3_result['url']
+                db.commit()
+                db.refresh(current_user)
+                
+                print(f"✅ User profile picture URL updated to: {s3_result['url']}")
+                
+                # Return S3 response in correct format
+                return AvatarUploadResponse(
+                    success=True,
+                    filename=s3_result['filename'],
+                    original_filename=s3_result['original_filename'],
+                    url=s3_result['url'],
+                    avatar_url=s3_result['url'],
+                    file_size=s3_result['size'],
+                    content_type=s3_result['content_type']
+                )
+                
+        except ImportError:
+            print("⚠️ S3 service not available, using local upload")
+        except Exception as e:
+            print(f"⚠️ S3 upload failed: {e}, falling back to local")
+        
+        # EXISTING: Fallback to local upload
+        try:
+            print("🔄 Using local upload for avatar...")
             
-            # Update user profile in database
-            current_user.profile_picture_url = s3_result['url']
+            # Reset file pointer for local upload
+            await file.seek(0)
+            
+            # Delete old avatar if exists
+            if current_user.profile_picture_url:
+                try:
+                    await delete_file(current_user.profile_picture_url)
+                    print(f"🗑️ Deleted old avatar: {current_user.profile_picture_url}")
+                except Exception as e:
+                    print(f"⚠️ Could not delete old avatar: {str(e)}")
+            
+            # Create upload avatar function if not exists
+            async def upload_avatar_local(file: UploadFile, user_id: int) -> dict:
+                """Local avatar upload function"""
+                try:
+                    print(f"🔄 Processing local avatar upload for user {user_id}")
+                    
+                    # Upload to avatars folder
+                    result = await upload_file(
+                        file=file,
+                        folder="avatars",
+                        optimize_images=True,
+                        max_size=2 * 1024 * 1024,  # 2MB
+                        should_create_thumbnail=False
+                    )
+                    
+                    print(f"✅ Local avatar uploaded successfully: {result}")
+                    return result
+                    
+                except Exception as e:
+                    print(f"❌ Local avatar upload service error: {str(e)}")
+                    raise e
+            
+            # Upload new avatar using local service
+            result = await upload_avatar_local(file, current_user.id)
+            
+            # FIXED: Ensure result has required fields
+            if not result.get('url'):
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Upload failed: No URL returned from file service"
+                )
+            
+            # Update user's profile picture URL in database
+            current_user.profile_picture_url = result['url']
             db.commit()
             db.refresh(current_user)
             
-            # Return S3 response in correct format
-            return AvatarUploadResponse(
-                success=True,
-                filename=s3_result['filename'],
-                original_filename=s3_result['original_filename'],
-                url=s3_result['url'],
-                avatar_url=s3_result['url'],
-                file_size=s3_result['file_size'],
-                content_type=s3_result['content_type']
-            )
+            print(f"✅ User profile picture URL updated to: {result['url']}")
             
-    except ImportError:
-        print("⚠️ S3 service not available, using local upload")
-    except Exception as e:
-        print(f"⚠️ S3 upload failed: {e}, falling back to local")
-    
-    # EXISTING: Fallback to local upload (keep existing code)
-    try:
-        # Delete old avatar if exists
-        if current_user.profile_picture_url:
-            try:
-                await delete_file(current_user.profile_picture_url)
-            except Exception as e:
-                print(f"Warning: Could not delete old avatar: {str(e)}")
-        
-        # Upload new avatar using file service
-        result = await upload_avatar(file, current_user.id)
-        
-        # FIXED: Ensure result has required fields and handle all response formats
-        if not result.get('url'):
+            # FIXED: Create proper response with all required fields
+            response_data = {
+                'success': result.get('success', True),
+                'filename': result.get('filename', ''),
+                'original_filename': result.get('original_filename', file.filename),
+                'url': result['url'],
+                'avatar_url': result['url'],  # Required field for AvatarUploadResponse
+                'thumbnail_url': result.get('thumbnail_url'),
+                'file_size': result.get('file_size', file_size),
+                'original_size': result.get('original_size', file_size),
+                'content_type': result.get('content_type', file.content_type),
+                'extension': result.get('extension', ''),
+                'is_image': result.get('is_image', True),
+                'file_hash': result.get('file_hash', ''),
+                'folder': result.get('folder', 'avatars'),
+                'upload_time': result.get('upload_time')
+            }
+            
+            print(f"✅ Avatar upload completed successfully for user {current_user.username}")
+            return AvatarUploadResponse(**response_data)
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"❌ Local avatar upload error: {str(e)}")
+            import traceback
+            print(f"📋 Traceback: {traceback.format_exc()}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Upload failed: No URL returned from file service"
+                detail=f"Failed to upload avatar: {str(e)}"
             )
-        
-        # Update user's profile picture URL in database
-        current_user.profile_picture_url = result['url']
-        db.commit()
-        db.refresh(current_user)
-        
-        # FIXED: Create proper response with all required fields
-        response_data = {
-            'success': result.get('success', True),
-            'filename': result.get('filename', ''),
-            'original_filename': result.get('original_filename', file.filename),
-            'url': result['url'],
-            'avatar_url': result['url'],  # Required field for AvatarUploadResponse
-            'thumbnail_url': result.get('thumbnail_url'),
-            'file_size': result.get('file_size', 0),
-            'original_size': result.get('original_size', 0),
-            'content_type': result.get('content_type', file.content_type),
-            'extension': result.get('extension', ''),
-            'is_image': result.get('is_image', True),
-            'file_hash': result.get('file_hash', ''),
-            'folder': result.get('folder', 'avatars'),
-            'upload_time': result.get('upload_time')
-        }
-        
-        return AvatarUploadResponse(**response_data)
         
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Avatar upload error: {str(e)}")
+        print(f"❌ Avatar upload error: {str(e)}")
+        import traceback
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload avatar: {str(e)}"
@@ -194,6 +302,9 @@ async def upload_post_media_files(
     Returns list of uploaded file URLs for use in posts.
     """
     try:
+        print(f"🔍 Post media upload started by: {current_user.username}")
+        print(f"📁 Number of files: {len(files)}")
+        
         results = await upload_post_media(files, current_user.id)
         
         # Separate successful and failed uploads
@@ -212,6 +323,8 @@ async def upload_post_media_files(
                     'error': result.get('error', 'Upload failed')
                 })
         
+        print(f"✅ Post media upload completed: {len(successful_uploads)} successful, {len(failed_uploads)} failed")
+        
         return MultipleFileUploadResponse(
             success=len(successful_uploads) > 0,
             uploaded_files=successful_uploads,
@@ -224,7 +337,7 @@ async def upload_post_media_files(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Post media upload error: {str(e)}")
+        print(f"❌ Post media upload error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload media files"
@@ -248,6 +361,9 @@ async def upload_document(
     Returns document URL for downloads/links.
     """
     try:
+        print(f"🔍 Document upload started by: {current_user.username}")
+        print(f"📁 File details: {file.filename}, {file.content_type}")
+        
         result = await upload_file(
             file=file,
             folder=folder,
@@ -255,12 +371,13 @@ async def upload_document(
             max_size=5 * 1024 * 1024  # 5MB
         )
         
+        print(f"✅ Document upload successful: {result}")
         return FileUploadResponse(**result)
         
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Document upload error: {str(e)}")
+        print(f"❌ Document upload error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload document"
@@ -284,7 +401,7 @@ async def get_file_information(
         return FileInfo(**info)
         
     except Exception as e:
-        print(f"File info error: {str(e)}")
+        print(f"❌ File info error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get file information"
@@ -322,7 +439,7 @@ async def delete_uploaded_file(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"File delete error: {str(e)}")
+        print(f"❌ File delete error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete file"
@@ -365,7 +482,7 @@ async def batch_delete_files(
         )
         
     except Exception as e:
-        print(f"Batch delete error: {str(e)}")
+        print(f"❌ Batch delete error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete files"
@@ -408,7 +525,7 @@ async def serve_uploaded_file(file_path: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"File serve error: {str(e)}")
+        print(f"❌ File serve error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to serve file"
@@ -461,7 +578,7 @@ async def get_upload_statistics(
         )
         
     except Exception as e:
-        print(f"Stats error: {str(e)}")
+        print(f"❌ Stats error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get statistics"
@@ -492,7 +609,7 @@ async def cleanup_files(
         )
         
     except Exception as e:
-        print(f"Cleanup error: {str(e)}")
+        print(f"❌ Cleanup error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to cleanup files"
@@ -509,17 +626,22 @@ async def get_upload_config():
     This endpoint enables frontend to detect upload methods automatically.
     """
     try:
+        print("🔍 Upload config requested")
+        
         # Check if S3 is available
         s3_available = False
         try:
             from ..services.s3_service import S3_AVAILABLE
             s3_available = S3_AVAILABLE
+            print(f"📊 S3 availability check: {s3_available}")
         except ImportError:
             s3_available = False
-        except Exception:
+            print("⚠️ S3 service not imported")
+        except Exception as e:
             s3_available = False
+            print(f"⚠️ S3 availability check failed: {e}")
             
-        return {
+        config_data = {
             "success": True,
             "data": {
                 "max_file_size_mb": 10,
@@ -544,8 +666,12 @@ async def get_upload_config():
                 }
             }
         }
+        
+        print(f"✅ Upload config returned: {config_data}")
+        return config_data
+        
     except Exception as e:
-        print(f"Upload config error: {str(e)}")
+        print(f"❌ Upload config error: {str(e)}")
         # FIXED: Always return success=True with fallback configuration
         return {
             "success": True,
