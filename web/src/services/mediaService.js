@@ -20,7 +20,7 @@ class MediaService {
 
   /**
    * Initialize S3 configuration
-   * FIXED: Use dynamic backend URL and proper initialization
+   * FIXED: Correct URL construction to prevent /api/v1/api duplication
    */
   async initializeS3() {
     if (this.initialized) return this.s3Available;
@@ -28,8 +28,11 @@ class MediaService {
     try {
       console.log('🔧 Checking S3 availability from:', this.backendUrl);
       
-      // FIXED: Use dynamic backend URL instead of hardcoded
-      const s3StatusResponse = await fetch(`${this.backendUrl}/api/upload-s3/status`, {
+      // FIXED: Direct fetch to avoid axios baseURL issues
+      const s3StatusUrl = `${this.backendUrl}/api/upload-s3/status`;
+      console.log('🔍 S3 Status URL:', s3StatusUrl);
+      
+      const s3StatusResponse = await fetch(s3StatusUrl, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
           'Content-Type': 'application/json',
@@ -46,7 +49,8 @@ class MediaService {
         
         // Try to get S3 config (optional)
         try {
-          const s3ConfigResponse = await fetch(`${this.backendUrl}/api/upload-s3/config`, {
+          const s3ConfigUrl = `${this.backendUrl}/api/upload-s3/config`;
+          const s3ConfigResponse = await fetch(s3ConfigUrl, {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
               'Content-Type': 'application/json',
@@ -77,7 +81,6 @@ class MediaService {
       return false;
     }
   }
-
   /**
    * Upload user avatar
    * FIXED: Better S3 detection and proper initialization
