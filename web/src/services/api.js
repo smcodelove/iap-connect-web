@@ -7,16 +7,16 @@ import axios from 'axios';
 // Get API URL from environment variables with fallback - PRODUCTION READY
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://iap-connect.onrender.com';
 
-// FIXED: Remove any trailing /api from the base URL to prevent duplication
-const cleanBaseURL = API_BASE_URL.replace(/\/api\/?$/, '');
+// FIXED: Include /api/v1 in baseURL to prevent any duplication
+const FULL_BASE_URL = `${API_BASE_URL}/api/v1`;
 
 // Production logging
-console.log('🌐 API Base URL:', cleanBaseURL);
+console.log('🌐 API Full Base URL:', FULL_BASE_URL);
 console.log('🔧 Environment:', process.env.REACT_APP_ENVIRONMENT || 'development');
 
 // Create axios instance with enhanced config for production
 const api = axios.create({
-  baseURL: cleanBaseURL, // This will be https://iap-connect.onrender.com (no /api)
+  baseURL: FULL_BASE_URL, // This will be https://iap-connect.onrender.com/api/v1
   timeout: 60000, // Increased timeout for production
   headers: {
     'Content-Type': 'application/json',
@@ -35,7 +35,7 @@ api.interceptors.request.use((config) => {
   }
   
   // Log request for debugging - FIXED: Show correct full URL
-  console.log(`🚀 ${config.method?.toUpperCase()} ${cleanBaseURL}${config.url}`);
+  console.log(`🚀 ${config.method?.toUpperCase()} ${FULL_BASE_URL}${config.url}`);
   
   return config;
 });
@@ -98,7 +98,7 @@ export const authService = {
       formData.append('username', credentials.email); // Backend expects 'username' field
       formData.append('password', credentials.password);
       
-      const response = await api.post('/api/v1/auth/login', formData, {
+      const response = await api.post('/auth/login', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -124,7 +124,7 @@ export const authService = {
   async register(userData) {
     try {
       console.log('📝 Attempting registration for:', userData.email);
-      const response = await api.post('/api/v1/auth/register', userData);
+      const response = await api.post('/auth/register', userData);
       console.log('✅ Registration successful');
       return { success: true, data: response.data };
     } catch (error) {
@@ -138,7 +138,7 @@ export const authService = {
 
   async getCurrentUser() {
     try {
-      const response = await api.get('/api/v1/auth/me');
+      const response = await api.get('/auth/me');
       return { success: true, data: response.data };
     } catch (error) {
       console.error('❌ Get current user failed:', error.response?.data);
@@ -163,7 +163,7 @@ export const authService = {
 export const postService = {
   async getFeed(page = 1, size = 20) {
     try {
-      const response = await api.get('/api/v1/posts/feed', {
+      const response = await api.get('/posts/feed', {
         params: { page, size }
       });
       
@@ -186,7 +186,7 @@ export const postService = {
   async getTrendingPosts(page = 1, size = 20, hoursWindow = 72) {
     try {
       console.log(`🔥 Fetching trending posts - page: ${page}, size: ${size}, hours: ${hoursWindow}`);
-      const response = await api.get('/api/v1/posts/trending', {
+      const response = await api.get('/posts/trending', {
         params: { 
           page: page, 
           size: size, 
@@ -218,7 +218,7 @@ export const postService = {
         config.headers = { 'Content-Type': 'multipart/form-data' };
       }
       
-      const response = await api.post('/api/v1/posts', postData, config);
+      const response = await api.post('/posts', postData, config);
       return { success: true, post: response.data };
     } catch (error) {
       console.error('❌ Create post error:', error.response?.data);
@@ -228,7 +228,7 @@ export const postService = {
 
   async getPost(postId) {
     try {
-      const response = await api.get(`/api/v1/posts/${postId}`);
+      const response = await api.get(`/posts/${postId}`);
       return { success: true, post: response.data };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to fetch post');
@@ -237,7 +237,7 @@ export const postService = {
 
   async likePost(postId) {
     try {
-      const response = await api.post(`/api/v1/posts/${postId}/like`);
+      const response = await api.post(`/posts/${postId}/like`);
       return {
         success: true,
         liked: true,
@@ -250,7 +250,7 @@ export const postService = {
 
   async unlikePost(postId) {
     try {
-      const response = await api.delete(`/api/v1/posts/${postId}/like`);
+      const response = await api.delete(`/posts/${postId}/like`);
       return {
         success: true,
         liked: false,
@@ -265,7 +265,7 @@ export const postService = {
   async bookmarkPost(postId) {
     try {
       console.log('🔖 Bookmarking post:', postId);
-      const response = await api.post(`/api/v1/posts/${postId}/bookmark`);
+      const response = await api.post(`/posts/${postId}/bookmark`);
       console.log('✅ Post bookmarked successfully:', response.data);
       
       return {
@@ -282,7 +282,7 @@ export const postService = {
   async unbookmarkPost(postId) {
     try {
       console.log('🗑️ Unbookmarking post:', postId);
-      const response = await api.delete(`/api/v1/posts/${postId}/bookmark`);
+      const response = await api.delete(`/posts/${postId}/bookmark`);
       console.log('✅ Post unbookmarked successfully:', response.data);
       
       return {
@@ -299,7 +299,7 @@ export const postService = {
   async getBookmarkedPosts(page = 1, size = 20) {
     try {
       console.log('📚 Fetching bookmarked posts...');
-      const response = await api.get('/api/v1/posts/bookmarks', { 
+      const response = await api.get('/posts/bookmarks', { 
         params: { page, size } 
       });
       console.log('✅ Bookmarked posts fetched:', response.data);
@@ -337,7 +337,7 @@ export const postService = {
       console.log('❤️ Fetching liked posts...');
       // Note: This endpoint may need to be implemented in backend
       // For now, we'll fetch feed and filter liked posts
-      const response = await api.get('/api/v1/posts/feed', { 
+      const response = await api.get('/posts/feed', { 
         params: { page, size: 100 } // Get more posts to filter 
       });
       
@@ -369,7 +369,7 @@ export const postService = {
       console.log('👤 Fetching user posts for user:', userId);
       // Note: This endpoint may need to be implemented in backend
       // For now, we'll fetch feed and filter by user
-      const response = await api.get('/api/v1/posts/feed', { 
+      const response = await api.get('/posts/feed', { 
         params: { page, size: 100 } // Get more posts to filter 
       });
       
@@ -398,7 +398,7 @@ export const postService = {
 
   async searchPosts(query, page = 1, size = 20) {
     try {
-      const response = await api.get('/api/v1/posts/search', {
+      const response = await api.get('/posts/search', {
         params: { q: query, page, size }
       });
       
@@ -417,7 +417,7 @@ export const postService = {
 
   async deletePost(postId) {
     try {
-      await api.delete(`/api/v1/posts/${postId}`);
+      await api.delete(`/posts/${postId}`);
       return { success: true };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to delete post');
@@ -426,7 +426,7 @@ export const postService = {
 
   async updatePost(postId, postData) {
     try {
-      const response = await api.put(`/api/v1/posts/${postId}`, postData);
+      const response = await api.put(`/posts/${postId}`, postData);
       return {
         post: response.data,
         success: true
@@ -438,7 +438,7 @@ export const postService = {
 
   async sharePost(postId) {
     try {
-      const response = await api.post(`/api/v1/posts/${postId}/share`);
+      const response = await api.post(`/posts/${postId}/share`);
       return {
         success: true,
         shares_count: response.data.shares_count || 0
@@ -453,7 +453,7 @@ export const postService = {
 export const commentService = {
   async getPostComments(postId, page = 1, size = 50) {
     try {
-      const response = await api.get(`/api/v1/posts/${postId}/comments`, {
+      const response = await api.get(`/posts/${postId}/comments`, {
         params: { page, size }
       });
       
@@ -474,7 +474,7 @@ export const commentService = {
         requestData.parent_id = parentId;
       }
 
-      const response = await api.post(`/api/v1/posts/${postId}/comments`, requestData);
+      const response = await api.post(`/posts/${postId}/comments`, requestData);
       return {
         success: true,
         comment: response.data
@@ -486,7 +486,7 @@ export const commentService = {
 
   async deleteComment(commentId) {
     try {
-      await api.delete(`/api/v1/comments/${commentId}`);
+      await api.delete(`/comments/${commentId}`);
       return { success: true };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to delete comment');
@@ -495,7 +495,7 @@ export const commentService = {
 
   async likeComment(commentId) {
     try {
-      const response = await api.post(`/api/v1/comments/${commentId}/like`);
+      const response = await api.post(`/comments/${commentId}/like`);
       return {
         success: true,
         liked: true,
@@ -508,7 +508,7 @@ export const commentService = {
 
   async unlikeComment(commentId) {
     try {
-      const response = await api.delete(`/api/v1/comments/${commentId}/like`);
+      const response = await api.delete(`/comments/${commentId}/like`);
       return {
         success: true,
         liked: false,
@@ -524,7 +524,7 @@ export const commentService = {
 export const userService = {
   async getProfile(userId) {
     try {
-      const response = await api.get(`/api/v1/users/profile/${userId}`);
+      const response = await api.get(`/users/profile/${userId}`);
       return { success: true, user: response.data };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to fetch profile');
@@ -533,7 +533,7 @@ export const userService = {
 
   async followUser(userId) {
     try {
-      const response = await api.post(`/api/v1/users/follow/${userId}`);
+      const response = await api.post(`/users/follow/${userId}`);
       return {
         success: true,
         following: true,
@@ -546,7 +546,7 @@ export const userService = {
 
   async unfollowUser(userId) {
     try {
-      const response = await api.delete(`/api/v1/users/follow/${userId}`);
+      const response = await api.delete(`/users/follow/${userId}`);
       return {
         success: true,
         following: false,
@@ -559,7 +559,7 @@ export const userService = {
 
   async searchUsers(query, page = 1, size = 20) {
     try {
-      const response = await api.get('/api/v1/users/search', {
+      const response = await api.get('/users/search', {
         params: { q: query, page, size }
       });
       
@@ -576,7 +576,7 @@ export const userService = {
 
   async updateProfile(profileData) {
     try {
-      const response = await api.put('/api/v1/users/profile', profileData);
+      const response = await api.put('/users/profile', profileData);
       return { success: true, user: response.data };
     } catch (error) {
       throw new Error(error.response?.data?.detail || 'Failed to update profile');
@@ -588,7 +588,7 @@ export const userService = {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await api.post('/api/v1/users/upload-avatar', formData, {
+      const response = await api.post('/users/upload-avatar', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -605,7 +605,7 @@ export const userService = {
 export const notificationService = {
   async getNotifications(page = 1, size = 20) {
     try {
-      const response = await api.get('/api/v1/notifications', {
+      const response = await api.get('/notifications', {
         params: { page, size }
       });
       
@@ -632,7 +632,7 @@ export const notificationService = {
 
   async getUnreadCount() {
     try {
-      const response = await api.get('/api/v1/notifications/unread-count');
+      const response = await api.get('/notifications/unread-count');
       return {
         success: true,
         count: response.data.unread_count || response.data.count || 0
@@ -653,7 +653,7 @@ export const notificationService = {
   async markAsRead(notificationId) {
     try {
       console.log('✅ Marking notification as read:', notificationId);
-      const response = await api.put(`/api/v1/notifications/${notificationId}/read`);
+      const response = await api.put(`/notifications/${notificationId}/read`);
       return {
         success: true
       };
@@ -672,7 +672,7 @@ export const notificationService = {
   async markAllAsRead() {
     try {
       console.log('✅ Marking all notifications as read');
-      const response = await api.put('/api/v1/notifications/mark-all-read');
+      const response = await api.put('/notifications/mark-all-read');
       return {
         success: true
       };
