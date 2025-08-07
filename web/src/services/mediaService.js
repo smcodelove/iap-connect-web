@@ -227,8 +227,9 @@ class MediaService {
     }
   }
 
+
   /**
-   * Upload post media - FIXED WITH PROPER ENDPOINTS  
+   * Upload post media - FIXED WITH CORRECT S3 ENDPOINT
    */
   async uploadPostMedia(files, onProgress = null) {
     try {
@@ -243,34 +244,90 @@ class MediaService {
         files.forEach(file => {
           formData.append('files', file);
         });
+        console.log(`📁 Uploading ${files.length} files`);
       } else {
         formData.append('files', files);
+        console.log(`📁 Uploading 1 file: ${files.name}`);
       }
       
       if (this.useS3 && this.s3Available) {
         console.log('📤 Uploading post media to S3...');
         
-        // FIXED: Use correct S3 endpoint
-        const response = await fetch(`${this.backendUrl}/api/v1/upload-s3/images`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
-          },
-          body: formData,
-        });
+        // CRITICAL FIX: Try different S3 endpoints based on what backend supports
+        let s3Response;
+        let s3Url;
         
-        const result = await response.json();
+        // Try primary endpoint first
+        try {
+          s3Url = `${this.backendUrl}/api/v1/upload-s3/images`;
+          console.log('🔍 Trying S3 endpoint:', s3Url);
+          
+          s3Response = await fetch(s3Url, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
+            },
+            body: formData,
+          });
+          
+          console.log('📡 S3 Response Status:', s3Response.status);
+          
+          if (!s3Response.ok) {
+            throw new Error(`S3 upload failed: ${s3Response.status}`);
+          }
+          
+        } catch (s3Error) {
+          console.warn('⚠️ Primary S3 endpoint failed, trying alternative:', s3Error.message);
+          
+          // Try alternative endpoint
+          s3Url = `${this.backendUrl}/api/v1/upload-s3/post-images`;
+          console.log('🔍 Trying alternative S3 endpoint:', s3Url);
+          
+          s3Response = await fetch(s3Url, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
+            },
+            body: formData,
+          });
+          
+          console.log('📡 Alternative S3 Response Status:', s3Response.status);
+          
+          if (!s3Response.ok) {
+            throw new Error(`Both S3 endpoints failed: ${s3Response.status}`);
+          }
+        }
         
-        if (response.ok && result.success) {
+        const result = await s3Response.json();
+        console.log('✅ S3 Response Data:', result);
+        
+        if (result.success) {
           console.log('✅ Post media uploaded to S3 successfully:', result);
+          
+          // FIXED: Extract URLs from different possible response formats
+          let mediaUrls = result.uploaded_files || 
+                         result.data?.uploaded_files || 
+                         result.files || 
+                         result.data?.files || 
+                         [];
+          
+          // If single URL returned, convert to array
+          if (result.file_url) {
+            mediaUrls = [result.file_url];
+          } else if (result.url) {
+            mediaUrls = [result.url];
+          }
+          
+          console.log('✅ Media URLs extracted:', mediaUrls);
+          
           return {
             success: true,
             storage: 's3',
-            media_urls: result.uploaded_files || result.data?.uploaded_files || [],
-            files: result.uploaded_files || result.data?.uploaded_files || []
+            media_urls: mediaUrls,
+            files: mediaUrls
           };
         } else {
-          throw new Error(result.detail || 'S3 upload failed');
+          throw new Error(result.detail || result.message || 'S3 upload failed');
         }
       } else {
         console.log('📤 Falling back to local upload...');
@@ -285,19 +342,27 @@ class MediaService {
               (progressEvent.loaded * 100) / progressEvent.total
             );
             onProgress(percent);
+            console.log(`📊 Upload progress: ${percent}%`);
           } : undefined,
         });
         
-        console.log('✅ Local post media upload (S3 not available)');
+        console.log('✅ Local post media upload successful:', response.data);
         
         // FIXED: Convert relative URLs to absolute URLs for display
-        let mediaUrls = response.data.media_urls || response.data.files || [];
+        let mediaUrls = response.data.media_urls || 
+                       response.data.files || 
+                       response.data.uploaded_files || 
+                       [];
+        
+        // Convert relative URLs to absolute
         mediaUrls = mediaUrls.map(url => {
           if (url && url.startsWith('/static/')) {
             return `${this.backendUrl}${url}`;
           }
           return url;
         });
+        
+        console.log('✅ Local media URLs converted:', mediaUrls);
         
         return {
           success: true,
@@ -309,6 +374,10 @@ class MediaService {
       
     } catch (error) {
       console.error('❌ Post media upload failed:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack
+      });
       throw new Error(error.message || 'Post media upload failed');
     }
   }
