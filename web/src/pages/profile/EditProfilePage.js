@@ -462,138 +462,153 @@ const EditProfilePage = () => {
   };
 
   // FIXED: Enhanced file selection with immediate UI update
-  const handleFileChange = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+  // Quick fix for EditProfilePage.js - Replace the handleFileChange function
 
-    try {
-      // Validation
-      const validation = mediaService.validateImage ? 
-        mediaService.validateImage(file, 'avatar') : 
-        mediaService.validateFile(file, 'avatar');
-        
-      if (!validation.isValid) {
-        setErrors({ ...errors, avatar: validation.errors[0] });
-        return;
-      }
+// FIXED: Enhanced file selection with immediate UI update
+// Quick fix for EditProfilePage.js - Replace the handleFileChange function
 
-      setUploadingAvatar(true);
-      setUploadProgress(0);
-      setErrors({ ...errors, avatar: '' });
+// FIXED: Enhanced file selection with immediate UI update
+const handleFileChange = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
 
-      // Create preview
-      const previewUrl = mediaService.createPreviewUrl(file);
-      setAvatarPreview(previewUrl);
-
-      console.log('📤 Starting avatar upload...', {
-        method: s3Available ? 'S3' : 'Local',
-        fileName: file.name,
-        size: file.size,
-        type: file.type
-      });
-
-      // Upload avatar
-      const result = await mediaService.uploadAvatar(file, (progress) => {
-        setUploadProgress(progress);
-      });
-
-      console.log('✅ Avatar upload successful:', result);
-
-      const avatarUrl = result?.url || result?.avatar_url || result?.file_url || result?.data?.url;
-
-      if (!avatarUrl) {
-        console.error('❌ No avatar URL found in response:', result);
-        throw new Error('Upload completed but no URL was returned from server');
-      }
-
-      console.log('🖼️ Avatar URL extracted:', avatarUrl);
-
-      // FIXED: Enhanced immediate UI update
-      try {
-        console.log('🔄 Updating user data immediately...');
-        
-        // STEP 1: Update Redux state immediately
-        const updatedUser = { 
-          ...user, 
-          profile_picture_url: avatarUrl,
-          avatar_url: avatarUrl // For compatibility
-        };
-        
-        dispatch(updateUser(updatedUser));
-        
-        // STEP 2: Update authService data immediately  
-        if (authService.setUserData && typeof authService.setUserData === 'function') {
-          authService.setUserData(updatedUser);
-        }
-        
-        // STEP 3: Clear preview and force re-render
-        setAvatarPreview(null);
-        setForceUpdate(prev => prev + 1); // Force component re-render
-        
-        // STEP 4: Try server refresh in background (non-blocking)
-        setTimeout(async () => {
-          try {
-            if (authService.refreshUserData && typeof authService.refreshUserData === 'function') {
-              console.log('🔄 Background server refresh...');
-              const refreshResult = await authService.refreshUserData();
-              
-              if (refreshResult?.success && refreshResult?.data) {
-                dispatch(updateUser(refreshResult.data));
-                console.log('✅ Server data refreshed successfully');
-              }
-            }
-          } catch (refreshError) {
-            console.warn('⚠️ Background refresh failed (non-critical):', refreshError.message);
-          }
-        }, 1000); // 1 second delay for background refresh
-        
-        setSuccessMessage(`Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local upload'}!`);
-        
-      } catch (updateError) {
-        console.error('❌ Error updating user data:', updateError);
-        // Even if update fails, show success since upload worked
-        setSuccessMessage(`Avatar uploaded successfully, but may require page refresh to display.`);
+  try {
+    // FIXED: Simple file validation without external function
+    const validateFile = (file) => {
+      const errors = [];
+      
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        errors.push('Please select an image file');
+        return { isValid: false, errors };
       }
       
-      // Clean up preview URL
-      if (previewUrl) {
-        mediaService.revokePreviewUrl(previewUrl);
+      // Check file size (2MB for avatar)
+      const maxSize = 2 * 1024 * 1024; // 2MB
+      if (file.size > maxSize) {
+        errors.push('File size must be less than 2MB');
+        return { isValid: false, errors };
       }
       
-      // Auto-hide success message
-      setTimeout(() => setSuccessMessage(''), 4000);
-      
-    } catch (error) {
-      console.error('❌ Avatar upload failed:', error);
-      
-      let errorMessage = 'Failed to upload avatar. Please try again.';
-      
-      if (error.message) {
-        errorMessage = error.message;
-      } else if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+      // Check file type specifically
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowedTypes.includes(file.type.toLowerCase())) {
+        errors.push('Please select JPG, PNG, WebP or GIF image');
+        return { isValid: false, errors };
       }
       
-      setErrors({ 
-        ...errors, 
-        avatar: errorMessage
-      });
-      
-      // Clean up preview on error
-      if (avatarPreview) {
-        mediaService.revokePreviewUrl(avatarPreview);
-        setAvatarPreview(null);
-      }
-    } finally {
-      setUploadingAvatar(false);
-      setUploadProgress(0);
-      // Reset file input
-      event.target.value = '';
+      return { isValid: true, errors: [] };
+    };
+
+    // Validate file
+    const validation = validateFile(file);
+    
+    if (!validation.isValid) {
+      setErrors({ ...errors, avatar: validation.errors[0] });
+      return;
     }
-  };
 
+    setUploadingAvatar(true);
+    setUploadProgress(0);
+    setErrors({ ...errors, avatar: '' });
+
+    // Create preview
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview(previewUrl);
+
+    console.log('📤 Starting avatar upload...', {
+      method: s3Available ? 'S3' : 'Local',
+      fileName: file.name,
+      size: file.size,
+      type: file.type
+    });
+
+    // Upload avatar
+    const result = await mediaService.uploadAvatar(file, (progress) => {
+      setUploadProgress(progress);
+    });
+
+    console.log('✅ Avatar upload successful:', result);
+
+    const avatarUrl = result?.url || result?.avatar_url || result?.file_url || result?.data?.url;
+
+    if (!avatarUrl) {
+      console.error('❌ No avatar URL found in response:', result);
+      throw new Error('Upload completed but no URL was returned from server');
+    }
+
+    console.log('🖼️ Avatar URL extracted:', avatarUrl);
+
+    // FIXED: Enhanced immediate UI update
+    try {
+      console.log('🔄 Updating user data immediately...');
+      
+      // STEP 1: Update Redux state immediately
+      const updatedUser = { 
+        ...user, 
+        profile_picture_url: avatarUrl,
+        avatar_url: avatarUrl // For compatibility
+      };
+      
+      dispatch(updateUser(updatedUser));
+      
+      // STEP 2: Update authService data immediately  
+      if (authService.setUserData && typeof authService.setUserData === 'function') {
+        authService.setUserData(updatedUser);
+      }
+      
+      // STEP 3: Clear preview and force re-render
+      setAvatarPreview(null);
+      setForceUpdate(prev => prev + 1); // Force component re-render
+      
+      // STEP 4: Try server refresh in background (non-blocking)
+      setTimeout(async () => {
+        try {
+          if (authService.refreshUserData && typeof authService.refreshUserData === 'function') {
+            console.log('🔄 Background server refresh...');
+            const refreshResult = await authService.refreshUserData();
+            
+            if (refreshResult?.success && refreshResult?.data) {
+              dispatch(updateUser(refreshResult.data));
+              console.log('✅ Server data refreshed successfully');
+            }
+          }
+        } catch (refreshError) {
+          console.warn('⚠️ Background refresh failed (non-critical):', refreshError.message);
+        }
+      }, 1000); // 1 second delay for background refresh
+      
+      setSuccessMessage(`Avatar updated successfully using ${s3Available ? 'AWS S3 (Mumbai)' : 'local storage'}!`);
+      
+    } catch (uiError) {
+      console.error('❌ UI update failed:', uiError);
+      // Still show success since upload worked
+      setSuccessMessage('Avatar uploaded successfully! Please refresh the page to see changes.');
+    }
+
+  } catch (error) {
+    console.error('❌ Avatar upload failed:', error);
+    
+    // Clear preview on error
+    if (avatarPreview) {
+      URL.revokeObjectURL(avatarPreview);
+      setAvatarPreview(null);
+    }
+    
+    setErrors({ 
+      ...errors, 
+      avatar: error.message || 'Avatar upload failed. Please try again.' 
+    });
+  } finally {
+    setUploadingAvatar(false);
+    setUploadProgress(0);
+    
+    // Clear file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+};
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
