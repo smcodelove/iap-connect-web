@@ -165,9 +165,9 @@ export const notificationService = {
   }
 };
 
-// COMMENT SERVICE
+// COMMENT SERVICE - FIXED ENDPOINTS
 export const commentService = {
-  // Get comments for a post
+  // Get comments for a post - FIXED endpoint
   getComments: async (postId, page = 1, limit = 20) => {
     try {
       const response = await api.get(`/posts/${postId}/comments?page=${page}&limit=${limit}`);
@@ -183,14 +183,18 @@ export const commentService = {
     }
   },
 
-  // Create a new comment
+  // Create a new comment - FIXED endpoint to match backend
   createComment: async (postId, content, parentId = null) => {
     try {
-      const response = await api.post('/comments', {
-        post_id: postId,
-        content,
+      console.log(`💬 Creating comment for post ${postId}:`, { content, parentId });
+      
+      // ✅ FIXED: Use correct endpoint that matches backend routing
+      const response = await api.post(`/posts/${postId}/comments`, {
+        content: content,
         parent_id: parentId
       });
+      
+      console.log('✅ Comment created successfully:', response.data);
       return response.data;
     } catch (error) {
       console.error('Failed to create comment:', error);
@@ -201,7 +205,7 @@ export const commentService = {
   // Update comment
   updateComment: async (commentId, content) => {
     try {
-      const response = await api.put(`/comments/${commentId}`, { content });
+      const response = await api.put(`/posts/comments/${commentId}`, { content });
       return response.data;
     } catch (error) {
       console.error('Failed to update comment:', error);
@@ -209,10 +213,10 @@ export const commentService = {
     }
   },
 
-  // Delete comment
+  // Delete comment - FIXED endpoint
   deleteComment: async (commentId) => {
     try {
-      const response = await api.delete(`/comments/${commentId}`);
+      const response = await api.delete(`/posts/comments/${commentId}`);
       return response.data;
     } catch (error) {
       console.error('Failed to delete comment:', error);
@@ -220,10 +224,34 @@ export const commentService = {
     }
   },
 
-  // Like/unlike comment
+  // Like comment - FIXED endpoint
+  likeComment: async (commentId) => {
+    try {
+      console.log(`❤️ Liking comment ${commentId}`);
+      const response = await api.post(`/posts/comments/${commentId}/like`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to like comment:', error);
+      throw error;
+    }
+  },
+
+  // Unlike comment - FIXED endpoint  
+  unlikeComment: async (commentId) => {
+    try {
+      console.log(`💔 Unliking comment ${commentId}`);
+      const response = await api.delete(`/posts/comments/${commentId}/like`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to unlike comment:', error);
+      throw error;
+    }
+  },
+
+  // Toggle like/unlike comment
   toggleLike: async (commentId) => {
     try {
-      const response = await api.post(`/comments/${commentId}/like`);
+      const response = await api.post(`/posts/comments/${commentId}/like`);
       return response.data;
     } catch (error) {
       console.error('Failed to toggle comment like:', error);
@@ -300,7 +328,29 @@ export const postService = {
     }
   },
 
-  // Like/unlike post
+  // Like post
+  likePost: async (postId) => {
+    try {
+      const response = await api.post(`/posts/${postId}/like`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to like post:', error);
+      throw error;
+    }
+  },
+
+  // Unlike post 
+  unlikePost: async (postId) => {
+    try {
+      const response = await api.delete(`/posts/${postId}/like`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to unlike post:', error);
+      throw error;
+    }
+  },
+
+  // Toggle like/unlike post
   toggleLike: async (postId) => {
     try {
       const response = await api.post(`/posts/${postId}/like`);
@@ -536,6 +586,111 @@ export const uploadService = {
   }
 };
 
+// S3 UPLOAD SERVICE - FIXED endpoints for S3
+export const s3UploadService = {
+  // Upload single image to S3
+  uploadImage: async (file, onProgress) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.post('/upload-s3/image', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: onProgress ? (progressEvent) => {
+          const percent = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(percent);
+        } : undefined,
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Failed to upload image to S3:', error);
+      throw error;
+    }
+  },
+
+  // Upload avatar to S3
+  uploadAvatar: async (file, onProgress) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.post('/upload-s3/avatar', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: onProgress ? (progressEvent) => {
+          const percent = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(percent);
+        } : undefined,
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Failed to upload avatar to S3:', error);
+      throw error;
+    }
+  },
+
+  // Upload multiple images to S3
+  uploadMultipleImages: async (files, onProgress) => {
+    try {
+      const formData = new FormData();
+      files.forEach(file => {
+        formData.append('files', file);
+      });
+
+      const response = await api.post('/upload-s3/images', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: onProgress ? (progressEvent) => {
+          const percent = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(percent);
+        } : undefined,
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Failed to upload multiple images to S3:', error);
+      throw error;
+    }
+  },
+
+  // Get S3 status
+  getStatus: async () => {
+    try {
+      const response = await api.get('/upload-s3/status');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get S3 status:', error);
+      return { success: false, s3_available: false };
+    }
+  },
+
+  // Get S3 config
+  getConfig: async () => {
+    try {
+      const response = await api.get('/upload-s3/config');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get S3 config:', error);
+      return {
+        success: false,
+        data: { s3_available: false }
+      };
+    }
+  }
+};
+
 // Export the configured axios instance
 export default api;
 
@@ -552,18 +707,4 @@ export const getCleanBackendUrl = () => {
   baseUrl = baseUrl.replace(/\/$/, '');
   
   return baseUrl;
-};
-
-// Helper function for S3 direct requests (without /api/v1 prefix)
-export const createS3Request = (endpoint, options = {}) => {
-  const cleanUrl = getCleanBackendUrl();
-  const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-  
-  return fetch(`${cleanUrl}${endpoint}`, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      ...options.headers,
-    },
-  });
 };

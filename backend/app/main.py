@@ -149,10 +149,10 @@ app.include_router(comments.router, prefix="/api/v1")
 app.include_router(bookmarks.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 
-# Include S3 upload routes if available (FIXED PREFIX)
+# FIXED: Include S3 upload routes with consistent prefix
 if S3_UPLOAD_AVAILABLE:
-    app.include_router(upload_s3.router, prefix="/api")  # FIXED: No /v1 for S3
-    print("✅ S3 upload routes enabled at /api/upload-s3/*")
+    app.include_router(upload_s3.router, prefix="/api/v1")  # ✅ FIXED: Now consistent with other routes
+    print("✅ S3 upload routes enabled at /api/v1/upload-s3/*")
 
 # Include upload routes if available
 if UPLOAD_AVAILABLE:
@@ -221,7 +221,7 @@ def root():
             "upload_directory": "uploads" if UPLOAD_AVAILABLE else None,
             "static_url": "/static" if UPLOAD_AVAILABLE else None,
             "s3_upload_enabled": S3_UPLOAD_AVAILABLE,
-            "s3_endpoints": "/api/upload-s3/*" if S3_UPLOAD_AVAILABLE else None
+            "s3_endpoints": "/api/v1/upload-s3/*" if S3_UPLOAD_AVAILABLE else None  # ✅ FIXED: Updated endpoint info
         }
     }
 
@@ -282,9 +282,9 @@ if UPLOAD_AVAILABLE:
             }
 
 
-# S3 Upload system health check (if available)
+# S3 Upload system health check (if available) - FIXED endpoint
 if S3_UPLOAD_AVAILABLE:
-    @app.get("/api/upload-s3/system-health")
+    @app.get("/api/v1/upload-s3/system-health")  # ✅ FIXED: Updated endpoint path
     async def s3_upload_system_health():
         """Check S3 upload system health and configuration"""
         try:
