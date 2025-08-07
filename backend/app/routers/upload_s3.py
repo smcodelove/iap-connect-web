@@ -1,249 +1,233 @@
-# backend/app/routers/upload_s3.py
-"""
-AWS S3 upload routes - Safe integration alongside existing upload system
-NEW ROUTES: Does not interfere with existing upload functionality
-FIXED: Correct imports matching existing project structure
-"""
+# backend/app/services/s3_service.py - FIXED VERSION
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Form
-from typing import List, Optional
-from sqlalchemy.orm import Session
-
-from ..config.database import get_db
-from ..utils.dependencies import get_current_active_user
-from ..models.user import User
-
-# Safe import with fallback
-try:
-    from ..services.s3_service import s3_service, S3_AVAILABLE
-except ImportError:
-    s3_service = None
-    S3_AVAILABLE = False
-
-router = APIRouter(prefix="/upload-s3", tags=["S3 Image Upload"])
-
-def check_s3_available():
-    """Check if S3 service is available"""
-    if not S3_AVAILABLE or s3_service is None:
-        raise HTTPException(
-            status_code=503, 
-            detail="S3 upload service not available. Please check AWS configuration."
-        )
+import boto3
+import uuid
+import os
+from typing import Optional, Dict, Any
+from fastapi import UploadFile, HTTPException
+from botocore.exceptions import ClientError, NoCredentialsError
+from PIL import Image, ImageOps
+import io
+from datetime import datetime
+import mimetypes
 
 
-@router.get("/status")
-async def s3_status():
-    """Check S3 service status"""
-    return {
-        "success": True,
-        "s3_available": S3_AVAILABLE,
-        "message": "S3 service is ready" if S3_AVAILABLE else "S3 service not configured"
-    }
+class S3Service:
+    def __init__(self):
+        """Initialize S3 client with Mumbai region"""
+        self.access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        self.secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        self.bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
+        self.region = os.getenv('AWS_S3_REGION', 'ap-south-1')
+        
+        # FIXED: Auto-generate S3 URL if not provided
+        if os.getenv('AWS_S3_URL'):
+            self.base_url = os.getenv('AWS_S3_URL')
+        else:
+            self.base_url = f"https://{self.bucket_name}.s3.{self.region}.amazonaws.com"
+        
+        print(f"🔧 S3 Config: Bucket={self.bucket_name}, Region={self.region}")
+        print(f"🔧 S3 Base URL: {self.base_url}")
+        
+        if not all([self.access_key, self.secret_key, self.bucket_name]):
+            print("❌ AWS credentials missing!")
+            print(f"Access Key: {'✅' if self.access_key else '❌'}")
+            print(f"Secret Key: {'✅' if self.secret_key else '❌'}")
+            print(f"Bucket Name: {'✅' if self.bucket_name else '❌'}")
+            raise ValueError("AWS credentials not properly configured")
+        
+        try:
+            self.s3_client = boto3.client(
+                's3',
+                aws_access_key_id=self.access_key,
+                aws_secret_access_key=self.secret_key,
+                region_name=self.region
+            )
+            
+            # Test S3 connection
+            self.s3_client.head_bucket(Bucket=self.bucket_name)
+            print(f"✅ S3 Client initialized and bucket '{self.bucket_name}' accessible")
+            
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == '404':
+                raise ValueError(f"S3 bucket '{self.bucket_name}' not found")
+            elif error_code == '403':
+                raise ValueError(f"Access denied to S3 bucket '{self.bucket_name}'")
+            else:
+                raise ValueError(f"S3 connection failed: {e}")
+        except NoCredentialsError:
+            raise ValueError("AWS credentials not found or invalid")
+        except Exception as e:
+            raise ValueError(f"Failed to initialize S3 client: {e}")
 
+    def _generate_file_key(self, original_filename: str, folder: str = "images") -> str:
+        """Generate unique S3 key for file"""
+        extension = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'jpg'
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        filename = f"{timestamp}_{unique_id}.{extension}"
+        return f"{folder}/{filename}"
 
-@router.post("/image")
-async def upload_image_s3(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Upload single image to S3 (Mumbai region)
-    NEW ENDPOINT: /api/upload-s3/image
-    """
-    check_s3_available()
-    
-    try:
-        result = await s3_service.upload_image(
-            file=file,
-            folder="images",
-            optimize=True,
-            max_size_mb=10
-        )
+    def _validate_image(self, file: UploadFile, max_size_mb: int = 10) -> Dict[str, Any]:
+        """Validate uploaded image file"""
+        # Check file size
+        file.file.seek(0, 2)
+        file_size = file.file.tell()
+        file.file.seek(0)
+        
+        max_size_bytes = max_size_mb * 1024 * 1024
+        if file_size > max_size_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum size: {max_size_mb}MB"
+            )
+        
+        # Check file type
+        content_type = file.content_type
+        if not content_type:
+            content_type, _ = mimetypes.guess_type(file.filename)
+        
+        allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+        
+        if content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail="File type not allowed. Use JPEG, PNG, WebP, or GIF"
+            )
         
         return {
-            "success": True,
-            "message": "Image uploaded successfully to S3",
-            "data": result
+            'content_type': content_type,
+            'file_size': file_size
         }
-        
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"S3 upload failed: {str(e)}")
 
+    def _optimize_image(self, file_content: bytes, max_width: int = 1200, max_height: int = 1200) -> bytes:
+        """Optimize image for web"""
+        try:
+            image = Image.open(io.BytesIO(file_content))
+            
+            # Fix orientation
+            image = ImageOps.exif_transpose(image)
+            
+            # Convert to RGB if necessary
+            if image.mode in ('RGBA', 'P'):
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+                image = background
+            
+            # Resize if too large
+            if image.width > max_width or image.height > max_height:
+                image.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+            
+            # Save optimized
+            output = io.BytesIO()
+            image.save(output, format='JPEG', quality=85, optimize=True)
+            return output.getvalue()
+            
+        except Exception as e:
+            print(f"Image optimization failed: {e}")
+            return file_content
 
-@router.post("/images")
-async def upload_multiple_images_s3(
-    files: List[UploadFile] = File(...),
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Upload multiple images to S3
-    NEW ENDPOINT: /api/upload-s3/images
-    """
-    check_s3_available()
-    
-    try:
-        result = await s3_service.upload_multiple_images(
-            files=files,
-            folder="images",
-            max_files=5
-        )
-        
-        return {
-            "success": True,
-            "message": f"Uploaded {result['successful_uploads']} of {result['total_files']} images to S3",
-            "data": result
-        }
-        
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"S3 multiple upload failed: {str(e)}")
+    async def upload_image(
+        self,
+        file: UploadFile,
+        folder: str = "images",
+        optimize: bool = True,
+        max_size_mb: int = 10,
+        max_width: int = 1200,
+        max_height: int = 1200
+    ) -> Dict[str, Any]:
+        """Upload image to S3 Mumbai region"""
+        try:
+            validation = self._validate_image(file, max_size_mb)
+            
+            file_content = await file.read()
+            original_size = len(file_content)
+            
+            if optimize:
+                file_content = self._optimize_image(file_content, max_width, max_height)
+            
+            s3_key = self._generate_file_key(file.filename, folder)
+            
+            # Upload to S3
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+                Body=file_content,
+                ContentType=validation['content_type'],
+                ACL='public-read',
+                CacheControl='max-age=31536000',
+                Metadata={
+                    'original-filename': file.filename,
+                    'original-size': str(original_size),
+                    'optimized-size': str(len(file_content)),
+                    'upload-timestamp': datetime.now().isoformat(),
+                    'region': self.region
+                }
+            )
+            
+            file_url = f"{self.base_url}/{s3_key}"
+            
+            print(f"✅ Image uploaded: {s3_key} -> {file_url}")
+            
+            return {
+                'success': True,
+                'filename': s3_key.split('/')[-1],
+                'original_filename': file.filename,
+                'url': file_url,
+                's3_key': s3_key,
+                'size': len(file_content),
+                'original_size': original_size,
+                'content_type': validation['content_type'],
+                'optimized': optimize
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"S3 upload error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-
-@router.post("/avatar")
-async def upload_avatar_s3(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Upload user avatar to S3
-    NEW ENDPOINT: /api/upload-s3/avatar
-    """
-    check_s3_available()
-    
-    try:
-        result = await s3_service.upload_image(
+    async def upload_avatar(
+        self,
+        file: UploadFile,
+        user_id: int,
+        max_size_mb: int = 2
+    ) -> Dict[str, Any]:
+        """Upload user avatar to S3"""
+        result = await self.upload_image(
             file=file,
             folder="avatars",
             optimize=True,
-            max_size_mb=2,
+            max_size_mb=max_size_mb,
             max_width=400,
             max_height=400
         )
         
-        # Update user's avatar URL in database
-        current_user.profile_picture_url = result['url']
-        db.commit()
-        
-        return {
-            "success": True,
-            "message": "Avatar uploaded successfully to S3",
-            "data": result
-        }
-        
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"S3 avatar upload failed: {str(e)}")
+        result['avatar_url'] = result['url']
+        return result
+
+    def delete_file(self, s3_key: str) -> bool:
+        """Delete file from S3"""
+        try:
+            self.s3_client.delete_object(Bucket=self.bucket_name, Key=s3_key)
+            print(f"✅ File deleted from S3: {s3_key}")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to delete file {s3_key}: {e}")
+            return False
 
 
-@router.post("/post-images")
-async def upload_post_images_s3(
-    files: List[UploadFile] = File(...),
-    post_id: Optional[int] = Form(None),
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Upload images for a post to S3
-    NEW ENDPOINT: /api/upload-s3/post-images
-    """
-    check_s3_available()
-    
-    try:
-        result = await s3_service.upload_multiple_images(
-            files=files,
-            folder="posts",
-            max_files=5
-        )
-        
-        # If post_id provided, you can associate images with post here
-        if post_id and result['uploaded_files']:
-            # Add your post-image association logic here
-            pass
-        
-        return {
-            "success": True,
-            "message": f"Uploaded {result['successful_uploads']} post images to S3",
-            "data": result
-        }
-        
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"S3 post images upload failed: {str(e)}")
-
-
-@router.delete("/file/{s3_key:path}")
-async def delete_image_s3(
-    s3_key: str,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Delete image from S3"""
-    check_s3_available()
-    
-    try:
-        # Add permission check here if needed
-        success = s3_service.delete_file(s3_key)
-        
-        if success:
-            return {
-                "success": True,
-                "message": "Image deleted successfully from S3"
-            }
-        else:
-            raise HTTPException(status_code=404, detail="Image not found or delete failed")
-            
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"S3 delete failed: {str(e)}")
-
-
-@router.get("/file-info/{s3_key:path}")
-async def get_image_info_s3(
-    s3_key: str,
-    current_user: User = Depends(get_current_active_user)
-):
-    """Get image information from S3"""
-    check_s3_available()
-    
-    try:
-        info = s3_service.get_file_info(s3_key)
-        return {
-            "success": True,
-            "data": info
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get S3 image info: {str(e)}")
-
-
-@router.get("/config")
-async def get_s3_upload_config():
-    """Get S3 upload configuration for frontend"""
-    return {
-        "success": True,
-        "data": {
-            "max_file_size_mb": 10,
-            "max_avatar_size_mb": 2,
-            "allowed_types": ["image/jpeg", "image/png", "image/webp", "image/gif"],
-            "max_files_per_upload": 5,
-            "storage_provider": "aws_s3",
-            "region": "ap-south-1",
-            "supported_formats": ["JPG", "PNG", "WebP", "GIF"],
-            "s3_available": S3_AVAILABLE,
-            "features": {
-                "optimization": True,
-                "auto_resize": True,
-                "mumbai_region": True,
-                "fast_upload": True
-            }
-        }
-    }
+# Global S3 service instance
+try:
+    s3_service = S3Service()
+    S3_AVAILABLE = True
+    print("✅ S3 Service initialized successfully")
+except ValueError as e:
+    s3_service = None
+    S3_AVAILABLE = False
+    print(f"⚠️ S3 Service not available: {e}")
+except Exception as e:
+    s3_service = None
+    S3_AVAILABLE = False
+    print(f"❌ S3 Service initialization failed: {e}")
