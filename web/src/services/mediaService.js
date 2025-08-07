@@ -21,47 +21,57 @@ class MediaService {
    */
   async initializeS3() {
     try {
-      // STEP 1: Check S3 status directly
-      const s3StatusResponse = await api.get('/upload-s3/status');
-      
-      if (s3StatusResponse?.s3_available) {
-        console.log('✅ S3 detected as available, enabling S3 usage');
-        this.s3Available = true;
-        this.useS3 = true;
+        // STEP 1: Check S3 status - Use correct URL
+        const s3StatusResponse = await fetch('https://iap-connect.onrender.com/api/upload-s3/status', {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
+                'Content-Type': 'application/json',
+            },
+        }).then(r => r.json());
         
-        // STEP 2: Get S3 configuration
-        try {
-          const s3ConfigResponse = await api.get('/api/upload-s3/config');
-          if (s3ConfigResponse.data?.success) {
-            this.s3Config = s3ConfigResponse.data.data;
-            console.log('✅ S3 config loaded successfully');
-          }
-        } catch (configError) {
-          console.warn('⚠️ S3 config failed, but S3 is available:', configError.message);
+        if (s3StatusResponse?.s3_available) {
+            console.log('✅ S3 detected as available, enabling S3 usage');
+            this.s3Available = true;
+            this.useS3 = true;
+            
+            // STEP 2: Get S3 configuration - Use correct URL
+            try {
+                const s3ConfigResponse = await fetch('https://iap-connect.onrender.com/api/upload-s3/config', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json',
+                    },
+                }).then(r => r.json());
+                
+                if (s3ConfigResponse?.success) {
+                    this.s3Config = s3ConfigResponse.data;
+                    console.log('✅ S3 config loaded successfully');
+                }
+            } catch (configError) {
+                console.warn('⚠️ S3 config failed, but S3 is available:', configError.message);
+            }
+            
+            return;
         }
         
-        return;
-      }
-      
-      // FALLBACK: Check general upload config
-      const response = await api.get('/upload/config');
-      if (response.data?.success && response.data?.data?.storage_provider === 'aws_s3') {
-        this.s3Config = response.data.data;
-        this.useS3 = true;
-        this.s3Available = true;
-        console.log('✅ S3 upload enabled via general config');
-      } else {
-        console.log('💾 S3 not available, using local upload');
+        // FALLBACK: Check general upload config
+        const response = await api.get('/upload/config');
+        if (response.data?.success && response.data?.data?.storage_provider === 'aws_s3') {
+            this.s3Config = response.data.data;
+            this.useS3 = true;
+            this.s3Available = true;
+            console.log('✅ S3 upload enabled via general config');
+        } else {
+            console.log('💾 S3 not available, using local upload');
+            this.useS3 = false;
+            this.s3Available = false;
+        }
+    } catch (error) {
+        console.log('💾 S3 initialization failed, using local upload:', error.message);
         this.useS3 = false;
         this.s3Available = false;
-      }
-    } catch (error) {
-      console.log('💾 S3 initialization failed, using local upload:', error.message);
-      this.useS3 = false;
-      this.s3Available = false;
     }
-  }
-
+}
   /**
    * Upload user avatar
    * UPDATED: Force S3 endpoint when available, with smart fallback
