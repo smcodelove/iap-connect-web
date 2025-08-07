@@ -31,7 +31,7 @@ class MediaService {
         
         // STEP 2: Get S3 configuration
         try {
-          const s3ConfigResponse = await api.get('/upload-s3/config');
+          const s3ConfigResponse = await api.get('/api/upload-s3/config');
           if (s3ConfigResponse.data?.success) {
             this.s3Config = s3ConfigResponse.data.data;
             console.log('✅ S3 config loaded successfully');
@@ -102,7 +102,7 @@ class MediaService {
       
       if (this.s3Available) {
         try {
-          endpoint = '/upload-s3/avatar'; // S3 endpoint
+          endpoint = '/api/upload-s3/avatar'; // FIXED: Added /api prefix
           response = await api.post(endpoint, formData, config);
           usedS3 = true;
           console.log('✅ S3 avatar upload successful');
@@ -243,7 +243,7 @@ class MediaService {
       
       if (this.s3Available) {
         try {
-          endpoint = '/upload-s3/post-images'; // S3 endpoint
+          endpoint = '/api/upload-s3/post-images'; // FIXED: Added /api prefix
           response = await api.post(endpoint, formData, config);
           console.log('✅ S3 post media upload successful');
           return response.data.data;
@@ -319,7 +319,7 @@ class MediaService {
       
       if (this.s3Available) {
         try {
-          endpoint = '/upload-s3/image'; // S3 endpoint
+          endpoint = '/api/upload-s3/image'; // FIXED: Added /api prefix
           response = await api.post(endpoint, formData, config);
           console.log('✅ S3 image upload successful');
         } catch (s3Error) {
@@ -394,7 +394,7 @@ class MediaService {
         };
       }
 
-      const response = await api.post('/upload-s3/images', formData, config);
+      const response = await api.post('/api/upload-s3/images', formData, config);
       return response.data.data;
     } catch (error) {
       console.error('Multiple image upload failed:', error);
@@ -453,7 +453,7 @@ class MediaService {
       
       if (this.s3Available) {
         // For S3, filePath should be the S3 key
-        response = await api.delete(`/upload-s3/file/${filePath}`);
+        response = await api.delete(`/api/upload-s3/file/${filePath}`);
       } else {
         // For local uploads, use query parameter
         response = await api.delete('/upload/file', {
@@ -481,7 +481,7 @@ class MediaService {
       let response;
       
       if (this.s3Available) {
-        response = await api.get(`/upload-s3/file-info/${filePath}`);
+        response = await api.get(`/api/upload-s3/file-info/${filePath}`);
         return response.data.data;
       } else {
         response = await api.get('/upload/file-info', {
@@ -507,7 +507,7 @@ class MediaService {
       // PRIORITY 1: Try S3 config if available
       if (this.s3Available) {
         try {
-          const s3Response = await api.get('/upload-s3/config');
+          const s3Response = await api.get('/api/upload-s3/config');
           if (s3Response.data?.success && s3Response.data?.data) {
             return s3Response.data.data;
           }
