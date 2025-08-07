@@ -1,4 +1,4 @@
-// web/src/services/api.js - ADD MISSING EXPORT
+// web/src/services/api.js - COMPLETE WITH ALL MISSING SERVICES
 
 import axios from 'axios';
 
@@ -112,7 +112,7 @@ api.interceptors.response.use(
   }
 );
 
-// FIXED: Add missing notificationService export
+// NOTIFICATION SERVICE
 export const notificationService = {
   // Get unread count
   getUnreadCount: async () => {
@@ -161,6 +161,377 @@ export const notificationService = {
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);
       return { success: false, updated_count: 0 };
+    }
+  }
+};
+
+// COMMENT SERVICE
+export const commentService = {
+  // Get comments for a post
+  getComments: async (postId, page = 1, limit = 20) => {
+    try {
+      const response = await api.get(`/posts/${postId}/comments?page=${page}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get comments:', error);
+      return {
+        comments: [],
+        total: 0,
+        page: 1,
+        has_next: false
+      };
+    }
+  },
+
+  // Create a new comment
+  createComment: async (postId, content, parentId = null) => {
+    try {
+      const response = await api.post('/comments', {
+        post_id: postId,
+        content,
+        parent_id: parentId
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to create comment:', error);
+      throw error;
+    }
+  },
+
+  // Update comment
+  updateComment: async (commentId, content) => {
+    try {
+      const response = await api.put(`/comments/${commentId}`, { content });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update comment:', error);
+      throw error;
+    }
+  },
+
+  // Delete comment
+  deleteComment: async (commentId) => {
+    try {
+      const response = await api.delete(`/comments/${commentId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+      throw error;
+    }
+  },
+
+  // Like/unlike comment
+  toggleLike: async (commentId) => {
+    try {
+      const response = await api.post(`/comments/${commentId}/like`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to toggle comment like:', error);
+      throw error;
+    }
+  }
+};
+
+// POST SERVICE
+export const postService = {
+  // Get all posts
+  getPosts: async (page = 1, limit = 20) => {
+    try {
+      const response = await api.get(`/posts?page=${page}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get posts:', error);
+      return { posts: [], total: 0, page: 1, has_next: false };
+    }
+  },
+
+  // Get feed posts
+  getFeed: async (page = 1, limit = 20) => {
+    try {
+      const response = await api.get(`/posts/feed?page=${page}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get feed:', error);
+      return { posts: [], total: 0, page: 1, has_next: false };
+    }
+  },
+
+  // Get single post
+  getPost: async (postId) => {
+    try {
+      const response = await api.get(`/posts/${postId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get post:', error);
+      throw error;
+    }
+  },
+
+  // Create post
+  createPost: async (postData) => {
+    try {
+      const response = await api.post('/posts', postData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to create post:', error);
+      throw error;
+    }
+  },
+
+  // Update post
+  updatePost: async (postId, postData) => {
+    try {
+      const response = await api.put(`/posts/${postId}`, postData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update post:', error);
+      throw error;
+    }
+  },
+
+  // Delete post
+  deletePost: async (postId) => {
+    try {
+      const response = await api.delete(`/posts/${postId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to delete post:', error);
+      throw error;
+    }
+  },
+
+  // Like/unlike post
+  toggleLike: async (postId) => {
+    try {
+      const response = await api.post(`/posts/${postId}/like`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to toggle post like:', error);
+      throw error;
+    }
+  },
+
+  // Bookmark/unbookmark post
+  toggleBookmark: async (postId) => {
+    try {
+      const response = await api.post(`/posts/${postId}/bookmark`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error);
+      throw error;
+    }
+  },
+
+  // Search posts
+  searchPosts: async (query, page = 1, limit = 20) => {
+    try {
+      const response = await api.get(`/posts/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to search posts:', error);
+      return { posts: [], total: 0, page: 1, has_next: false };
+    }
+  }
+};
+
+// USER SERVICE
+export const userService = {
+  // Get user profile
+  getProfile: async (userId) => {
+    try {
+      const response = await api.get(`/users/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get user profile:', error);
+      throw error;
+    }
+  },
+
+  // Get current user profile
+  getMyProfile: async () => {
+    try {
+      const response = await api.get('/users/profile');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get my profile:', error);
+      throw error;
+    }
+  },
+
+  // Update profile
+  updateProfile: async (profileData) => {
+    try {
+      const response = await api.put('/users/profile', profileData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      throw error;
+    }
+  },
+
+  // Search users
+  searchUsers: async (query, page = 1, limit = 20) => {
+    try {
+      const response = await api.get(`/users/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to search users:', error);
+      return { users: [], total: 0, page: 1, has_next: false };
+    }
+  },
+
+  // Follow user
+  followUser: async (userId) => {
+    try {
+      const response = await api.post(`/users/follow/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to follow user:', error);
+      throw error;
+    }
+  },
+
+  // Unfollow user
+  unfollowUser: async (userId) => {
+    try {
+      const response = await api.delete(`/users/follow/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to unfollow user:', error);
+      throw error;
+    }
+  },
+
+  // Get followers
+  getFollowers: async (userId, page = 1, limit = 50) => {
+    try {
+      const response = await api.get(`/users/followers/${userId}?page=${page}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get followers:', error);
+      return [];
+    }
+  },
+
+  // Get following
+  getFollowing: async (userId, page = 1, limit = 50) => {
+    try {
+      const response = await api.get(`/users/following/${userId}?page=${page}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get following:', error);
+      return [];
+    }
+  }
+};
+
+// BOOKMARK SERVICE
+export const bookmarkService = {
+  // Get bookmarks
+  getBookmarks: async (page = 1, limit = 20) => {
+    try {
+      const response = await api.get(`/bookmarks?page=${page}&limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get bookmarks:', error);
+      return { bookmarks: [], total: 0, page: 1, has_next: false };
+    }
+  },
+
+  // Add bookmark
+  addBookmark: async (postId) => {
+    try {
+      const response = await api.post('/bookmarks', { post_id: postId });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to add bookmark:', error);
+      throw error;
+    }
+  },
+
+  // Remove bookmark
+  removeBookmark: async (bookmarkId) => {
+    try {
+      const response = await api.delete(`/bookmarks/${bookmarkId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to remove bookmark:', error);
+      throw error;
+    }
+  }
+};
+
+// UPLOAD SERVICE
+export const uploadService = {
+  // Upload avatar
+  uploadAvatar: async (file, onProgress) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.post('/upload/avatar', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: onProgress ? (progressEvent) => {
+          const percent = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(percent);
+        } : undefined,
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Failed to upload avatar:', error);
+      throw error;
+    }
+  },
+
+  // Upload post media
+  uploadPostMedia: async (files, onProgress) => {
+    try {
+      const formData = new FormData();
+      files.forEach(file => {
+        formData.append('files', file);
+      });
+
+      const response = await api.post('/upload/post-media', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: onProgress ? (progressEvent) => {
+          const percent = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(percent);
+        } : undefined,
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Failed to upload post media:', error);
+      throw error;
+    }
+  },
+
+  // Get upload config
+  getConfig: async () => {
+    try {
+      const response = await api.get('/upload/config');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get upload config:', error);
+      return {
+        success: true,
+        data: {
+          max_file_size_mb: 10,
+          max_avatar_size_mb: 2,
+          allowed_types: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+          storage_provider: "local",
+          s3_available: false
+        }
+      };
     }
   }
 };
