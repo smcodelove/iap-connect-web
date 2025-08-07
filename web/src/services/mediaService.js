@@ -1,4 +1,4 @@
-// web/src/services/mediaService.js - FIXED VERSION FOR EXISTING FILE
+// web/src/services/mediaService.js - COMPLETE FIXED VERSION
 
 import api from './api';
 
@@ -113,7 +113,7 @@ class MediaService {
   }
 
   /**
-   * Upload user avatar - FIXED WITH PROPER ENDPOINTS
+   * Upload user avatar - FIXED RESPONSE PARSING
    */
   async uploadAvatar(file, onProgress = null) {
     try {
@@ -135,7 +135,6 @@ class MediaService {
       if (this.useS3 && this.s3Available) {
         console.log('📤 Uploading avatar to S3...');
         
-        // FIXED: Use correct S3 endpoint
         const response = await fetch(`${this.backendUrl}/api/v1/upload-s3/avatar`, {
           method: 'POST',
           headers: {
@@ -148,17 +147,31 @@ class MediaService {
         
         if (response.ok && result.success) {
           console.log('✅ Avatar uploaded to S3 successfully:', result);
+          
+          // CRITICAL FIX: Multiple ways to extract URL from S3 response
+          let avatarUrl = result.file_url ||           // ✅ Primary key from backend
+                         result.url ||                 // ✅ Backup key
+                         result.data?.file_url ||      // ✅ Nested in data object
+                         result.data?.url;             // ✅ Nested backup
+          
+          if (!avatarUrl) {
+            console.error('❌ No avatar URL found in S3 response:', result);
+            throw new Error('Upload completed but no URL was returned from server');
+          }
+          
+          console.log('✅ Avatar URL extracted successfully:', avatarUrl);
+          
           return {
             success: true,
-            filename: result.data?.filename || result.filename,
-            url: result.data?.file_url || result.file_url,
+            filename: result.filename || result.data?.filename,
+            url: avatarUrl,
             storage: 's3',
             original_filename: file.name,
             size: file.size
           };
         } else {
           console.error('❌ S3 avatar upload failed:', result);
-          throw new Error(result.detail || 'S3 upload failed');
+          throw new Error(result.detail || result.message || 'S3 upload failed');
         }
       } else {
         console.log('📤 Using local endpoint: /upload/avatar');

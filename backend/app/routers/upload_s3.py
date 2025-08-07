@@ -1,8 +1,8 @@
-# backend/app/routers/upload_s3.py - COMPLETE FILE
+# backend/app/routers/upload_s3.py - COMPLETE FILE WITH FIXES
 """
 AWS S3 upload routes - Safe integration alongside existing upload system
 NEW ROUTES: Does not interfere with existing upload functionality
-FIXED: Complete router implementation with all endpoints
+FIXED: Complete router implementation with all endpoints and proper response format
 """
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Form
@@ -50,11 +50,14 @@ async def upload_image_s3(
 ):
     """
     Upload single image to S3 (Mumbai region)
-    NEW ENDPOINT: /api/upload-s3/image
+    NEW ENDPOINT: /api/v1/upload-s3/image
     """
     check_s3_available()
     
     try:
+        print(f"🔍 S3 image upload started by: {current_user.username}")
+        print(f"📁 File details: {file.filename}, {file.content_type}")
+        
         result = await s3_service.upload_image(
             file=file,
             folder="images",
@@ -62,15 +65,38 @@ async def upload_image_s3(
             max_size_mb=10
         )
         
+        print(f"✅ S3 service result: {result}")
+        
+        # FIXED: Extract file URL from result properly
+        file_url = result.get('url') or result.get('file_url')
+        
+        if not file_url:
+            print(f"❌ No file URL found in S3 result: {result}")
+            raise HTTPException(status_code=500, detail="S3 upload succeeded but no URL returned")
+        
+        print(f"✅ S3 image upload successful: {file_url}")
+        
         return {
             "success": True,
             "message": "Image uploaded successfully to S3",
-            "data": result
+            "file_url": file_url,     # ✅ CRITICAL: Frontend expects this
+            "url": file_url,          # ✅ BACKUP: Alternative key
+            "filename": result.get('filename'),
+            "storage": "aws_s3",
+            "data": {
+                "file_url": file_url,
+                "url": file_url,
+                "filename": result.get('filename'),
+                "original_filename": file.filename,
+                "size": result.get('size')
+            }
         }
         
     except HTTPException as e:
+        print(f"❌ S3 image upload HTTP error: {e.detail}")
         raise e
     except Exception as e:
+        print(f"❌ S3 image upload error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"S3 upload failed: {str(e)}")
 
 
@@ -82,26 +108,41 @@ async def upload_multiple_images_s3(
 ):
     """
     Upload multiple images to S3
-    NEW ENDPOINT: /api/upload-s3/images
+    NEW ENDPOINT: /api/v1/upload-s3/images
     """
     check_s3_available()
     
     try:
+        print(f"🔍 S3 multiple upload started by: {current_user.username}")
+        print(f"📁 Files count: {len(files)}")
+        
         result = await s3_service.upload_multiple_images(
             files=files,
             folder="images",
             max_files=5
         )
         
+        print(f"✅ S3 multiple upload completed: {result['successful_uploads']}/{result['total_files']}")
+        
         return {
             "success": True,
             "message": f"Uploaded {result['successful_uploads']} of {result['total_files']} images to S3",
-            "data": result
+            "uploaded_files": result.get('uploaded_files', []),
+            "successful_uploads": result['successful_uploads'],
+            "failed_uploads": result['failed_uploads'],
+            "total_files": result['total_files'],
+            "storage": "aws_s3",
+            "data": {
+                "uploaded_files": result.get('uploaded_files', []),
+                "successful_uploads": result['successful_uploads'],
+                "failed_uploads": result['failed_uploads']
+            }
         }
         
     except HTTPException as e:
         raise e
     except Exception as e:
+        print(f"❌ S3 multiple upload error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"S3 multiple upload failed: {str(e)}")
 
 
@@ -113,30 +154,57 @@ async def upload_avatar_s3(
 ):
     """
     Upload user avatar to S3
-    NEW ENDPOINT: /api/upload-s3/avatar
+    FIXED: Proper response format with file_url that frontend expects
     """
     check_s3_available()
     
     try:
+        print(f"🔍 S3 avatar upload started by: {current_user.username}")
+        print(f"📁 File details: {file.filename}, {file.content_type}")
+        
         result = await s3_service.upload_avatar(
             file=file,
             user_id=current_user.id,
             max_size_mb=2
         )
         
+        print(f"✅ S3 service result: {result}")
+        
+        # CRITICAL FIX: Extract file URL from result properly
+        file_url = result.get('url') or result.get('file_url') or result.get('avatar_url')
+        
+        if not file_url:
+            print(f"❌ No file URL found in S3 result: {result}")
+            raise HTTPException(status_code=500, detail="S3 upload succeeded but no URL returned")
+        
         # Update user's avatar URL in database
-        current_user.profile_picture_url = result['url']
+        current_user.profile_picture_url = file_url
         db.commit()
         
+        print(f"✅ S3 avatar upload successful: {file_url}")
+        
+        # FIXED: Return response format that frontend expects
         return {
             "success": True,
-            "message": "Avatar uploaded successfully to S3",
-            "data": result
+            "message": "Avatar uploaded successfully to S3", 
+            "file_url": file_url,     # ✅ CRITICAL: Frontend checks this first
+            "url": file_url,          # ✅ BACKUP: Alternative key
+            "filename": result.get('filename'),
+            "storage": "aws_s3",
+            "data": {
+                "file_url": file_url,
+                "url": file_url,
+                "filename": result.get('filename'),
+                "original_filename": file.filename,
+                "size": result.get('size')
+            }
         }
         
     except HTTPException as e:
+        print(f"❌ S3 avatar upload HTTP error: {e.detail}")
         raise e
     except Exception as e:
+        print(f"❌ S3 avatar upload error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"S3 avatar upload failed: {str(e)}")
 
 
@@ -149,11 +217,14 @@ async def upload_post_images_s3(
 ):
     """
     Upload images for a post to S3
-    NEW ENDPOINT: /api/upload-s3/post-images
+    NEW ENDPOINT: /api/v1/upload-s3/post-images
     """
     check_s3_available()
     
     try:
+        print(f"🔍 S3 post images upload started by: {current_user.username}")
+        print(f"📁 Files count: {len(files)}, Post ID: {post_id}")
+        
         result = await s3_service.upload_multiple_images(
             files=files,
             folder="posts",
@@ -165,15 +236,24 @@ async def upload_post_images_s3(
             # Add your post-image association logic here
             pass
         
+        print(f"✅ S3 post images upload completed: {result['successful_uploads']}/{result['total_files']}")
+        
         return {
             "success": True,
             "message": f"Uploaded {result['successful_uploads']} post images to S3",
-            "data": result
+            "uploaded_files": result.get('uploaded_files', []),
+            "storage": "aws_s3",
+            "data": {
+                "uploaded_files": result.get('uploaded_files', []),
+                "successful_uploads": result['successful_uploads'],
+                "failed_uploads": result['failed_uploads']
+            }
         }
         
     except HTTPException as e:
         raise e
     except Exception as e:
+        print(f"❌ S3 post images upload error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"S3 post images upload failed: {str(e)}")
 
 
