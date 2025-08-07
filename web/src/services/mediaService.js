@@ -102,20 +102,20 @@ class MediaService {
       
       if (this.s3Available) {
         try {
-          endpoint = '/api/upload-s3/avatar'; // FIXED: Added /api prefix
+          endpoint = '/api/upload-s3/avatar'; // S3 endpoint without /v1
           response = await api.post(endpoint, formData, config);
           usedS3 = true;
           console.log('✅ S3 avatar upload successful');
         } catch (s3Error) {
           console.warn('⚠️ S3 avatar upload failed, falling back to local:', s3Error.message);
-          // Fallback to local
+          // Fallback to local (this will use /api/v1 automatically)
           endpoint = '/upload/avatar';
           response = await api.post(endpoint, formData, config);
           usedS3 = false;
           console.log('✅ Local avatar upload successful (fallback)');
         }
       } else {
-        // Use local endpoint directly
+        // Use local endpoint (will use /api/v1 automatically)
         endpoint = '/upload/avatar';
         response = await api.post(endpoint, formData, config);
         usedS3 = false;
