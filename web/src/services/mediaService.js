@@ -1,10 +1,10 @@
-// web/src/services/mediaService.js - QUICK FIX FOR URL DUPLICATION
+// web/src/services/mediaService.js - FIXED VERSION FOR EXISTING FILE
 
 import api from './api';
 
 class MediaService {
   constructor() {
-    // FIXED: Get clean backend URL without /api/v1
+    // CRITICAL FIX: Get clean backend URL without /api/v1
     this.backendUrl = this.getCleanBackendUrl();
     this.useS3 = false;
     this.s3Config = null;
@@ -44,8 +44,8 @@ class MediaService {
     try {
       console.log('🔧 Checking S3 availability from:', this.backendUrl);
       
-      // CRITICAL FIX: Correct URL without duplication
-      const s3StatusUrl = `${this.backendUrl}/api/upload-s3/status`;
+      // CRITICAL FIX: Use /api/v1/upload-s3/status (consistent with backend routing)
+      const s3StatusUrl = `${this.backendUrl}/api/v1/upload-s3/status`;
       console.log('🔍 S3 Status URL:', s3StatusUrl);
       
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -76,7 +76,7 @@ class MediaService {
         
         // Get S3 config
         try {
-          const s3ConfigUrl = `${this.backendUrl}/api/upload-s3/config`;
+          const s3ConfigUrl = `${this.backendUrl}/api/v1/upload-s3/config`;
           const configResponse = await fetch(s3ConfigUrl, {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -113,7 +113,7 @@ class MediaService {
   }
 
   /**
-   * Upload user avatar - FIXED
+   * Upload user avatar - FIXED WITH PROPER ENDPOINTS
    */
   async uploadAvatar(file, onProgress = null) {
     try {
@@ -135,7 +135,8 @@ class MediaService {
       if (this.useS3 && this.s3Available) {
         console.log('📤 Uploading avatar to S3...');
         
-        const response = await fetch(`${this.backendUrl}/api/upload-s3/avatar`, {
+        // FIXED: Use correct S3 endpoint
+        const response = await fetch(`${this.backendUrl}/api/v1/upload-s3/avatar`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
@@ -149,10 +150,11 @@ class MediaService {
           console.log('✅ Avatar uploaded to S3 successfully:', result);
           return {
             success: true,
-            filename: result.data.filename,
-            url: result.data.url,
+            filename: result.data?.filename || result.filename,
+            url: result.data?.file_url || result.file_url,
             storage: 's3',
-            ...result.data
+            original_filename: file.name,
+            size: file.size
           };
         } else {
           console.error('❌ S3 avatar upload failed:', result);
@@ -177,12 +179,19 @@ class MediaService {
           
           console.log('✅ Local avatar upload successful:', response.data);
           
+          // FIXED: Convert relative URL to absolute URL for display
+          let avatarUrl = response.data.url || response.data.file_url;
+          if (avatarUrl && avatarUrl.startsWith('/static/')) {
+            avatarUrl = `${this.backendUrl}${avatarUrl}`;
+          }
+          
           return {
             success: true,
             filename: response.data.filename,
-            url: response.data.url,
+            url: avatarUrl,
             storage: 'local',
-            ...response.data
+            original_filename: file.name,
+            size: file.size
           };
         } catch (apiError) {
           console.error('❌ Local avatar upload API error:', apiError);
@@ -206,7 +215,7 @@ class MediaService {
   }
 
   /**
-   * Upload post media - FIXED
+   * Upload post media - FIXED WITH PROPER ENDPOINTS  
    */
   async uploadPostMedia(files, onProgress = null) {
     try {
@@ -228,7 +237,8 @@ class MediaService {
       if (this.useS3 && this.s3Available) {
         console.log('📤 Uploading post media to S3...');
         
-        const response = await fetch(`${this.backendUrl}/api/upload-s3/post-images`, {
+        // FIXED: Use correct S3 endpoint
+        const response = await fetch(`${this.backendUrl}/api/v1/upload-s3/images`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
@@ -243,7 +253,8 @@ class MediaService {
           return {
             success: true,
             storage: 's3',
-            ...result.data
+            media_urls: result.uploaded_files || result.data?.uploaded_files || [],
+            files: result.uploaded_files || result.data?.uploaded_files || []
           };
         } else {
           throw new Error(result.detail || 'S3 upload failed');
@@ -266,10 +277,20 @@ class MediaService {
         
         console.log('✅ Local post media upload (S3 not available)');
         
+        // FIXED: Convert relative URLs to absolute URLs for display
+        let mediaUrls = response.data.media_urls || response.data.files || [];
+        mediaUrls = mediaUrls.map(url => {
+          if (url && url.startsWith('/static/')) {
+            return `${this.backendUrl}${url}`;
+          }
+          return url;
+        });
+        
         return {
           success: true,
           storage: 'local',
-          ...response.data
+          media_urls: mediaUrls,
+          files: mediaUrls
         };
       }
       
@@ -309,6 +330,48 @@ class MediaService {
   }
 
   /**
+   * Validation methods - ADDED FOR COMPATIBILITY
+   */
+  validateFile(file, maxSize = 10) {
+    if (!file) {
+      return { valid: false, error: 'No file provided' };
+    }
+
+    // Check file size (in MB)
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > maxSize) {
+      return { valid: false, error: `File size (${fileSizeMB.toFixed(1)}MB) exceeds limit of ${maxSize}MB` };
+    }
+
+    // Check file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      return { valid: false, error: 'File type not supported. Please use JPG, PNG, WebP, or GIF.' };
+    }
+
+    return { valid: true };
+  }
+
+  validateAvatar(file) {
+    return this.validateFile(file, 2); // 2MB limit for avatars
+  }
+
+  validatePostMedia(files) {
+    if (!Array.isArray(files)) {
+      files = [files];
+    }
+    
+    for (let file of files) {
+      const validation = this.validateFile(file, 10);
+      if (!validation.valid) {
+        return validation;
+      }
+    }
+    
+    return { valid: true };
+  }
+
+  /**
    * Check if S3 is available
    */
   isS3Available() {
@@ -320,6 +383,30 @@ class MediaService {
    */
   getStorageMethod() {
     return this.useS3 ? 's3' : 'local';
+  }
+
+  /**
+   * Convert relative URL to absolute URL - UTILITY METHOD
+   */
+  getAbsoluteUrl(url) {
+    if (!url) return url;
+    
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url; // Already absolute
+    }
+    
+    if (url.startsWith('/static/')) {
+      return `${this.backendUrl}${url}`;
+    }
+    
+    return url;
+  }
+
+  /**
+   * Get media URL with proper backend domain
+   */
+  getMediaUrl(url) {
+    return this.getAbsoluteUrl(url);
   }
 }
 
