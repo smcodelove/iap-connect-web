@@ -1,22 +1,18 @@
 // web/src/services/api.js - COMPLETE UPDATED WITH PRODUCTION IMPROVEMENTS
 // ✅ All existing functionality preserved + Production enhancements added
-// FIXED: URL construction to prevent /api/v1/api duplication
 
 import axios from 'axios';
 
 // Get API URL from environment variables with fallback - PRODUCTION READY
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://iap-connect.onrender.com';
 
-// FIXED: Include /api/v1 in baseURL to prevent any duplication
-const FULL_BASE_URL = `${API_BASE_URL}/api/v1`;
-
 // Production logging
-console.log('🌐 API Full Base URL:', FULL_BASE_URL);
+console.log('🌐 API Base URL:', API_BASE_URL);
 console.log('🔧 Environment:', process.env.REACT_APP_ENVIRONMENT || 'development');
 
 // Create axios instance with enhanced config for production
 const api = axios.create({
-  baseURL: FULL_BASE_URL, // This will be https://iap-connect.onrender.com/api/v1
+  baseURL: API_BASE_URL,
   timeout: 60000, // Increased timeout for production
   headers: {
     'Content-Type': 'application/json',
@@ -34,8 +30,8 @@ api.interceptors.request.use((config) => {
     console.log('⚠️ No token found in localStorage');
   }
   
-  // Log request for debugging - FIXED: Show correct full URL
-  console.log(`🚀 ${config.method?.toUpperCase()} ${FULL_BASE_URL}${config.url}`);
+  // Log request for debugging
+  console.log(`🚀 ${config.method?.toUpperCase()} ${config.url}`);
   
   return config;
 });
