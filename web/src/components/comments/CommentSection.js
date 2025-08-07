@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useDispatch, useSelector } from 'react-redux';
 import { Heart, MessageCircle, Reply, Trash2, Send, MoreHorizontal } from 'lucide-react';
-import { commentService } from '../../services/api';
+import commentService from '../../services/commentService';
 
 const CommentSectionContainer = styled.div`
   margin-top: 16px;

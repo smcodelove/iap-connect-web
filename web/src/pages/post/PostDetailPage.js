@@ -21,7 +21,7 @@ import {
 
 // Fixed imports
 import postService from '../../services/postService';
-import { commentService } from '../../services/api';
+import commentService from '../../services/commentService';
 
 const PostDetailContainer = styled.div`
   max-width: 800px;

@@ -29,7 +29,8 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 
 // Import API services
-import { postService, commentService, userService } from '../../services/api';
+import { postService, userService } from '../../services/api';
+import commentService from '../../services/commentService';
 
 const PostCardContainer = styled.div`
   background: white;
