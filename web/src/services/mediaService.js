@@ -3,35 +3,68 @@
  * Media service for file uploads and management
  * Handles avatar uploads, post media, and document uploads
  * UPDATED: Added AWS S3 integration alongside existing local upload functionality
+ * FIXED: Force S3 usage when available to avoid cross-domain static file issues
  */
 
 import api from './api';
 
 class MediaService {
   constructor() {
-    this.useS3 = false; // Feature flag to switch between local and S3 uploads
+    this.useS3 = true; // CHANGED: Default to true to prefer S3
     this.s3Config = null;
+    this.s3Available = false; // Track S3 availability
   }
 
   /**
    * Initialize S3 configuration (call this when S3 is ready)
+   * UPDATED: Better S3 detection and forced usage
    */
   async initializeS3() {
     try {
+      // STEP 1: Check S3 status directly
+      const s3StatusResponse = await api.get('/upload-s3/status');
+      
+      if (s3StatusResponse.data?.s3_available) {
+        console.log('✅ S3 detected as available, enabling S3 usage');
+        this.s3Available = true;
+        this.useS3 = true;
+        
+        // STEP 2: Get S3 configuration
+        try {
+          const s3ConfigResponse = await api.get('/upload-s3/config');
+          if (s3ConfigResponse.data?.success) {
+            this.s3Config = s3ConfigResponse.data.data;
+            console.log('✅ S3 config loaded successfully');
+          }
+        } catch (configError) {
+          console.warn('⚠️ S3 config failed, but S3 is available:', configError.message);
+        }
+        
+        return;
+      }
+      
+      // FALLBACK: Check general upload config
       const response = await api.get('/upload/config');
       if (response.data?.success && response.data?.data?.storage_provider === 'aws_s3') {
         this.s3Config = response.data.data;
         this.useS3 = true;
-        console.log('✅ S3 upload enabled');
+        this.s3Available = true;
+        console.log('✅ S3 upload enabled via general config');
+      } else {
+        console.log('💾 S3 not available, using local upload');
+        this.useS3 = false;
+        this.s3Available = false;
       }
     } catch (error) {
-      console.log('💾 Using local upload (S3 not available)');
+      console.log('💾 S3 initialization failed, using local upload:', error.message);
       this.useS3 = false;
+      this.s3Available = false;
     }
   }
 
   /**
    * Upload user avatar
+   * UPDATED: Force S3 endpoint when available, with smart fallback
    * @param {File} file - Image file
    * @param {Function} onProgress - Progress callback (progress) => void
    * @returns {Promise} Upload result
@@ -57,11 +90,37 @@ class MediaService {
         };
       }
 
-      console.log('📤 Starting avatar upload...', { fileName: file.name, size: file.size });
+      console.log('📤 Starting avatar upload...', { 
+        fileName: file.name, 
+        size: file.size,
+        s3Available: this.s3Available,
+        willUseS3: this.s3Available
+      });
 
-      // Use S3 route if available, otherwise fallback to existing
-      const endpoint = this.useS3 ? '/upload/avatar' : '/upload/avatar';
-      const response = await api.post(endpoint, formData, config);
+      // SMART ENDPOINT SELECTION: Try S3 first if available
+      let endpoint, response, usedS3 = false;
+      
+      if (this.s3Available) {
+        try {
+          endpoint = '/upload-s3/avatar'; // S3 endpoint
+          response = await api.post(endpoint, formData, config);
+          usedS3 = true;
+          console.log('✅ S3 avatar upload successful');
+        } catch (s3Error) {
+          console.warn('⚠️ S3 avatar upload failed, falling back to local:', s3Error.message);
+          // Fallback to local
+          endpoint = '/upload/avatar';
+          response = await api.post(endpoint, formData, config);
+          usedS3 = false;
+          console.log('✅ Local avatar upload successful (fallback)');
+        }
+      } else {
+        // Use local endpoint directly
+        endpoint = '/upload/avatar';
+        response = await api.post(endpoint, formData, config);
+        usedS3 = false;
+        console.log('✅ Local avatar upload (S3 not available)');
+      }
       
       console.log('📋 Raw response received:', response.data);
       
@@ -69,7 +128,7 @@ class MediaService {
       let result;
       
       if (response.data) {
-        // Handle nested data structure
+        // Handle nested data structure (S3 has .data, local might not)
         if (response.data.data) {
           result = response.data.data;
         } else {
@@ -105,6 +164,7 @@ class MediaService {
       }
       
       console.log('✅ Using URL:', finalUrl);
+      console.log('📍 Storage used:', usedS3 ? 'AWS S3' : 'Local');
       
       // FIXED: Return normalized response with comprehensive fallbacks
       return {
@@ -115,6 +175,7 @@ class MediaService {
         filename: result?.filename || result?.data?.filename,
         file_size: result?.file_size || result?.data?.file_size,
         original_filename: result?.original_filename || result?.data?.original_filename,
+        storage_type: usedS3 ? 'S3' : 'Local', // NEW: Track which storage was used
         ...result
       };
     } catch (error) {
@@ -137,6 +198,7 @@ class MediaService {
 
   /**
    * Upload multiple images for posts
+   * UPDATED: Smart S3/local endpoint selection
    * @param {FileList|Array} files - Image files
    * @param {Function} onProgress - Progress callback (progress) => void
    * @returns {Promise} Upload result with array of URLs
@@ -176,11 +238,30 @@ class MediaService {
         };
       }
 
-      // Use S3 route if available, otherwise fallback
-      const endpoint = this.useS3 ? '/upload/post-images' : '/upload/post-media';
-      const response = await api.post(endpoint, formData, config);
+      // SMART ENDPOINT SELECTION for post media
+      let endpoint, response;
       
-      return this.useS3 ? response.data.data : response.data;
+      if (this.s3Available) {
+        try {
+          endpoint = '/upload-s3/post-images'; // S3 endpoint
+          response = await api.post(endpoint, formData, config);
+          console.log('✅ S3 post media upload successful');
+          return response.data.data;
+        } catch (s3Error) {
+          console.warn('⚠️ S3 post media upload failed, falling back to local:', s3Error.message);
+          // Fallback to local
+          endpoint = '/upload/post-media';
+          response = await api.post(endpoint, formData, config);
+          console.log('✅ Local post media upload successful (fallback)');
+          return response.data;
+        }
+      } else {
+        // Use local endpoint directly
+        endpoint = '/upload/post-media';
+        response = await api.post(endpoint, formData, config);
+        console.log('✅ Local post media upload (S3 not available)');
+        return response.data;
+      }
     } catch (error) {
       console.error('Post media upload failed:', error);
       throw new Error(
@@ -191,6 +272,7 @@ class MediaService {
 
   /**
    * Upload single image file
+   * UPDATED: Smart S3/local endpoint selection
    * @param {File} file - Image file
    * @param {Function} onProgress - Progress callback
    * @returns {Promise} Upload result
@@ -211,8 +293,8 @@ class MediaService {
       const formData = new FormData();
       formData.append('file', file);
       
-      // Add folder parameter for local uploads
-      if (!this.useS3) {
+      // Add folder parameter for local uploads only
+      if (!this.s3Available) {
         formData.append('folder', 'posts');
       }
 
@@ -232,12 +314,30 @@ class MediaService {
         };
       }
 
-      // FIXED: Use correct endpoint that exists in backend
-      const endpoint = this.useS3 ? '/upload/image' : '/upload/image'; // Changed from '/upload/document'
-      const response = await api.post(endpoint, formData, config);
+      // SMART ENDPOINT SELECTION for single image
+      let endpoint, response;
+      
+      if (this.s3Available) {
+        try {
+          endpoint = '/upload-s3/image'; // S3 endpoint
+          response = await api.post(endpoint, formData, config);
+          console.log('✅ S3 image upload successful');
+        } catch (s3Error) {
+          console.warn('⚠️ S3 image upload failed, falling back to local:', s3Error.message);
+          // Fallback to local
+          endpoint = '/upload/image';
+          response = await api.post(endpoint, formData, config);
+          console.log('✅ Local image upload successful (fallback)');
+        }
+      } else {
+        // Use local endpoint directly
+        endpoint = '/upload/image';
+        response = await api.post(endpoint, formData, config);
+        console.log('✅ Local image upload (S3 not available)');
+      }
       
       // FIXED: Better response handling
-      const result = this.useS3 ? response.data.data : response.data;
+      const result = endpoint.includes('upload-s3') ? response.data.data : response.data;
       
       if (!result?.url) {
         throw new Error('No URL returned from server');
@@ -248,6 +348,7 @@ class MediaService {
         url: result.url,
         filename: result.filename,
         file_size: result.file_size,
+        storage_type: endpoint.includes('upload-s3') ? 'S3' : 'Local',
         ...result
       };
     } catch (error) {
@@ -265,7 +366,7 @@ class MediaService {
    * @returns {Promise} Upload results
    */
   async uploadMultipleImages(files, onProgress = null) {
-    if (!this.useS3) {
+    if (!this.s3Available) {
       // Fallback to existing uploadPostMedia for local uploads
       return this.uploadPostMedia(files, onProgress);
     }
@@ -293,7 +394,7 @@ class MediaService {
         };
       }
 
-      const response = await api.post('/upload/images', formData, config);
+      const response = await api.post('/upload-s3/images', formData, config);
       return response.data.data;
     } catch (error) {
       console.error('Multiple image upload failed:', error);
@@ -342,6 +443,7 @@ class MediaService {
 
   /**
    * Delete uploaded file
+   * UPDATED: Smart S3/local deletion
    * @param {string} filePath - File path or URL (or S3 key)
    * @returns {Promise} Deletion result
    */
@@ -349,9 +451,9 @@ class MediaService {
     try {
       let response;
       
-      if (this.useS3) {
+      if (this.s3Available) {
         // For S3, filePath should be the S3 key
-        response = await api.delete(`/upload/file/${filePath}`);
+        response = await api.delete(`/upload-s3/file/${filePath}`);
       } else {
         // For local uploads, use query parameter
         response = await api.delete('/upload/file', {
@@ -359,7 +461,7 @@ class MediaService {
         });
       }
       
-      return this.useS3 ? response.data : response.data;
+      return this.s3Available ? response.data : response.data;
     } catch (error) {
       console.error('File deletion failed:', error);
       throw new Error(
@@ -370,6 +472,7 @@ class MediaService {
 
   /**
    * Get file information
+   * UPDATED: Smart S3/local info retrieval
    * @param {string} filePath - File path or URL (or S3 key)
    * @returns {Promise} File information
    */
@@ -377,8 +480,8 @@ class MediaService {
     try {
       let response;
       
-      if (this.useS3) {
-        response = await api.get(`/upload/file-info/${filePath}`);
+      if (this.s3Available) {
+        response = await api.get(`/upload-s3/file-info/${filePath}`);
         return response.data.data;
       } else {
         response = await api.get('/upload/file-info', {
@@ -396,14 +499,26 @@ class MediaService {
 
   /**
    * Get upload configuration from server
+   * UPDATED: Try S3 config first, fallback to general config
    * @returns {Promise} Upload configuration
    */
   async getUploadConfig() {
     try {
-      // FIXED: Always use config endpoint consistently
+      // PRIORITY 1: Try S3 config if available
+      if (this.s3Available) {
+        try {
+          const s3Response = await api.get('/upload-s3/config');
+          if (s3Response.data?.success && s3Response.data?.data) {
+            return s3Response.data.data;
+          }
+        } catch (s3Error) {
+          console.warn('S3 config failed, trying general config:', s3Error.message);
+        }
+      }
+      
+      // PRIORITY 2: Try general upload config
       const response = await api.get('/upload/config');
       
-      // FIXED: Better response validation
       if (response.data?.success && response.data?.data) {
         return response.data.data;
       } else {
@@ -715,24 +830,28 @@ class MediaService {
 
   /**
    * Check if S3 upload is enabled
+   * UPDATED: More accurate S3 detection
    * @returns {boolean} True if S3 is enabled
    */
   isS3Enabled() {
-    return this.useS3;
+    return this.s3Available;
   }
 
   /**
    * Get storage provider info
+   * UPDATED: More accurate provider info
    * @returns {Object} Storage provider information
    */
   getStorageInfo() {
     return {
-      provider: this.useS3 ? 'aws_s3' : 'local',
+      provider: this.s3Available ? 'aws_s3' : 'local',
       config: this.s3Config,
       features: {
-        optimization: this.useS3,
-        cdn: this.useS3,
-        scalability: this.useS3 ? 'unlimited' : 'limited'
+        optimization: this.s3Available,
+        cdn: this.s3Available,
+        scalability: this.s3Available ? 'unlimited' : 'limited',
+        mumbai_region: this.s3Available,
+        fast_upload: this.s3Available
       }
     };
   }
@@ -743,7 +862,7 @@ const mediaService = new MediaService();
 
 // Initialize S3 on service creation (non-blocking)
 mediaService.initializeS3().catch(() => {
-  console.log('💾 Continuing with local upload support');
+  console.log('💾 Continuing with available upload support');
 });
 
 export default mediaService;
