@@ -24,7 +24,7 @@ class MediaService {
       // STEP 1: Check S3 status directly
       const s3StatusResponse = await api.get('/upload-s3/status');
       
-      if (s3StatusResponse.data?.s3_available) {
+      if (s3StatusResponse?.s3_available) {
         console.log('✅ S3 detected as available, enabling S3 usage');
         this.s3Available = true;
         this.useS3 = true;
