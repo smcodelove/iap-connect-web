@@ -73,6 +73,8 @@ async def upload_single_image(
         )
 
 
+# upload_user_avatar function 
+
 @router.post("/avatar", response_model=AvatarUploadResponse)
 async def upload_user_avatar(
     file: UploadFile = File(..., description="Avatar image file (max 2MB)"),
@@ -81,14 +83,47 @@ async def upload_user_avatar(
 ):
     """
     Upload or update user avatar.
-    
-    - **file**: Image file (JPG, PNG, WebP, GIF)
-    - Maximum size: 2MB
-    - Automatically optimized to 400x400px
-    - Creates thumbnail version
-    
-    Updates user's profile_picture_url in database.
+    UPDATED: Force S3 usage when available to avoid 404 errors on production
     """
+    
+    # NEW: Check if S3 is available and use it first
+    try:
+        from ..services.s3_service import S3_AVAILABLE, s3_service
+        if S3_AVAILABLE and s3_service:
+            print("🔄 Using S3 for avatar upload...")
+            
+            # Upload to S3 directly
+            s3_result = await s3_service.upload_image(
+                file=file,
+                folder="avatars",
+                optimize=True,
+                max_size_mb=2,
+                max_width=400,
+                max_height=400
+            )
+            
+            # Update user profile in database
+            current_user.profile_picture_url = s3_result['url']
+            db.commit()
+            db.refresh(current_user)
+            
+            # Return S3 response in correct format
+            return AvatarUploadResponse(
+                success=True,
+                filename=s3_result['filename'],
+                original_filename=s3_result['original_filename'],
+                url=s3_result['url'],
+                avatar_url=s3_result['url'],
+                file_size=s3_result['file_size'],
+                content_type=s3_result['content_type']
+            )
+            
+    except ImportError:
+        print("⚠️ S3 service not available, using local upload")
+    except Exception as e:
+        print(f"⚠️ S3 upload failed: {e}, falling back to local")
+    
+    # EXISTING: Fallback to local upload (keep existing code)
     try:
         # Delete old avatar if exists
         if current_user.profile_picture_url:

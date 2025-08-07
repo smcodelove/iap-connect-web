@@ -3,84 +3,92 @@
  * Media service for file uploads and management
  * Handles avatar uploads, post media, and document uploads
  * UPDATED: Added AWS S3 integration alongside existing local upload functionality
- * FIXED: Force S3 usage when available to avoid cross-domain static file issues
+ * FIXED: Dynamic backend URL and proper S3 initialization
  */
 
 import api from './api';
 
 class MediaService {
   constructor() {
-    this.useS3 = true; // CHANGED: Default to true to prefer S3
+    // Get backend URL from environment or default
+    this.backendUrl = process.env.REACT_APP_API_URL || 'https://iap-connect.onrender.com';
+    this.useS3 = false; // Will be set after S3 check
     this.s3Config = null;
-    this.s3Available = false; // Track S3 availability
+    this.s3Available = false;
+    this.initialized = false;
   }
 
   /**
-   * Initialize S3 configuration (call this when S3 is ready)
-   * UPDATED: Better S3 detection and forced usage
+   * Initialize S3 configuration
+   * FIXED: Use dynamic backend URL and proper initialization
    */
   async initializeS3() {
+    if (this.initialized) return this.s3Available;
+    
     try {
-        // STEP 1: Check S3 status - Use correct URL
-        const s3StatusResponse = await fetch('https://iap-connect.onrender.com/api/upload-s3/status', {
+      console.log('🔧 Checking S3 availability from:', this.backendUrl);
+      
+      // FIXED: Use dynamic backend URL instead of hardcoded
+      const s3StatusResponse = await fetch(`${this.backendUrl}/api/upload-s3/status`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      }).then(r => r.json());
+      
+      console.log('📋 S3 Status Response:', s3StatusResponse);
+      
+      if (s3StatusResponse?.s3_available) {
+        console.log('✅ S3 detected as available, enabling S3 usage');
+        this.s3Available = true;
+        this.useS3 = true;
+        this.initialized = true;
+        
+        // Try to get S3 config (optional)
+        try {
+          const s3ConfigResponse = await fetch(`${this.backendUrl}/api/upload-s3/config`, {
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
-                'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
+              'Content-Type': 'application/json',
             },
-        }).then(r => r.json());
-        
-        if (s3StatusResponse?.s3_available) {
-            console.log('✅ S3 detected as available, enabling S3 usage');
-            this.s3Available = true;
-            this.useS3 = true;
-            
-            // STEP 2: Get S3 configuration - Use correct URL
-            try {
-                const s3ConfigResponse = await fetch('https://iap-connect.onrender.com/api/upload-s3/config', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json',
-                    },
-                }).then(r => r.json());
-                
-                if (s3ConfigResponse?.success) {
-                    this.s3Config = s3ConfigResponse.data;
-                    console.log('✅ S3 config loaded successfully');
-                }
-            } catch (configError) {
-                console.warn('⚠️ S3 config failed, but S3 is available:', configError.message);
-            }
-            
-            return;
+          }).then(r => r.json());
+          
+          if (s3ConfigResponse?.success) {
+            this.s3Config = s3ConfigResponse.data;
+            console.log('✅ S3 config loaded successfully');
+          }
+        } catch (configError) {
+          console.warn('⚠️ S3 config failed, but S3 is available:', configError.message);
         }
         
-        // FALLBACK: Check general upload config
-        const response = await api.get('/upload/config');
-        if (response.data?.success && response.data?.data?.storage_provider === 'aws_s3') {
-            this.s3Config = response.data.data;
-            this.useS3 = true;
-            this.s3Available = true;
-            console.log('✅ S3 upload enabled via general config');
-        } else {
-            console.log('💾 S3 not available, using local upload');
-            this.useS3 = false;
-            this.s3Available = false;
-        }
-    } catch (error) {
-        console.log('💾 S3 initialization failed, using local upload:', error.message);
-        this.useS3 = false;
+        return true;
+      } else {
+        console.log('❌ S3 not available on backend');
         this.s3Available = false;
+        this.useS3 = false;
+        this.initialized = true;
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ S3 initialization failed:', error);
+      this.s3Available = false;
+      this.useS3 = false;
+      this.initialized = true;
+      return false;
     }
-}
+  }
+
   /**
    * Upload user avatar
-   * UPDATED: Force S3 endpoint when available, with smart fallback
-   * @param {File} file - Image file
-   * @param {Function} onProgress - Progress callback (progress) => void
-   * @returns {Promise} Upload result
+   * FIXED: Better S3 detection and proper initialization
    */
   async uploadAvatar(file, onProgress = null) {
     try {
+      console.log('📤 Starting avatar upload...');
+      
+      // IMPORTANT: Ensure S3 is initialized first
+      await this.initializeS3();
+      
       const formData = new FormData();
       formData.append('file', file);
 
@@ -88,7 +96,7 @@ class MediaService {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 60000, // 1 minute for image uploads
+        timeout: 60000, // 1 minute timeout
       };
 
       if (onProgress) {
@@ -100,57 +108,70 @@ class MediaService {
         };
       }
 
-      console.log('📤 Starting avatar upload...', { 
+      console.log('📤 Upload details:', { 
         fileName: file.name, 
         size: file.size,
         s3Available: this.s3Available,
-        willUseS3: this.s3Available
+        backendUrl: this.backendUrl
       });
 
-      // SMART ENDPOINT SELECTION: Try S3 first if available
-      let endpoint, response, usedS3 = false;
+      let response;
+      let usedS3 = false;
+      let endpoint;
       
+      // SMART ENDPOINT SELECTION: Use S3 if available
       if (this.s3Available) {
+        endpoint = '/api/upload-s3/avatar';
+        console.log('📤 Using S3 endpoint:', endpoint);
+        
         try {
-          endpoint = '/api/upload-s3/avatar'; // S3 endpoint without /v1
-          response = await api.post(endpoint, formData, config);
+          // Use fetch for S3 to get better error handling
+          const fetchResponse = await fetch(`${this.backendUrl}${endpoint}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
+            },
+            body: formData
+          });
+          
+          if (!fetchResponse.ok) {
+            throw new Error(`HTTP ${fetchResponse.status}: ${fetchResponse.statusText}`);
+          }
+          
+          const responseData = await fetchResponse.json();
+          response = { data: responseData };
           usedS3 = true;
-          console.log('✅ S3 avatar upload successful');
+          console.log('✅ S3 avatar upload completed');
         } catch (s3Error) {
-          console.warn('⚠️ S3 avatar upload failed, falling back to local:', s3Error.message);
-          // Fallback to local (this will use /api/v1 automatically)
+          console.warn('⚠️ S3 upload failed, trying local fallback:', s3Error.message);
+          // Fallback to local upload
           endpoint = '/upload/avatar';
           response = await api.post(endpoint, formData, config);
           usedS3 = false;
-          console.log('✅ Local avatar upload successful (fallback)');
+          console.log('✅ Local avatar upload completed (fallback)');
         }
       } else {
-        // Use local endpoint (will use /api/v1 automatically)
+        // Use local endpoint
         endpoint = '/upload/avatar';
+        console.log('📤 Using local endpoint:', endpoint);
         response = await api.post(endpoint, formData, config);
         usedS3 = false;
-        console.log('✅ Local avatar upload (S3 not available)');
+        console.log('✅ Local avatar upload completed');
       }
       
       console.log('📋 Raw response received:', response.data);
       
-      // FIXED: Comprehensive response handling for all possible formats
+      // Extract result data
       let result;
-      
       if (response.data) {
-        // Handle nested data structure (S3 has .data, local might not)
-        if (response.data.data) {
-          result = response.data.data;
-        } else {
-          result = response.data;
-        }
+        result = response.data.data || response.data;
       } else {
         throw new Error('Empty response from server');
       }
       
       console.log('🔍 Extracted result:', result);
       
-      // FIXED: More comprehensive URL extraction with detailed logging
+      // Extract URL with multiple possible fields
       const possibleUrls = [
         result?.url,
         result?.avatar_url, 
@@ -165,44 +186,23 @@ class MediaService {
       const finalUrl = possibleUrls[0];
       
       if (!finalUrl) {
-        console.error('❌ No URL found in response structure:', {
-          responseData: response.data,
-          result: result,
-          possibleUrls: possibleUrls
-        });
-        throw new Error('No URL returned from server. Upload may have failed.');
+        console.error('❌ No URL found in response');
+        throw new Error('No URL returned from server');
       }
       
-      console.log('✅ Using URL:', finalUrl);
+      console.log('✅ Final avatar URL:', finalUrl);
       console.log('📍 Storage used:', usedS3 ? 'AWS S3' : 'Local');
       
-      // FIXED: Return normalized response with comprehensive fallbacks
       return {
         success: true,
         url: finalUrl,
         avatar_url: finalUrl,
-        thumbnail_url: result?.thumbnail_url || result?.data?.thumbnail_url,
-        filename: result?.filename || result?.data?.filename,
-        file_size: result?.file_size || result?.data?.file_size,
-        original_filename: result?.original_filename || result?.data?.original_filename,
-        storage_type: usedS3 ? 'S3' : 'Local', // NEW: Track which storage was used
+        storage_type: usedS3 ? 'S3' : 'Local',
         ...result
       };
     } catch (error) {
       console.error('❌ Avatar upload failed:', error);
-      
-      // FIXED: Better error message extraction
-      let errorMessage = 'Avatar upload failed';
-      
-      if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      throw new Error(errorMessage);
+      throw new Error(error.message || 'Avatar upload failed');
     }
   }
 
@@ -215,6 +215,9 @@ class MediaService {
    */
   async uploadPostMedia(files, onProgress = null) {
     try {
+      // Initialize S3 if not done
+      await this.initializeS3();
+      
       const formData = new FormData();
       
       // Convert FileList to Array and validate
@@ -253,7 +256,7 @@ class MediaService {
       
       if (this.s3Available) {
         try {
-          endpoint = '/api/upload-s3/post-images'; // FIXED: Added /api prefix
+          endpoint = '/api/upload-s3/post-images';
           response = await api.post(endpoint, formData, config);
           console.log('✅ S3 post media upload successful');
           return response.data.data;
@@ -289,6 +292,9 @@ class MediaService {
    */
   async uploadImage(file, onProgress = null) {
     try {
+      // Initialize S3 if not done
+      await this.initializeS3();
+      
       // Validate file type
       if (!file.type.startsWith('image/')) {
         throw new Error('Only image files are allowed');
@@ -329,7 +335,7 @@ class MediaService {
       
       if (this.s3Available) {
         try {
-          endpoint = '/api/upload-s3/image'; // FIXED: Added /api prefix
+          endpoint = '/api/upload-s3/image';
           response = await api.post(endpoint, formData, config);
           console.log('✅ S3 image upload successful');
         } catch (s3Error) {
@@ -376,6 +382,9 @@ class MediaService {
    * @returns {Promise} Upload results
    */
   async uploadMultipleImages(files, onProgress = null) {
+    // Initialize S3 if not done
+    await this.initializeS3();
+    
     if (!this.s3Available) {
       // Fallback to existing uploadPostMedia for local uploads
       return this.uploadPostMedia(files, onProgress);
@@ -459,6 +468,9 @@ class MediaService {
    */
   async deleteFile(filePath) {
     try {
+      // Initialize S3 if not done
+      await this.initializeS3();
+      
       let response;
       
       if (this.s3Available) {
@@ -488,6 +500,9 @@ class MediaService {
    */
   async getFileInfo(filePath) {
     try {
+      // Initialize S3 if not done
+      await this.initializeS3();
+      
       let response;
       
       if (this.s3Available) {
@@ -514,6 +529,9 @@ class MediaService {
    */
   async getUploadConfig() {
     try {
+      // Initialize S3 if not done
+      await this.initializeS3();
+      
       // PRIORITY 1: Try S3 config if available
       if (this.s3Available) {
         try {

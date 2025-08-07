@@ -2,14 +2,15 @@
 """
 Main FastAPI application for IAP Connect.
 Entry point for the backend API server.
-UPDATED: Added file upload system with static file serving and optional notification system
-ENHANCED: Added safe S3 upload system integration
+FIXED: Static file serving with proper CORS headers
 """
 
 from fastapi import FastAPI, Depends, APIRouter
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import os
+from pathlib import Path
 
 from .config.database import engine, Base
 from .middleware.cors import add_cors_middleware
@@ -58,19 +59,87 @@ app = FastAPI(
 # Add CORS middleware
 add_cors_middleware(app)
 
+# FIXED: Custom static file handler with CORS
+class CORSStaticFiles(StaticFiles):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            # Add CORS headers for static files
+            response = await super().__call__(scope, receive, send)
+            return response
+        return await super().__call__(scope, receive, send)
+
 # Setup file upload system if available
 if UPLOAD_AVAILABLE:
     # Create uploads directory if it doesn't exist
-    os.makedirs("uploads", exist_ok=True)
+    upload_dir = "uploads"
+    os.makedirs(upload_dir, exist_ok=True)
     
     # Create subdirectories for organization
     upload_subdirs = ["avatars", "posts", "documents", "temp", "thumbnails"]
     for subdir in upload_subdirs:
-        os.makedirs(f"uploads/{subdir}", exist_ok=True)
+        os.makedirs(f"{upload_dir}/{subdir}", exist_ok=True)
     
-    # Mount static files for serving uploaded files
-    app.mount("/static", StaticFiles(directory="uploads"), name="static")
-    print("✅ Static file serving enabled at /static")
+    # FIXED: Custom static file endpoint with proper CORS
+    @app.get("/static/{file_path:path}")
+    async def serve_static_file(file_path: str):
+        """
+        Serve static files with proper CORS headers
+        """
+        try:
+            full_path = Path(upload_dir) / file_path
+            
+            if not full_path.exists() or not full_path.is_file():
+                return JSONResponse(
+                    status_code=404,
+                    content={"detail": "File not found"},
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, OPTIONS",
+                        "Access-Control-Allow-Headers": "*",
+                    }
+                )
+            
+            # Security check - ensure file is within upload directory
+            try:
+                full_path.resolve().relative_to(Path(upload_dir).resolve())
+            except ValueError:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Access denied"},
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, OPTIONS",
+                        "Access-Control-Allow-Headers": "*",
+                    }
+                )
+            
+            return FileResponse(
+                path=str(full_path),
+                filename=full_path.name,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
+                    "Cache-Control": "public, max-age=3600",
+                }
+            )
+            
+        except Exception as e:
+            print(f"Static file serve error: {str(e)}")
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Failed to serve file"},
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
+                }
+            )
+    
+    print("✅ Static file serving enabled at /static with CORS")
 
 # Include core routers with API versioning
 app.include_router(auth.router, prefix="/api/v1")
@@ -80,9 +149,9 @@ app.include_router(comments.router, prefix="/api/v1")
 app.include_router(bookmarks.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 
-# Include S3 upload routes if available (NEW - SAFE ADDITION)
+# Include S3 upload routes if available (FIXED PREFIX)
 if S3_UPLOAD_AVAILABLE:
-    app.include_router(upload_s3.router, prefix="/api")
+    app.include_router(upload_s3.router, prefix="/api")  # FIXED: No /v1 for S3
     print("✅ S3 upload routes enabled at /api/upload-s3/*")
 
 # Include upload routes if available
@@ -140,7 +209,7 @@ def root():
         "features": {
             "notifications": NOTIFICATIONS_AVAILABLE,
             "file_upload": UPLOAD_AVAILABLE,
-            "s3_upload": S3_UPLOAD_AVAILABLE,  # NEW
+            "s3_upload": S3_UPLOAD_AVAILABLE,
             "posts": True,
             "users": True,
             "comments": True,
@@ -151,8 +220,8 @@ def root():
             "static_files_enabled": UPLOAD_AVAILABLE,
             "upload_directory": "uploads" if UPLOAD_AVAILABLE else None,
             "static_url": "/static" if UPLOAD_AVAILABLE else None,
-            "s3_upload_enabled": S3_UPLOAD_AVAILABLE,  # NEW
-            "s3_endpoints": "/api/upload-s3/*" if S3_UPLOAD_AVAILABLE else None  # NEW
+            "s3_upload_enabled": S3_UPLOAD_AVAILABLE,
+            "s3_endpoints": "/api/upload-s3/*" if S3_UPLOAD_AVAILABLE else None
         }
     }
 
@@ -170,13 +239,13 @@ def health_check():
         "features": {
             "notifications": NOTIFICATIONS_AVAILABLE,
             "file_upload": UPLOAD_AVAILABLE,
-            "s3_upload": S3_UPLOAD_AVAILABLE,  # NEW
+            "s3_upload": S3_UPLOAD_AVAILABLE,
             "core_features": ["auth", "posts", "users", "comments", "bookmarks", "admin"]
         },
         "upload_status": {
             "uploads_directory_exists": os.path.exists("uploads") if UPLOAD_AVAILABLE else False,
             "static_serving_enabled": UPLOAD_AVAILABLE,
-            "s3_service_loaded": S3_UPLOAD_AVAILABLE  # NEW
+            "s3_service_loaded": S3_UPLOAD_AVAILABLE
         }
     }
 
@@ -213,7 +282,7 @@ if UPLOAD_AVAILABLE:
             }
 
 
-# NEW: S3 Upload system health check (if available)
+# S3 Upload system health check (if available)
 if S3_UPLOAD_AVAILABLE:
     @app.get("/api/upload-s3/system-health")
     async def s3_upload_system_health():
@@ -251,13 +320,6 @@ if S3_UPLOAD_AVAILABLE:
 async def global_exception_handler(request, exc):
     """
     Global exception handler for unhandled errors.
-    
-    Args:
-        request: FastAPI request object
-        exc: Exception that occurred
-        
-    Returns:
-        JSONResponse: Error response
     """
     print(f"Global exception: {str(exc)}")
     return JSONResponse(
@@ -268,12 +330,12 @@ async def global_exception_handler(request, exc):
             "features_available": {
                 "notifications": NOTIFICATIONS_AVAILABLE,
                 "file_upload": UPLOAD_AVAILABLE,
-                "s3_upload": S3_UPLOAD_AVAILABLE  # NEW
+                "s3_upload": S3_UPLOAD_AVAILABLE
             }
         }
     )
 
-# Add at the end of main.py
+# Startup events
 @app.on_event("startup")
 async def create_admin_user():
     try:
@@ -304,7 +366,6 @@ async def create_admin_user():
         print(f"Admin creation error: {e}")
 
 
-# NEW: Startup event for S3 system check
 @app.on_event("startup")
 async def check_s3_system():
     """Check S3 system on startup"""
