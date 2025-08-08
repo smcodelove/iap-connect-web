@@ -79,7 +79,7 @@ const SearchContainer = styled.div`
 
 const SearchInput = styled.input`
   width: 100%;
-  padding: 10px 16px 10px 40px;
+  padding: 10px 16px;
   border: 1px solid ${props => props.theme.colors.gray300};
   border-radius: 24px;
   background: ${props => props.theme.colors.gray50};
@@ -367,10 +367,10 @@ const Navbar = () => {
           </Logo>
         </NavLeft>
 
-        <NavCenter>
+        {/*<NavCenter>
           <SearchContainer>
             <form onSubmit={handleSearch}>
-            {/*  <SearchIcon size={18} /> */}
+              <SearchIcon size={18} />
               <SearchInput
                 type="text"
                 placeholder="Search posts, users, medical topics..."
@@ -379,7 +379,7 @@ const Navbar = () => {
               />
             </form>
           </SearchContainer>
-        </NavCenter>
+        </NavCenter>*/}
 
         <NavRight>
           {/* Mobile search button */}
