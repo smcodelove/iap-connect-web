@@ -20,6 +20,7 @@ from ..services.post_service import (
 from ..utils.dependencies import get_current_active_user
 from ..models.user import User, Follow
 from datetime import datetime
+from ..models.notification import Notification, NotificationType
 
 # NEW: Import notification service for social interactions
 try:
@@ -419,20 +420,17 @@ def like_post_endpoint(
         # NEW: Create notification for post owner
         if NOTIFICATIONS_ENABLED and post.user_id != current_user.id:
             try:
-                notification = NotificationService.create_notification(
-                    db=db,
+                notification = Notification(
                     recipient_id=post.user_id,
                     sender_id=current_user.id,
-                    notification_type="like",
+                    type=NotificationType.LIKE,
                     title="New Like",
                     message=f"{current_user.full_name} liked your post",
-                    data={
-                        "post_id": post.id,
-                        "post_preview": post.content[:50] + "..." if len(post.content) > 50 else post.content,
-                        "action": "like",
-                        "timestamp": datetime.utcnow().isoformat()
-                }
+                    data=f'{{"post_id": {post.id}, "action": "like"}}'
                 )
+                db.add(notification)
+                db.commit()
+                db.refresh(notification)
                 print(f"✅ Created like notification for post {post_id}")
                 # NEW: Trigger real-time notification update
                 try:
