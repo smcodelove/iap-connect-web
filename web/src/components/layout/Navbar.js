@@ -10,7 +10,7 @@ import styled from 'styled-components';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
-  Search, 
+//  Search, 
   Plus, 
   User, 
   Settings, 
@@ -97,7 +97,7 @@ const SearchInput = styled.input`
     color: ${props => props.theme.colors.gray500};
   }
 `;
-
+/*
 const SearchIcon = styled(Search)`
   position: absolute;
   left: 12px;
@@ -106,7 +106,7 @@ const SearchIcon = styled(Search)`
   color: ${props => props.theme.colors.gray500};
   z-index: 1;
 `;
-
+*/
 const NavRight = styled.div`
   display: flex;
   align-items: center;
@@ -370,7 +370,7 @@ const Navbar = () => {
         <NavCenter>
           <SearchContainer>
             <form onSubmit={handleSearch}>
-              <SearchIcon size={18} />
+            {/*  <SearchIcon size={18} /> */}
               <SearchInput
                 type="text"
                 placeholder="Search posts, users, medical topics..."
@@ -383,11 +383,12 @@ const Navbar = () => {
 
         <NavRight>
           {/* Mobile search button */}
-          <MobileMenu>
+        {/*  <MobileMenu>
             <NavButton onClick={() => setShowMobileSearch(true)}>
               <Search size={20} />
             </NavButton>
           </MobileMenu>
+         {/* 
 
           {/* Create post button */}
           <CreateButton to="/create-post">
@@ -441,7 +442,7 @@ const Navbar = () => {
                   <User size={16} />
                   Profile
                 </UserDropdownItem>
-                
+                {/*
                 <UserDropdownItem 
                   as={Link} 
                   to="/bookmarks"
@@ -468,7 +469,7 @@ const Navbar = () => {
                   <Settings size={16} />
                   Settings
                 </UserDropdownItem>
-                
+                */}
                 {user?.user_type === 'admin' && (
                   <UserDropdownItem 
                     as={Link} 
@@ -498,7 +499,7 @@ const Navbar = () => {
         show={showMobileSearch}
         onClick={() => setShowMobileSearch(false)}
       />
-      
+      {/*
       <MobileSearchContainer show={showMobileSearch}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ flex: 1, position: 'relative' }}>
@@ -512,7 +513,7 @@ const Navbar = () => {
                 autoFocus
               />
             </form>
-          </div>
+          </div> 
           <button
             onClick={() => setShowMobileSearch(false)}
             style={{
@@ -529,7 +530,7 @@ const Navbar = () => {
             <X size={20} />
           </button>
         </div>
-      </MobileSearchContainer>
+      </MobileSearchContainer>*/}
     </>
   );
 };
