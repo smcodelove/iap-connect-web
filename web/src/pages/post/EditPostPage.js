@@ -12,7 +12,7 @@ import {
   Eye,
   Loader
 } from 'lucide-react';
-import { postService } from '../../services/api';
+import postService from '../../services/postService';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const EditPostContainer = styled.div`
