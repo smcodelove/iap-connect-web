@@ -146,7 +146,7 @@ const Sidebar = () => {
 
   const navigationItems = [
     { path: '/feed', icon: Home, label: 'Feed' },
-    { path: '/trending', icon: TrendingUp, label: 'Trending' },
+   // { path: '/trending', icon: TrendingUp, label: 'Trending' },
     { path: '/search', icon: Search, label: 'Search' },
     { path: '/create-post', icon: PlusCircle, label: 'Create Post' },
     { path: '/profile', icon: User, label: 'Profile' },

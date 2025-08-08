@@ -405,23 +405,6 @@ const Navbar = () => {
             <Home size={20} />
           </NavButton>
 
-          <NavButton 
-            as={Link} 
-            to="/trending" 
-            hideOnMobile
-            title="Trending Posts"
-          >
-            <TrendingUp size={20} />
-          </NavButton>
-
-          <NavButton 
-            as={Link} 
-            to="/bookmarks" 
-            hideOnMobile
-            title="Saved Posts"
-          >
-            <Bookmark size={20} />
-          </NavButton>
 
           {/* Notifications */}
           <NotificationContainer>
