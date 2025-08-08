@@ -418,7 +418,7 @@ def like_post_endpoint(
         # NEW: Create notification for post owner
         if NOTIFICATIONS_ENABLED and post.user_id != current_user.id:
             try:
-                NotificationService.create_like_notification(db, post, current_user)
+                NotificationService.create_like_notification(db, post, current_user, post_id)
                 print(f"✅ Created like notification for post {post_id}")
                 # NEW: Trigger real-time notification update
                 try:
