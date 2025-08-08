@@ -1018,18 +1018,7 @@ const ProfilePage = () => {
           >
             My Posts ({posts.length})
           </ContentTab>
-          <ContentTab 
-            active={activeTab === 'likes'} 
-            onClick={() => setActiveTab('likes')}
-          >
-            Liked Posts ({likedPosts.length})
-          </ContentTab>
-          <ContentTab 
-            active={activeTab === 'saved'} 
-            onClick={() => setActiveTab('saved')}
-          >
-            Saved ({savedPosts.length})
-          </ContentTab>
+          
         </ContentTabs>
 
         <ContentArea>

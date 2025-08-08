@@ -486,13 +486,6 @@ const FeedPage = () => {
           Recent
         </FeedTab>
         <FeedTab 
-          active={activeTab === 'trending'} 
-          onClick={() => handleTabChange('trending')}
-        >
-          <TrendingUp size={16} />
-          Trending
-        </FeedTab>
-        <FeedTab 
           active={activeTab === 'following'} 
           onClick={() => handleTabChange('following')}
         >
