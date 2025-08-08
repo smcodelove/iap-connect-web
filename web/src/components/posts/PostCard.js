@@ -32,6 +32,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { postService, userService } from '../../services/api';
 import commentService from '../../services/commentService';
 
+
 const PostCardContainer = styled.div`
   background: white;
   border-radius: 12px;
