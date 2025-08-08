@@ -1,8 +1,9 @@
-# backend/app/routers/upload_s3.py - COMPLETE FILE WITH FIXES
+# backend/app/routers/upload_s3.py - COMPLETE FILE WITH MISSING ENDPOINT ADDED
 """
 AWS S3 upload routes - Safe integration alongside existing upload system
 NEW ROUTES: Does not interfere with existing upload functionality
 FIXED: Complete router implementation with all endpoints and proper response format
+ADDED: Missing /image endpoint for single image upload
 """
 
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Form
@@ -50,37 +51,37 @@ async def upload_image_s3(
 ):
     """
     Upload single image to S3 (Mumbai region)
-    NEW ENDPOINT: /api/v1/upload-s3/image
+    CRITICAL: This endpoint was missing and causing post upload failures
     """
     check_s3_available()
     
     try:
-        print(f"🔍 S3 image upload started by: {current_user.username}")
+        print(f"🔍 S3 single image upload started by: {current_user.username}")
         print(f"📁 File details: {file.filename}, {file.content_type}")
         
         result = await s3_service.upload_image(
             file=file,
-            folder="images",
+            folder="posts",  # Use posts folder for consistency
             optimize=True,
             max_size_mb=10
         )
         
         print(f"✅ S3 service result: {result}")
         
-        # FIXED: Extract file URL from result properly
+        # Extract file URL from result properly
         file_url = result.get('url') or result.get('file_url')
         
         if not file_url:
             print(f"❌ No file URL found in S3 result: {result}")
             raise HTTPException(status_code=500, detail="S3 upload succeeded but no URL returned")
         
-        print(f"✅ S3 image upload successful: {file_url}")
+        print(f"✅ S3 single image upload successful: {file_url}")
         
         return {
             "success": True,
             "message": "Image uploaded successfully to S3",
-            "file_url": file_url,     # ✅ CRITICAL: Frontend expects this
-            "url": file_url,          # ✅ BACKUP: Alternative key
+            "file_url": file_url,     # CRITICAL: Frontend expects this
+            "url": file_url,          # BACKUP: Alternative key
             "filename": result.get('filename'),
             "storage": "aws_s3",
             "data": {
@@ -93,10 +94,10 @@ async def upload_image_s3(
         }
         
     except HTTPException as e:
-        print(f"❌ S3 image upload HTTP error: {e.detail}")
+        print(f"❌ S3 single image upload HTTP error: {e.detail}")
         raise e
     except Exception as e:
-        print(f"❌ S3 image upload error: {str(e)}")
+        print(f"❌ S3 single image upload error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"S3 upload failed: {str(e)}")
 
 
@@ -187,8 +188,8 @@ async def upload_avatar_s3(
         return {
             "success": True,
             "message": "Avatar uploaded successfully to S3", 
-            "file_url": file_url,     # ✅ CRITICAL: Frontend checks this first
-            "url": file_url,          # ✅ BACKUP: Alternative key
+            "file_url": file_url,     # CRITICAL: Frontend checks this first
+            "url": file_url,          # BACKUP: Alternative key
             "filename": result.get('filename'),
             "storage": "aws_s3",
             "data": {

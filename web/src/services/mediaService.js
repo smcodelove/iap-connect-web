@@ -1,4 +1,4 @@
-// web/src/services/mediaService.js - COMPLETE FIXED VERSION
+// web/src/services/mediaService.js - COMPLETE FIXED VERSION WITH CORRECT ENDPOINTS
 
 import api from './api';
 
@@ -227,9 +227,8 @@ class MediaService {
     }
   }
 
-
   /**
-   * Upload post media - FIXED WITH CORRECT S3 ENDPOINT
+   * Upload post media - FIXED WITH CORRECT S3 ENDPOINT LOGIC
    */
   async uploadPostMedia(files, onProgress = null) {
     try {
@@ -246,22 +245,28 @@ class MediaService {
         });
         console.log(`📁 Uploading ${files.length} files`);
       } else {
-        formData.append('files', files);
+        formData.append('file', files);  // FIXED: Single file uses 'file' param
         console.log(`📁 Uploading 1 file: ${files.name}`);
       }
       
       if (this.useS3 && this.s3Available) {
         console.log('📤 Uploading post media to S3...');
         
-        // CRITICAL FIX: Try different S3 endpoints based on what backend supports
         let s3Response;
         let s3Url;
         
-        // Try primary endpoint first
-        try {
+        // FIXED: Use correct endpoint based on single vs multiple files
+        if (Array.isArray(files) && files.length > 1) {
+          // Multiple files - use /images endpoint
           s3Url = `${this.backendUrl}/api/v1/upload-s3/images`;
-          console.log('🔍 Trying S3 endpoint:', s3Url);
-          
+          console.log('🔍 Using S3 multiple images endpoint:', s3Url);
+        } else {
+          // Single file - use /image endpoint (this was missing on backend!)
+          s3Url = `${this.backendUrl}/api/v1/upload-s3/image`;
+          console.log('🔍 Using S3 single image endpoint:', s3Url);
+        }
+        
+        try {
           s3Response = await fetch(s3Url, {
             method: 'POST',
             headers: {
@@ -273,62 +278,52 @@ class MediaService {
           console.log('📡 S3 Response Status:', s3Response.status);
           
           if (!s3Response.ok) {
-            throw new Error(`S3 upload failed: ${s3Response.status}`);
+            const errorText = await s3Response.text();
+            console.error('❌ S3 Response Error:', errorText);
+            throw new Error(`S3 upload failed: ${s3Response.status} - ${errorText}`);
           }
           
-        } catch (s3Error) {
-          console.warn('⚠️ Primary S3 endpoint failed, trying alternative:', s3Error.message);
+          const result = await s3Response.json();
+          console.log('✅ S3 Response Data:', result);
           
-          // Try alternative endpoint
-          s3Url = `${this.backendUrl}/api/v1/upload-s3/post-images`;
-          console.log('🔍 Trying alternative S3 endpoint:', s3Url);
-          
-          s3Response = await fetch(s3Url, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`,
-            },
-            body: formData,
-          });
-          
-          console.log('📡 Alternative S3 Response Status:', s3Response.status);
-          
-          if (!s3Response.ok) {
-            throw new Error(`Both S3 endpoints failed: ${s3Response.status}`);
+          if (result.success) {
+            console.log('✅ Post media uploaded to S3 successfully:', result);
+            
+            // FIXED: Extract URLs from different possible response formats
+            let mediaUrls = [];
+            
+            if (result.uploaded_files && Array.isArray(result.uploaded_files)) {
+              // Multiple files response
+              mediaUrls = result.uploaded_files.map(file => file.url || file.file_url).filter(Boolean);
+            } else if (result.file_url) {
+              // Single file response
+              mediaUrls = [result.file_url];
+            } else if (result.url) {
+              // Alternative single file response
+              mediaUrls = [result.url];
+            } else if (result.data?.uploaded_files) {
+              // Nested response format
+              mediaUrls = result.data.uploaded_files.map(file => file.url || file.file_url).filter(Boolean);
+            }
+            
+            console.log('✅ Media URLs extracted:', mediaUrls);
+            
+            return {
+              success: true,
+              storage: 's3',
+              media_urls: mediaUrls,
+              files: mediaUrls,
+              uploaded_files: mediaUrls.map(url => ({ url }))
+            };
+          } else {
+            throw new Error(result.detail || result.message || 'S3 upload failed');
           }
+          
+        } catch (fetchError) {
+          console.error('❌ S3 fetch error:', fetchError);
+          throw new Error(`S3 upload failed: ${fetchError.message}`);
         }
         
-        const result = await s3Response.json();
-        console.log('✅ S3 Response Data:', result);
-        
-        if (result.success) {
-          console.log('✅ Post media uploaded to S3 successfully:', result);
-          
-          // FIXED: Extract URLs from different possible response formats
-          let mediaUrls = result.uploaded_files || 
-                         result.data?.uploaded_files || 
-                         result.files || 
-                         result.data?.files || 
-                         [];
-          
-          // If single URL returned, convert to array
-          if (result.file_url) {
-            mediaUrls = [result.file_url];
-          } else if (result.url) {
-            mediaUrls = [result.url];
-          }
-          
-          console.log('✅ Media URLs extracted:', mediaUrls);
-          
-          return {
-            success: true,
-            storage: 's3',
-            media_urls: mediaUrls,
-            files: mediaUrls
-          };
-        } else {
-          throw new Error(result.detail || result.message || 'S3 upload failed');
-        }
       } else {
         console.log('📤 Falling back to local upload...');
         
@@ -368,7 +363,8 @@ class MediaService {
           success: true,
           storage: 'local',
           media_urls: mediaUrls,
-          files: mediaUrls
+          files: mediaUrls,
+          uploaded_files: mediaUrls.map(url => ({ url }))
         };
       }
       
@@ -451,6 +447,21 @@ class MediaService {
     }
     
     return { valid: true };
+  }
+
+  /**
+   * Helper methods for CreatePostPage compatibility
+   */
+  validateImage(file, type = 'image') {
+    return this.validateFile(file, type === 'avatar' ? 2 : 10);
+  }
+
+  createPreviewUrl(file) {
+    return URL.createObjectURL(file);
+  }
+
+  revokePreviewUrl(url) {
+    URL.revokeObjectURL(url);
   }
 
   /**

@@ -610,32 +610,13 @@ const CreatePostPage = () => {
           // FIXED: Use current s3Available state for upload decision
           console.log('🔧 Upload decision - S3 Available:', s3Available);
           
-          if (s3Available && mediaService && typeof mediaService.uploadImage === 'function') {
-            try {
-              console.log('📤 Attempting S3 upload...');
-              uploadResult = await mediaService.uploadImage(imageFile.file, (progress) => {
-                setSelectedImages(prev => prev.map(img => 
-                  img.id === imageFile.id ? { ...img, progress } : img
-                ));
-              });
-            } catch (s3Error) {
-              console.log('❌ S3 upload failed, falling back to local:', s3Error);
-              // Fallback to local upload
-              uploadResult = await mediaService.uploadPostMedia([imageFile.file], (progress) => {
-                setSelectedImages(prev => prev.map(img => 
-                  img.id === imageFile.id ? { ...img, progress } : img
-                ));
-              });
-            }
-          } else {
-            // Use local upload
-            console.log('📤 Using local upload...');
-            uploadResult = await mediaService.uploadPostMedia([imageFile.file], (progress) => {
-              setSelectedImages(prev => prev.map(img => 
-                img.id === imageFile.id ? { ...img, progress } : img
-              ));
-            });
-          }
+          // SIMPLIFIED: Always use uploadPostMedia (it handles S3/local automatically)
+          console.log('📤 Uploading single image for post...');
+          uploadResult = await mediaService.uploadPostMedia([imageFile.file], (progress) => {
+            setSelectedImages(prev => prev.map(img => 
+              img.id === imageFile.id ? { ...img, progress } : img
+            ));
+          });
           
           // Handle different response formats
           let finalResult = uploadResult;
