@@ -6,6 +6,7 @@ import { ThemeProvider } from 'styled-components';
 import store from './store';
 import { colors, typography } from './utils/constants';
 import GlobalStyles from './styles/GlobalStyles';
+import { NotificationProvider } from './contexts/NotificationContext';
 
 // Import Pages
 import LoginPage from './pages/auth/LoginPage';
@@ -56,7 +57,8 @@ function App() {
   return (
     <Provider store={store}>
       <ThemeProvider theme={theme}>
-        <GlobalStyles />
+        <NotificationProvider>
+         <GlobalStyles />
         <Router>
           <div className="App">
             <Routes>
@@ -76,6 +78,7 @@ function App() {
             </Routes>
           </div>
         </Router>
+        </NotificationProvider>
       </ThemeProvider>
     </Provider>
   );

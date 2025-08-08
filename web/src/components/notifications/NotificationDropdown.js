@@ -1,11 +1,10 @@
 // web/src/components/notifications/NotificationDropdown.js
 /**
- * Notification Dropdown Component
- * Shows list of notifications with actions
- * FIXED: Proper component structure and API integration
+ * Updated Notification Dropdown Component with Context integration
+ * Uses global notification state for real-time updates
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled, { css } from 'styled-components';
 import { 
   Bell, 
@@ -15,7 +14,7 @@ import {
   UserPlus, 
   RefreshCw
 } from 'lucide-react';
-import { notificationService } from '../../services/api';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 const DropdownContainer = styled.div`
   position: absolute;
@@ -179,36 +178,29 @@ const MarkAllButton = styled.button`
   }
 `;
 
+const LastUpdateTime = styled.div`
+  padding: 8px 20px;
+  font-size: 11px;
+  color: ${props => props.theme.colors.gray500};
+  background: ${props => props.theme.colors.gray25};
+  border-top: 1px solid ${props => props.theme.colors.gray100};
+  text-align: center;
+`;
+
 const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    lastFetch,
+    markAsRead,
+    markAllAsRead,
+    refreshNotifications
+  } = useNotifications();
+  
   const dropdownRef = useRef(null);
 
-  // Fetch notifications
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true);
-      const response = await notificationService.getNotifications(1, 20);
-      setNotifications(response.notifications || []);
-      setUnreadCount(response.unread_count || 0);
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error);
-      // Set fallback data on error
-      setNotifications([]);
-      setUnreadCount(0);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchNotifications();
-    }
-  }, [isOpen]);
-
-  // Handle click outside
+  // Handle click outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -225,37 +217,16 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
     };
   }, [isOpen, onClose]);
 
-  // Mark notification as read
+  // Handle notification click
   const handleNotificationClick = async (notification) => {
+    // Mark as read if unread
     if (!notification.is_read) {
-      try {
-        await notificationService.markAsRead(notification.id);
-        setNotifications(prev => 
-          prev.map(n => 
-            n.id === notification.id ? { ...n, is_read: true } : n
-          )
-        );
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      } catch (error) {
-        console.error('Failed to mark notification as read:', error);
-      }
+      await markAsRead(notification.id);
     }
 
+    // Call parent click handler
     if (onNotificationClick) {
       onNotificationClick(notification);
-    }
-  };
-
-  // Mark all as read
-  const handleMarkAllAsRead = async () => {
-    try {
-      await notificationService.markAllAsRead();
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, is_read: true }))
-      );
-      setUnreadCount(0);
-    } catch (error) {
-      console.error('Failed to mark all as read:', error);
     }
   };
 
@@ -290,6 +261,12 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
     return time.toLocaleDateString();
   };
 
+  // Format last update time
+  const formatLastUpdate = () => {
+    if (!lastFetch) return '';
+    return `Last updated: ${lastFetch.toLocaleTimeString()}`;
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -302,16 +279,16 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
         
         <HeaderActions>
           {unreadCount > 0 && (
-            <MarkAllButton onClick={handleMarkAllAsRead}>
+            <MarkAllButton onClick={markAllAsRead}>
               Mark all read
             </MarkAllButton>
           )}
           
-          <HeaderButton onClick={fetchNotifications}>
+          <HeaderButton onClick={refreshNotifications} title="Refresh notifications">
             <RefreshCw size={16} />
           </HeaderButton>
           
-          <HeaderButton onClick={onClose}>
+          <HeaderButton onClick={onClose} title="Close">
             <X size={16} />
           </HeaderButton>
         </HeaderActions>
@@ -354,6 +331,12 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
           ))
         )}
       </NotificationList>
+      
+      {lastFetch && (
+        <LastUpdateTime>
+          {formatLastUpdate()}
+        </LastUpdateTime>
+      )}
     </DropdownContainer>
   );
 };

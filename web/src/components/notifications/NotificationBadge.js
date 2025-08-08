@@ -1,14 +1,13 @@
 // web/src/components/notifications/NotificationBadge.js
 /**
- * Notification Badge Component for navbar
- * Shows unread notification count with real-time updates
- * FIXED: Removed duplicate React import and fixed syntax
+ * Updated Notification Badge Component with real-time updates
+ * Uses NotificationContext for global state management
  */
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { Bell, BellRing } from 'lucide-react';
-import { notificationService } from '../../services/api';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 const pulse = keyframes`
   0% { transform: scale(1); }
@@ -60,31 +59,7 @@ const Badge = styled.span`
 `;
 
 const NotificationBadge = ({ onClick }) => {
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  // Fetch unread count
-  const fetchUnreadCount = async () => {
-    try {
-      const response = await notificationService.getUnreadCount();
-      setUnreadCount(response.count || 0);
-    } catch (error) {
-      console.error('Failed to fetch unread count:', error);
-      // Set default count on error
-      setUnreadCount(0);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUnreadCount();
-    
-    // Poll for updates every 30 seconds
-    const interval = setInterval(fetchUnreadCount, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
+  const { unreadCount, refreshNotifications } = useNotifications();
 
   // Format count display
   const getCountDisplay = () => {
@@ -93,9 +68,20 @@ const NotificationBadge = ({ onClick }) => {
     return unreadCount;
   };
 
+  // Handle click - refresh and open dropdown
+  const handleClick = () => {
+    // Refresh notifications when clicked
+    refreshNotifications();
+    
+    // Call parent onClick
+    if (onClick) {
+      onClick();
+    }
+  };
+
   return (
     <NotificationButton
-      onClick={onClick}
+      onClick={handleClick}
       hasNotifications={unreadCount > 0}
       title={`${unreadCount} unread notifications`}
     >

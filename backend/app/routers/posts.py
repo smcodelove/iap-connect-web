@@ -420,6 +420,17 @@ def like_post_endpoint(
             try:
                 NotificationService.create_like_notification(db, post, current_user)
                 print(f"✅ Created like notification for post {post_id}")
+                # NEW: Trigger real-time notification update
+                try:
+                    from ..services.websocket_service import notify_user_realtime
+                    notify_user_realtime(post.user_id, {
+                        "type": "new_notification",
+                        "notification_type": "like",
+                        "message": f"{current_user.full_name} liked your post"
+                    })
+                except ImportError:
+                    pass  # WebSocket service not available yet
+                
             except Exception as e:
                 print(f"⚠️ Failed to create like notification: {e}")
         
