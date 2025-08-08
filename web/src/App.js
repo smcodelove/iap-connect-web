@@ -20,6 +20,7 @@ import PostDetailPage from './pages/post/PostDetailPage';
 import SearchPage from './pages/search/SearchPage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import BookmarksPage from './pages/bookmarks/BookmarksPage';
+import EditPostPage from './pages/post/EditPostPage';
 
 // static pages
 import StaticPagesLayout from './pages/static/StaticPagesLayout';
@@ -108,7 +109,11 @@ const AppLayout = () => {
             {/* Post Routes */}
             <Route path="/create-post" element={<CreatePostPage />} />
             <Route path="/post/:id" element={<PostDetailPage />} />
-            
+
+            {/* NEW: Add these edit post routes */}
+            <Route path="/edit-post/:id" element={<EditPostPage />} />
+            <Route path="/post/:id/edit" element={<EditPostPage />} />
+                        
             {/* Other Routes */}
             <Route path="/search" element={<SearchPage />} />
             <Route path="/bookmarks" element={<BookmarksPage />} />

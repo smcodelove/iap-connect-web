@@ -524,6 +524,7 @@ const PostDetailPage = () => {
 
   // NEW: Edit post (only for post owner)
   const handleEditPost = () => {
+    console.log('✏️ Editing post:', post.id);
     navigate(`/edit-post/${post.id}`);
     setShowDropdown(false);
   };

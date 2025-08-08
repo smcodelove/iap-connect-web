@@ -735,7 +735,7 @@ const PostCard = ({ post, onUpdate, onLike, onComment, onShare, onBookmark }) =>
   const handleEdit = () => {
     setShowDropdown(false);
     console.log(`✏️ Editing post ${post.id}`);
-    navigate(`/post/${post.id}/edit`);
+    navigate(`/edit-post/${post.id}`);
   };
 
   const handleDelete = async () => {
