@@ -239,13 +239,22 @@ class MediaService {
       const formData = new FormData();
       
       // Handle single file or multiple files
+      // FIXED: Handle single file or multiple files with correct parameter names
       if (Array.isArray(files)) {
-        files.forEach(file => {
-          formData.append('files', file);
-        });
-        console.log(`📁 Uploading ${files.length} files`);
+        if (files.length === 1) {
+          // Single file from array - use 'file' parameter for /image endpoint
+          formData.append('file', files[0]);
+          console.log(`📁 Uploading 1 file from array: ${files[0].name}`);
+        } else {
+          // Multiple files - use 'files' parameter for /images endpoint
+          files.forEach(file => {
+            formData.append('files', file);
+          });
+          console.log(`📁 Uploading ${files.length} files`);
+        }
       } else {
-        formData.append('file', files);  // FIXED: Single file uses 'file' param
+        // Single file - use 'file' parameter
+        formData.append('file', files);
         console.log(`📁 Uploading 1 file: ${files.name}`);
       }
       
