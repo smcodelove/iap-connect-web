@@ -1,4 +1,4 @@
-// web/src/pages/post/CreatePostPage.js - FIXED S3 STATUS SYNC
+// web/src/pages/post/CreatePostPage.js - COMPLETE FIXED VERSION
 import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
@@ -513,7 +513,7 @@ const CreatePostPage = () => {
     fileInputRef.current?.click();
   };
 
-  // FIXED: Enhanced file change handler with proper validation
+  // FIXED: Enhanced file change handler with proper upload logic
   const handleFileChange = async (event) => {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
@@ -538,14 +538,14 @@ const CreatePostPage = () => {
             // Fallback validation
             console.warn('MediaService validation methods not found, using fallback');
             validation = {
-              isValid: file && 
-                       file.type && 
-                       file.type.startsWith('image/') && 
-                       file.size <= 10 * 1024 * 1024,
+              valid: file && 
+                     file.type && 
+                     file.type.startsWith('image/') && 
+                     file.size <= 10 * 1024 * 1024,
               errors: []
             };
             
-            if (!validation.isValid) {
+            if (!validation.valid) {
               if (!file.type || !file.type.startsWith('image/')) {
                 validation.errors.push('Invalid file type. Please select an image file.');
               }
@@ -557,7 +557,7 @@ const CreatePostPage = () => {
         } catch (validationError) {
           console.error('Validation error:', validationError);
           validation = {
-            isValid: false,
+            valid: false,
             errors: ['File validation failed']
           };
         }
@@ -584,8 +584,8 @@ const CreatePostPage = () => {
           size: file.size,
           previewUrl,
           progress: 0,
-          status: validation.isValid ? 'pending' : 'error',
-          error: validation.isValid ? null : (validation.errors && validation.errors[0]) || 'Validation failed',
+          status: validation.valid ? 'pending' : 'error',
+          error: validation.valid ? null : (validation.errors && validation.errors[0]) || 'Validation failed',
           uploaded: false,
           url: null
         };
@@ -595,35 +595,40 @@ const CreatePostPage = () => {
       
       setSelectedImages(prev => [...prev, ...imageFiles]);
       
-      // Upload images one by one
+      // FIXED: Upload images one by one with proper error handling
       for (const imageFile of imageFiles) {
-        if (imageFile.status === 'error') continue;
+        if (imageFile.status === 'error') {
+          console.log(`⏭️ Skipping invalid file: ${imageFile.name}`);
+          continue;
+        }
         
         try {
+          console.log(`🔄 Processing image: ${imageFile.name}`);
+          
           // Update status to uploading
           setSelectedImages(prev => prev.map(img => 
             img.id === imageFile.id ? { ...img, status: 'uploading' } : img
           ));
           
-          let uploadResult;
-          
-          // FIXED: Use current s3Available state for upload decision
-          console.log('🔧 Upload decision - S3 Available:', s3Available);
-          
-          // SIMPLIFIED: Always use uploadPostMedia (it handles S3/local automatically)
+          // FIXED: Use uploadPostMedia for consistent upload
           console.log('📤 Uploading single image for post...');
-          uploadResult = await mediaService.uploadPostMedia([imageFile.file], (progress) => {
+          const uploadResult = await mediaService.uploadPostMedia([imageFile.file], (progress) => {
+            console.log(`📊 Upload progress for ${imageFile.name}: ${progress}%`);
             setSelectedImages(prev => prev.map(img => 
               img.id === imageFile.id ? { ...img, progress } : img
             ));
           });
           
-          // Handle different response formats
+          console.log('✅ Upload result:', uploadResult);
+          
+          // FIXED: Handle different response formats with comprehensive extraction
           let finalResult = uploadResult;
           if (uploadResult.uploaded_files && uploadResult.uploaded_files.length > 0) {
             finalResult = uploadResult.uploaded_files[0];
           } else if (uploadResult.media_files && uploadResult.media_files.length > 0) {
             finalResult = uploadResult.media_files[0];
+          } else if (uploadResult.files && uploadResult.files.length > 0) {
+            finalResult = { url: uploadResult.files[0] };
           } else if (uploadResult.data) {
             if (Array.isArray(uploadResult.data) && uploadResult.data.length > 0) {
               finalResult = uploadResult.data[0];
@@ -632,9 +637,19 @@ const CreatePostPage = () => {
             }
           }
           
-          const imageUrl = finalResult.url || finalResult.file_url || finalResult.media_url;
+          // Extract URL from various possible formats
+          const imageUrl = finalResult.url || 
+                          finalResult.file_url || 
+                          finalResult.media_url ||
+                          uploadResult.url ||
+                          uploadResult.file_url ||
+                          (uploadResult.media_urls && uploadResult.media_urls[0]) ||
+                          (uploadResult.files && uploadResult.files[0]);
+          
+          console.log('🔍 Extracted image URL:', imageUrl);
           
           if (!imageUrl) {
+            console.error('❌ No URL found in upload result:', uploadResult);
             throw new Error('No URL returned from upload');
           }
           
@@ -655,8 +670,10 @@ const CreatePostPage = () => {
             media_urls: [...prev.media_urls, imageUrl]
           }));
           
+          console.log('✅ Image upload completed successfully:', imageUrl);
+          
         } catch (error) {
-          console.error('Image upload failed:', error);
+          console.error('❌ Image upload failed:', error);
           
           // Update with error
           setSelectedImages(prev => prev.map(img => 
@@ -729,6 +746,8 @@ const CreatePostPage = () => {
       };
 
       console.log('🚀 Sending post payload:', postPayload);
+      console.log('📊 Media URLs count:', postPayload.media_urls.length);
+      
       await dispatch(createPost(postPayload)).unwrap();
       
       // Clean up image URLs
