@@ -223,55 +223,29 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
 
   // Handle notification click
   const handleNotificationClick = async (notification) => {
-    console.log('🔔 Notification clicked:', notification); // ✅ DEBUG LOG
+  console.log('🔔 Notification clicked:', notification.type);
 
-    // Mark as read if unread
-    if (!notification.is_read) {
-      await markAsRead(notification.id);
-    }
+  // Mark as read
+  if (!notification.is_read) {
+    await markAsRead(notification.id);
+  }
 
-    // ✅ FIXED: Enhanced navigation with React Router
-    try {
-      let data = {};
-      if (notification.data) {
-        // Parse data if it's string
-        data = typeof notification.data === 'string' 
-          ? JSON.parse(notification.data) 
-          : notification.data;
-      }
+  // Simple navigation based on type
+  if (notification.type === 'like') {
+    navigate('/feed');  // Like notification -> Feed page
+  } else if (notification.type === 'comment') {
+    navigate('/feed');  // Comment notification -> Feed page  
+  } else if (notification.type === 'follow') {
+    navigate('/profile');  // Follow notification -> Your profile
+  } else if (notification.type === 'post_update') {
+    navigate('/feed');  // New post -> Feed page
+  } else {
+    navigate('/feed');  // Default -> Feed page
+  }
 
-      console.log('📊 Parsed data:', data); // ✅ DEBUG LOG
-
-      // Navigate based on notification type
-      if (notification.type === 'like') {
-        if (data.post_id) {
-          console.log('👍 Navigating to like post:', data.post_id);
-          navigate(`/post/${data.post_id}`);
-        }
-      } else if (notification.type === 'comment') {
-        if (data.post_id) {
-          console.log('💬 Navigating to comment post:', data.post_id);
-          navigate(`/post/${data.post_id}`);
-        }
-      } else if (notification.type === 'follow') {
-        if (data.user_id) {
-          console.log('👤 Navigating to follow user:', data.user_id);
-          navigate(`/user/${data.user_id}`);
-        }
-      } else if (notification.type === 'post_update') {
-        if (data.post_id) {
-          console.log('📝 Navigating to new post:', data.post_id);
-          navigate(`/post/${data.post_id}`);
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error parsing notification data:', error);
-      console.log('Raw notification:', notification);
-    }
-
-    // Close dropdown
-    onClose();
-  };
+  // Close dropdown
+  onClose();
+};
 
 
   // Get notification icon
