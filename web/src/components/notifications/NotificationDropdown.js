@@ -224,10 +224,36 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
       await markAsRead(notification.id);
     }
 
-    // Call parent click handler
-    if (onNotificationClick) {
-      onNotificationClick(notification);
+    // ✅ FIXED: Parse data and navigate correctly
+    try {
+      let data = {};
+      if (notification.data) {
+        // Parse data if it's string
+        data = typeof notification.data === 'string' 
+          ? JSON.parse(notification.data) 
+          : notification.data;
+      }
+
+      // Navigate based on notification type
+      if (notification.type === 'like' || notification.type === 'comment') {
+        if (data.post_id) {
+          window.location.href = `/post/${data.post_id}`;
+        }
+      } else if (notification.type === 'follow') {
+        if (data.user_id) {
+          window.location.href = `/user/${data.user_id}`;
+        }
+      } else if (notification.type === 'post_update') {
+        if (data.post_id) {
+          window.location.href = `/post/${data.post_id}`;
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing notification data:', error);
     }
+
+    // Close dropdown
+    onClose();
   };
 
   // Get notification icon
@@ -239,6 +265,8 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
         return <MessageCircle size={18} />;
       case 'follow':
         return <UserPlus size={18} />;
+      case 'post_update':  // ✅ NEW: Icon for new posts
+        return <Bell size={18} />;
       default:
         return <Bell size={18} />;
     }

@@ -281,22 +281,58 @@ def create_new_post(
     db: Session = Depends(get_db)
 ):
     """
-    Create a new post.
+    Create a new post with follower notifications.
     
     - **content**: Post text content (required)
     - **media_urls**: Optional list of image/document URLs
     - **hashtags**: Optional list of hashtags
     
     Returns the created post with author information.
+    Notifies all followers about the new post.
     """
     try:
+        # Create the post
         new_post = create_post(current_user, post_data, db)
         
         # Refresh to get author data
         db.refresh(new_post)
         post_with_author = get_post_by_id(new_post.id, db)
         
+        # NEW: Notify followers about new post
+        if NOTIFICATIONS_ENABLED:
+            try:
+                from ..models.notification import Notification, NotificationType
+                
+                # Get all followers
+                followers = db.query(Follow.follower_id).filter(
+                    Follow.following_id == current_user.id
+                ).all()
+                
+                # Create notification for each follower
+                notifications_created = 0
+                for follower in followers:
+                    notification = Notification(
+                        recipient_id=follower[0],
+                        sender_id=current_user.id,
+                        type=NotificationType.POST_UPDATE,
+                        title="New Post",
+                        message=f"{current_user.full_name} shared a new post",
+                        data=f'{{"post_id": {new_post.id}, "action": "new_post"}}'
+                    )
+                    db.add(notification)
+                    notifications_created += 1
+                
+                if notifications_created > 0:
+                    db.commit()
+                    print(f"✅ Created post notifications for {notifications_created} followers")
+                else:
+                    print("📝 New post created but no followers to notify")
+                    
+            except Exception as e:
+                print(f"⚠️ Failed to create post notifications: {e}")
+        
         return create_post_response(post_with_author, current_user, db)
+        
     except Exception as e:
         print(f"Error creating post: {str(e)}")
         raise HTTPException(

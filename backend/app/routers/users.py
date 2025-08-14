@@ -502,6 +502,25 @@ async def follow_user(
     follow = Follow(follower_id=current_user.id, following_id=user_id)
     db.add(follow)
     db.commit()
+
+    # NEW: Create follow notification
+    try:
+        from ..models.notification import Notification, NotificationType
+        
+        notification = Notification(
+            recipient_id=user_id,
+            sender_id=current_user.id,
+            type=NotificationType.FOLLOW,
+            title="New Follower",
+            message=f"{current_user.full_name} started following you",
+            data=f'{{"user_id": {current_user.id}, "action": "follow"}}'
+        )
+        db.add(notification)
+        db.commit()
+        db.refresh(notification)
+        print(f"✅ Created follow notification for user {user_id}")
+    except Exception as e:
+        print(f"⚠️ Failed to create follow notification: {e}")
     
     # FIXED: Calculate real counts after follow
     current_user = sync_user_stats(current_user, db)

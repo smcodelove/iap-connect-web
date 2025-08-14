@@ -1,6 +1,7 @@
 """
 Comment routes for IAP Connect application.
 Handles comment creation, replies, likes and management.
+UPDATED: Added notification integration for comments
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -15,6 +16,15 @@ from ..services.comment_service import (
 from ..services.post_service import get_post_by_id
 from ..utils.dependencies import get_current_active_user
 from ..models.user import User
+
+# NEW: Import notification system for comments
+NOTIFICATIONS_ENABLED = True
+try:
+    from ..models.notification import Notification, NotificationType
+    print("✅ Notification service loaded for comments")
+except ImportError:
+    NOTIFICATIONS_ENABLED = False
+    print("⚠️ Notification service not available for comments")
 
 router = APIRouter(prefix="/posts", tags=["Comments"])
 
@@ -60,13 +70,14 @@ def create_new_comment(
     db: Session = Depends(get_db)
 ):
     """
-    Create a new comment or reply on a post.
+    Create a new comment or reply on a post with notification integration.
     
     - **post_id**: Post ID to comment on
     - **content**: Comment text content (required)
     - **parent_id**: Parent comment ID for replies (optional)
     
     Returns the created comment with author information.
+    Creates notification for post owner.
     """
     # Verify post exists
     post = get_post_by_id(post_id, db)
@@ -85,7 +96,26 @@ def create_new_comment(
                 detail="Parent comment does not belong to this post"
             )
     
+    # Create the comment
     new_comment = create_comment(current_user, post, comment_data, db)
+    
+    # NEW: Create comment notification
+    if NOTIFICATIONS_ENABLED and post.user_id != current_user.id:
+        try:
+            notification = Notification(
+                recipient_id=post.user_id,
+                sender_id=current_user.id,
+                type=NotificationType.COMMENT,
+                title="New Comment",
+                message=f"{current_user.full_name} commented on your post",
+                data=f'{{"post_id": {post.id}, "comment_id": {new_comment.id}, "action": "comment"}}'
+            )
+            db.add(notification)
+            db.commit()
+            db.refresh(notification)
+            print(f"✅ Created comment notification for post {post_id}")
+        except Exception as e:
+            print(f"⚠️ Failed to create comment notification: {e}")
     
     return new_comment
 
