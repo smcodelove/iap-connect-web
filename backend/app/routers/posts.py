@@ -4,6 +4,7 @@ Handles post creation, management, and social interactions.
 UPDATED: Added notification integration and enhanced features while maintaining existing structure.
 """
 
+import json
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -462,7 +463,11 @@ def like_post_endpoint(
                     type=NotificationType.LIKE,
                     title="New Like",
                     message=f"{current_user.full_name} liked your post",
-                    data=f'{{"post_id": {post.id}, "action": "like", "user_id": {current_user.id}}}'
+                    data=json.dumps({
+                        "post_id": post.id,
+                        "action": "like", 
+                        "user_id": current_user.id
+                    })
                 )
                 db.add(notification)
                 db.commit()

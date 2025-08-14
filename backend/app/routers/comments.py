@@ -4,6 +4,7 @@ Handles comment creation, replies, likes and management.
 UPDATED: Added notification integration for comments
 """
 
+import json
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from ..config.database import get_db
@@ -108,7 +109,12 @@ def create_new_comment(
                 type=NotificationType.COMMENT,
                 title="New Comment",
                 message=f"{current_user.full_name} commented on your post",
-                data=f'{{"post_id": {post.id}, "comment_id": {new_comment.id}, "action": "comment", "user_id": {current_user.id}}}'
+                data=json.dumps({
+                    "post_id": post.id,
+                    "comment_id": new_comment.id,
+                    "action": "comment",
+                    "user_id": current_user.id
+                })
             )
             db.add(notification)
             db.commit()
