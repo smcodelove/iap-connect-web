@@ -15,6 +15,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { useNavigate } from 'react-router-dom';
 
 const DropdownContainer = styled.div`
   position: absolute;
@@ -197,8 +198,11 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
     markAllAsRead,
     refreshNotifications
   } = useNotifications();
+  const navigate = useNavigate();
   
   const dropdownRef = useRef(null);
+
+  
 
   // Handle click outside to close dropdown
   useEffect(() => {
@@ -219,12 +223,14 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
 
   // Handle notification click
   const handleNotificationClick = async (notification) => {
+    console.log('🔔 Notification clicked:', notification); // ✅ DEBUG LOG
+
     // Mark as read if unread
     if (!notification.is_read) {
       await markAsRead(notification.id);
     }
 
-    // ✅ FIXED: Parse data and navigate correctly
+    // ✅ FIXED: Enhanced navigation with React Router
     try {
       let data = {};
       if (notification.data) {
@@ -234,27 +240,39 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
           : notification.data;
       }
 
+      console.log('📊 Parsed data:', data); // ✅ DEBUG LOG
+
       // Navigate based on notification type
-      if (notification.type === 'like' || notification.type === 'comment') {
+      if (notification.type === 'like') {
         if (data.post_id) {
-          window.location.href = `/post/${data.post_id}`;
+          console.log('👍 Navigating to like post:', data.post_id);
+          navigate(`/post/${data.post_id}`);
+        }
+      } else if (notification.type === 'comment') {
+        if (data.post_id) {
+          console.log('💬 Navigating to comment post:', data.post_id);
+          navigate(`/post/${data.post_id}`);
         }
       } else if (notification.type === 'follow') {
         if (data.user_id) {
-          window.location.href = `/user/${data.user_id}`;
+          console.log('👤 Navigating to follow user:', data.user_id);
+          navigate(`/user/${data.user_id}`);
         }
       } else if (notification.type === 'post_update') {
         if (data.post_id) {
-          window.location.href = `/post/${data.post_id}`;
+          console.log('📝 Navigating to new post:', data.post_id);
+          navigate(`/post/${data.post_id}`);
         }
       }
     } catch (error) {
-      console.error('Error parsing notification data:', error);
+      console.error('❌ Error parsing notification data:', error);
+      console.log('Raw notification:', notification);
     }
 
     // Close dropdown
     onClose();
   };
+
 
   // Get notification icon
   const getNotificationIcon = (type) => {
