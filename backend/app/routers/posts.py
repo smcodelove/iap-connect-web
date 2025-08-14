@@ -317,7 +317,7 @@ def create_new_post(
                         type=NotificationType.POST_UPDATE,
                         title="New Post",
                         message=f"{current_user.full_name} shared a new post",
-                        data=f'{{"post_id": {new_post.id}, "action": "new_post"}}'
+                        data=f'{{"post_id": {new_post.id}, "action": "new_post", "user_id": {current_user.id}}}'
                     )
                     db.add(notification)
                     notifications_created += 1
@@ -462,7 +462,7 @@ def like_post_endpoint(
                     type=NotificationType.LIKE,
                     title="New Like",
                     message=f"{current_user.full_name} liked your post",
-                    data=f'{{"post_id": {post.id}, "action": "like"}}'
+                    data=f'{{"post_id": {post.id}, "action": "like", "user_id": {current_user.id}}}'
                 )
                 db.add(notification)
                 db.commit()

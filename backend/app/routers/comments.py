@@ -108,7 +108,7 @@ def create_new_comment(
                 type=NotificationType.COMMENT,
                 title="New Comment",
                 message=f"{current_user.full_name} commented on your post",
-                data=f'{{"post_id": {post.id}, "comment_id": {new_comment.id}, "action": "comment"}}'
+                data=f'{{"post_id": {post.id}, "comment_id": {new_comment.id}, "action": "comment", "user_id": {current_user.id}}}'
             )
             db.add(notification)
             db.commit()

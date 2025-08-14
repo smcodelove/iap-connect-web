@@ -230,20 +230,56 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
     await markAsRead(notification.id);
   }
 
-  // Simple navigation based on type
-  if (notification.type === 'like') {
-    navigate('/feed');  // Like notification -> Feed page
-  } else if (notification.type === 'comment') {
-    navigate('/feed');  // Comment notification -> Feed page  
-  } else if (notification.type === 'follow') {
-    navigate('/profile');  // Follow notification -> Your profile
-  } else if (notification.type === 'post_update') {
-    navigate('/feed');  // New post -> Feed page
-  } else {
-    navigate('/feed');  // Default -> Feed page
+  // ✅ SMART NAVIGATION: Try to get post_id/user_id from data
+  try {
+    let data = {};
+    
+    // Parse data
+    if (notification.data) {
+      if (typeof notification.data === 'string') {
+        data = JSON.parse(notification.data);
+      } else {
+        data = notification.data;
+      }
+    }
+
+    console.log('📊 Notification data:', data);
+
+    // Navigate based on type and available data
+    if (notification.type === 'like' && data.post_id) {
+      console.log('👍 Going to liked post:', data.post_id);
+      navigate(`/post/${data.post_id}`);
+      
+    } else if (notification.type === 'comment' && data.post_id) {
+      console.log('💬 Going to commented post:', data.post_id);
+      navigate(`/post/${data.post_id}`);
+      
+    } else if (notification.type === 'post_update' && data.post_id) {
+      console.log('📝 Going to new post:', data.post_id);
+      navigate(`/post/${data.post_id}`);
+      
+    } else if (notification.type === 'follow') {
+      if (data.user_id) {
+        console.log('👤 Going to follower profile:', data.user_id);
+        navigate(`/user/${data.user_id}`);
+      } else if (notification.sender_id) {
+        console.log('👤 Going to sender profile:', notification.sender_id);
+        navigate(`/user/${notification.sender_id}`);
+      } else {
+        navigate('/connections');
+      }
+      
+    } else {
+      // Fallback: No data available
+      console.log('🏠 No data, going to feed');
+      navigate('/feed');
+    }
+
+  } catch (error) {
+    console.error('❌ Navigation error:', error);
+    navigate('/feed');
   }
 
-  // Close dropdown
   onClose();
 };
 
