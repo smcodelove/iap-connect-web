@@ -222,62 +222,99 @@ const NotificationDropdown = ({ isOpen, onClose, onNotificationClick }) => {
   }, [isOpen, onClose]);
 
   // Handle notification click
+  // Handle notification click - FIXED VERSION
   const handleNotificationClick = async (notification) => {
-    console.log('🔔 Notification clicked:', notification.type);
+    console.log('🔔 Notification clicked:', notification);
 
     // Mark as read
     if (!notification.is_read) {
       await markAsRead(notification.id);
     }
 
-    // ✅ SMART NAVIGATION: Try to get post_id/user_id from data
+    // ✅ ENHANCED NAVIGATION: Multiple fallback strategies
     try {
       let data = {};
       
-      // Parse data
+      // Parse data with better error handling
       if (notification.data) {
-        if (typeof notification.data === 'string') {
-          data = JSON.parse(notification.data);
-        } else {
-          data = notification.data;
+        try {
+          if (typeof notification.data === 'string') {
+            data = JSON.parse(notification.data);
+          } else {
+            data = notification.data;
+          }
+        } catch (parseError) {
+          console.warn('⚠️ Failed to parse notification data:', parseError);
+          data = {};
         }
       }
 
-      console.log('📊 Notification data:', data);
+      console.log('📊 Parsed notification data:', data);
+      console.log('📤 Notification type:', notification.type);
+      console.log('👤 Sender ID:', notification.sender_id);
 
-      // Navigate based on type and available data
-      if (notification.type === 'like' && data.post_id) {
-        console.log('👍 Going to liked post:', data.post_id);
-        navigate(`/post/${data.post_id}`);
+      // Navigate based on type with multiple fallback options
+      if (notification.type === 'like') {
+        if (data.post_id) {
+          console.log('👍 Going to liked post:', data.post_id);
+          navigate(`/post/${data.post_id}`);
+        } else {
+          console.log('👍 No post_id found, going to profile');
+          navigate('/profile');
+        }
         
-      } else if (notification.type === 'comment' && data.post_id) {
-        console.log('💬 Going to commented post:', data.post_id);
-        navigate(`/post/${data.post_id}`);
-        
-      } else if (notification.type === 'post_update' && data.post_id) {
-        console.log('📝 Going to new post:', data.post_id);
-        navigate(`/post/${data.post_id}`);
+      } else if (notification.type === 'comment') {
+        if (data.post_id) {
+          console.log('💬 Going to commented post:', data.post_id);
+          navigate(`/post/${data.post_id}`);
+        } else if (data.comment_id) {
+          console.log('💬 No post_id, but found comment_id. Going to profile');
+          navigate('/profile');
+        } else {
+          console.log('💬 No post data, going to profile');
+          navigate('/profile');
+        }
         
       } else if (notification.type === 'follow') {
         if (data.user_id) {
-          console.log('👤 Going to follower profile:', data.user_id);
+          console.log('👤 Going to follower profile via data:', data.user_id);
           navigate(`/user/${data.user_id}`);
         } else if (notification.sender_id) {
-          console.log('👤 Going to sender profile:', notification.sender_id);
+          console.log('👤 Going to follower profile via sender:', notification.sender_id);
           navigate(`/user/${notification.sender_id}`);
         } else {
+          console.log('👤 No user data, going to connections');
           navigate('/connections');
         }
         
+      } else if (notification.type === 'post_update') {
+        if (data.post_id) {
+          console.log('📝 Going to new post:', data.post_id);
+          navigate(`/post/${data.post_id}`);
+        } else {
+          console.log('📝 No post_id, going to feed');
+          navigate('/feed');
+        }
+        
       } else {
-        // Fallback: No data available
-        console.log('🏠 No data, going to feed');
-        navigate('/feed');
+        // Default fallback - try sender profile first, then feed
+        if (notification.sender_id) {
+          console.log('🔄 Unknown type, going to sender profile:', notification.sender_id);
+          navigate(`/user/${notification.sender_id}`);
+        } else {
+          console.log('🔄 Unknown type, going to feed');
+          navigate('/feed');
+        }
       }
 
     } catch (error) {
       console.error('❌ Navigation error:', error);
-      navigate('/feed');
+      // Last resort fallback
+      if (notification.sender_id) {
+        navigate(`/user/${notification.sender_id}`);
+      } else {
+        navigate('/feed');
+      }
     }
 
     onClose();
