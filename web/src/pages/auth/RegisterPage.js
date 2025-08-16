@@ -283,7 +283,7 @@ const RegisterPage = () => {
           <p>Medical Professional Community</p>
           <div className="subtitle">
             <Stethoscope size={16} />
-            <span>For Healthcare Professionals</span>
+            <span>For IAP Healthcare Professionals</span>
           </div>
         </Logo>
 

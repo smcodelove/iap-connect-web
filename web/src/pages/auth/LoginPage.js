@@ -185,7 +185,7 @@ const LoginPage = () => {
           <p>Medical Professional Platform</p>
           <div className="subtitle">
             <Stethoscope size={16} />
-            <span>For Healthcare Professionals</span>
+            <span>For IAP Healthcare Professionals</span>
           </div>
         </Logo>
 
@@ -212,7 +212,7 @@ const LoginPage = () => {
           </div>
           <div className="welcome-title">Welcome Back</div>
           <div className="welcome-text">
-            Sign in to access your medical professional network and resources.
+            Sign in to access your IAP professional network and resources.
           </div>
         </WelcomeMessage>
 
@@ -221,9 +221,9 @@ const LoginPage = () => {
 
         {/* Footer */}
         <LoginFooter>
-          <div className="register-prompt">New to the medical community?</div>
+          <div className="register-prompt">New to the IAP community?</div>
           <Link to="/register" className="register-link">
-            Create Professional Account
+            Create Account
           </Link>
         </LoginFooter>
       </LoginCard>
