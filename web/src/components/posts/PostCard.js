@@ -874,12 +874,6 @@ const PostCard = ({ post, onUpdate, onLike, onComment, onShare, onBookmark }) =>
                 </DropdownItem>
               )}
               
-              {!isOwnPost && (
-                <DropdownItem onClick={handleReport} danger>
-                  <Flag size={16} />
-                  Report Post
-                </DropdownItem>
-              )}
             </DropdownMenu>
           )}
         </PostActions>
@@ -949,16 +943,6 @@ const PostCard = ({ post, onUpdate, onLike, onComment, onShare, onBookmark }) =>
             </SocialButton>
           </ActionGroup>
 
-          <BookmarkButton 
-            bookmarked={bookmarked}
-            onClick={handleBookmark}
-            disabled={loading}
-          >
-            <Bookmark 
-              size={20} 
-              fill={bookmarked ? 'currentColor' : 'none'} 
-            />
-          </BookmarkButton>
         </SocialActions>
 
         {showComments && (
