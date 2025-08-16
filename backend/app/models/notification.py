@@ -111,19 +111,37 @@ class Notification(Base):
         if not self.created_at:
             return "Unknown"
         
-        now = datetime.utcnow()
-        diff = now - self.created_at
-        
-        if diff.days > 0:
-            return f"{diff.days}d ago"
-        elif diff.seconds > 3600:
-            hours = diff.seconds // 3600
-            return f"{hours}h ago"
-        elif diff.seconds > 60:
-            minutes = diff.seconds // 60
-            return f"{minutes}m ago"
-        else:
-            return "Just now"
+        try:
+            # Handle timezone-aware vs timezone-naive datetime
+            now = datetime.utcnow()
+            created_time = self.created_at
+            
+            # If created_at is timezone-aware, make now timezone-aware too
+            if hasattr(created_time, 'tzinfo') and created_time.tzinfo is not None:
+                from datetime import timezone
+                now = now.replace(tzinfo=timezone.utc)
+            
+            # If created_at is timezone-naive but should be UTC, treat it as UTC
+            elif hasattr(created_time, 'tzinfo') and created_time.tzinfo is None:
+                # Assume stored time is UTC
+                pass
+            
+            diff = now - created_time
+            
+            if diff.days > 0:
+                return f"{diff.days}d ago"
+            elif diff.seconds > 3600:
+                hours = diff.seconds // 3600
+                return f"{hours}h ago"
+            elif diff.seconds > 60:
+                minutes = diff.seconds // 60
+                return f"{minutes}m ago"
+            else:
+                return "Just now"
+                
+        except Exception as e:
+            print(f"⚠️ Time calculation error for notification {self.id}: {e}")
+            return "Unknown"
 
 
 class NotificationService:
